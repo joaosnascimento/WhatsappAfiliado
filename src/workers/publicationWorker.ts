@@ -5,6 +5,7 @@ import { requireRedis } from '../infrastructure/redis.ts';
 import { WhatsAppProvider } from '../services/WhatsAppProvider.ts';
 import { DeduplicationService } from '../services/DeduplicationService.ts';
 import { AutomationScheduler } from '../services/AutomationScheduler.ts';
+import { MarketplaceDiscoveryScheduler } from '../services/MarketplaceDiscoveryScheduler.ts';
 import type { Destination, Publication } from '../types/affiliate.ts';
 
 const connection = requireRedis();
@@ -72,6 +73,14 @@ const worker = new Worker('affiliate-publications', async job => {
 
 worker.on('failed', (job, err) => console.error('Publication job failed', job?.id, err.message));
 console.log('Publication worker running.');
+
+const discoveryIntervalMs = Math.max(60000, Number(process.env.DISCOVERY_INTERVAL_MS || 900000));
+void MarketplaceDiscoveryScheduler.tick().catch(error => console.error('Initial marketplace discovery failed:', error));
+setInterval(() => {
+  void MarketplaceDiscoveryScheduler.tick()
+    .then(count => { if (count) console.log('Marketplace discovery processed', count, 'offer(s).'); })
+    .catch(error => console.error('Marketplace discovery failed:', error));
+}, discoveryIntervalMs);
 
 // The scheduler is DB-idempotent, so multiple worker replicas may run this tick safely.
 const schedulerIntervalMs = Math.max(15000, Number(process.env.SCHEDULER_INTERVAL_MS || 60000));
