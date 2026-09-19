@@ -8,6 +8,7 @@ function isPrivateIp(address:string):boolean {
   }
   if (net.isIPv6(address)) {
     const v=address.toLowerCase();
+    if (v.startsWith('::ffff:') && isPrivateIp(v.slice(7))) return true;
     return v==='::1' || v.startsWith('fc') || v.startsWith('fd') || v.startsWith('fe80:') || v==='::';
   }
   return true;
