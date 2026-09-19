@@ -20,6 +20,13 @@ import type { Offer, Publication, Destination } from './src/types/affiliate.ts';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const mlOAuthTransactions = new Map<string, { codeVerifier: string; createdAt: number; accountId: string }>();
+const ML_OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+function cleanupExpiredMlOAuthTransactions() {
+  const now = Date.now();
+  for (const [state, tx] of mlOAuthTransactions) if (now - tx.createdAt > ML_OAUTH_STATE_TTL_MS) mlOAuthTransactions.delete(state);
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -104,8 +111,10 @@ async function startServer() {
     });
 
     try {
-      const url = oauth.getAuthorizationUrl();
-      res.json({ url });
+      const authorization = oauth.createAuthorization();
+      mlOAuthTransactions.set(authorization.state, { codeVerifier: authorization.codeVerifier, createdAt: Date.now(), accountId: 'acc_mercadolivre_br' });
+      cleanupExpiredMlOAuthTransactions();
+      res.json({ url: authorization.url });
     } catch (err) {
       res.status(400).json({ error: (err as Error).message });
     }
@@ -113,9 +122,17 @@ async function startServer() {
 
   app.get('/api/auth/mercadolivre/callback', async (req, res) => {
     const code = req.query.code as string;
+    const state = req.query.state as string;
+    cleanupExpiredMlOAuthTransactions();
     if (!code) {
       return res.status(400).send('Código de autorização não recebido do Mercado Livre.');
     }
+    if (!state) return res.status(400).send('State OAuth ausente.');
+    const transaction = mlOAuthTransactions.get(state);
+    if (!transaction || Date.now() - transaction.createdAt > ML_OAUTH_STATE_TTL_MS) {
+      return res.status(400).send('State OAuth inválido ou expirado.');
+    }
+    mlOAuthTransactions.delete(state);
 
     const mlAccount = store.accounts.get('acc_mercadolivre_br');
     const clientId = mlAccount?.credentials_encrypted.ml_client_id || process.env.MERCADOLIVRE_CLIENT_ID || '';
@@ -124,7 +141,7 @@ async function startServer() {
 
     try {
       const oauth = new MercadoLivreOAuthService({ clientId, clientSecret, redirectUri });
-      const tokenData = await oauth.exchangeCodeForToken(code);
+      const tokenData = await oauth.exchangeCodeForToken(code, transaction.codeVerifier);
 
       if (mlAccount) {
         mlAccount.credentials_encrypted.ml_access_token = tokenData.access_token;
