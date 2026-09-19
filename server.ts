@@ -6,6 +6,9 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { store } from './src/services/Store.ts';
+import { runMigrations } from './src/infrastructure/migrations.ts';
+import { ensureWorkspace } from './src/infrastructure/workspace.ts';
+import { closeDatabase } from './src/infrastructure/database.ts';
 import { ShopeeAffiliateAdapter } from './integrations/shopee/ShopeeAffiliateAdapter.ts';
 import { MercadoLivreAffiliateAdapter } from './integrations/mercadolivre/MercadoLivreAffiliateAdapter.ts';
 import { MercadoLivreOAuthService } from './integrations/mercadolivre/MercadoLivreOAuthService.ts';
@@ -28,14 +31,31 @@ function cleanupExpiredMlOAuthTransactions() {
 }
 
 async function startServer() {
-  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_INMEMORY_STORE !== 'true') {
-    throw new Error('Production startup blocked: persistent database storage is required. Set ALLOW_INMEMORY_STORE=true only for temporary validation.');
+  const persistentStoreEnabled = Boolean(process.env.DATABASE_URL) && process.env.ALLOW_INMEMORY_STORE !== 'true';
+
+  if (process.env.NODE_ENV === 'production' && !persistentStoreEnabled) {
+    throw new Error('Production startup blocked: DATABASE_URL and persistent storage are required.');
+  }
+  if (persistentStoreEnabled) {
+    if (!process.env.ENCRYPTION_KEY) throw new Error('ENCRYPTION_KEY is required when persistent storage is enabled.');
+    await runMigrations();
+    await ensureWorkspace('ws_default');
+    await store.loadPersistent('ws_default');
   }
 
   const app = express();
   const PORT = 3000;
 
   app.use(express.json());
+
+  if (persistentStoreEnabled) {
+    app.use((req, res, next) => {
+      res.on('finish', () => {
+        void store.persist('ws_default').catch((error) => console.error('Persistence error:', error));
+      });
+      next();
+    });
+  }
 
   // 1. Health check
   app.get('/api/health', (req, res) => {
@@ -594,9 +614,12 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
+  const shutdown = async () => { server.close(); if (persistentStoreEnabled) await closeDatabase(); process.exit(0); };
+  process.once('SIGINT', shutdown);
+  process.once('SIGTERM', shutdown);
 }
 
 startServer();
