@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, Radio, Plus, CheckCircle2, Clock, Layers, ShieldCheck, Tag } from 'lucide-react';
+import { Users, Radio, Plus, CheckCircle2, Clock, Layers, ShieldCheck, Tag, RefreshCw } from 'lucide-react';
 import type { Destination, MarketplaceType } from '../types/affiliate.ts';
 
 interface DestinationsTabProps {
@@ -22,17 +22,21 @@ export const DestinationsTab: React.FC<DestinationsTabProps> = ({
   const [timeStart, setTimeStart] = useState('08:00');
   const [timeEnd, setTimeEnd] = useState('22:00');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [groups, setGroups] = useState<Array<{id:string;subject?:string}>>([]);
+  const [loadingGroups, setLoadingGroups] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState('');
+  const loadGroups = async () => { setLoadingGroups(true); try { const r=await fetch('/api/whatsapp/groups'); const data=await r.json(); if(!r.ok) throw new Error(data.error||'Falha ao listar grupos'); setGroups(data||[]); } catch(e){ alert((e as Error).message); } finally { setLoadingGroups(false); } };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || !identifier.trim() && !selectedGroup) { alert('Informe o JID do destino ou selecione um grupo real da Evolution API.'); return; }
 
     setIsSubmitting(true);
     try {
       await onAddDestination({
         name,
         type,
-        identifier: identifier || `120363${Date.now()}@${type === 'WHATSAPP_GROUP' ? 'g.us' : 'newsletter'}`,
+        identifier: identifier || selectedGroup,
         description,
         marketplaces,
         keywords: keywords.split(',').map((k) => k.trim()).filter(Boolean),
@@ -119,13 +123,20 @@ export const DestinationsTab: React.FC<DestinationsTabProps> = ({
               <label className="block text-xs font-semibold text-slate-300 mb-1">
                 JID / Identificador WhatsApp (Opcional)
               </label>
-              <input
-                type="text"
-                placeholder="120363198822001122@g.us"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-              />
+              <div className="flex gap-2">
+                <input type="text" placeholder="120363198822001122@g.us" value={identifier} onChange={(e)=>setIdentifier(e.target.value)}
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-emerald-500" />
+                <button type="button" onClick={loadGroups} disabled={loadingGroups}
+                  className="px-3 rounded-xl bg-slate-700 text-white text-xs font-semibold flex items-center gap-1">
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingGroups?'animate-spin':''}`} /> Grupos
+                </button>
+              </div>
+              {groups.length>0 && (
+                <select value={selectedGroup} onChange={(e)=>{setSelectedGroup(e.target.value);setIdentifier(e.target.value)}} className="mt-2 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                  <option value="">Selecione um grupo descoberto</option>
+                  {groups.map(g=><option key={g.id} value={g.id}>{g.subject || g.id}</option>)}
+                </select>
+              )}
             </div>
 
             <div>
