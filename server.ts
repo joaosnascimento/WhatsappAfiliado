@@ -5,7 +5,14 @@ import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { store } from './src/services/Store.ts';
+import { store, runWithWorkspace, findMarketplaceAccount } from './src/services/Store.ts';
+import { runMigrations } from './src/infrastructure/migrations.ts';
+import { ensureWorkspace } from './src/infrastructure/workspace.ts';
+import { closeDatabase, query } from './src/infrastructure/database.ts';
+import { redis } from './src/infrastructure/redis.ts';
+import { registerUser, authenticateUser, createSession } from './src/services/auth.ts';
+import { requireAuth } from './src/services/authMiddleware.ts';
+import { redisRateLimit } from './src/services/rateLimit.ts';
 import { ShopeeAffiliateAdapter } from './integrations/shopee/ShopeeAffiliateAdapter.ts';
 import { MercadoLivreAffiliateAdapter } from './integrations/mercadolivre/MercadoLivreAffiliateAdapter.ts';
 import { MercadoLivreOAuthService } from './integrations/mercadolivre/MercadoLivreOAuthService.ts';
@@ -20,11 +27,84 @@ import type { Offer, Publication, Destination } from './src/types/affiliate.ts';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const mlOAuthTransactions = new Map<string, { codeVerifier: string; createdAt: number; accountId: string; workspaceId: string }>();
+const ML_OAUTH_REDIS_PREFIX = 'oauth:mercadolivre:';
+
+type MlOAuthTransaction = { codeVerifier: string; createdAt: number; accountId: string; workspaceId: string };
+async function saveMlOAuthTransaction(state: string, transaction: MlOAuthTransaction) {
+  if (redis) await redis.set(`${ML_OAUTH_REDIS_PREFIX}${state}`, JSON.stringify(transaction), 'EX', Math.ceil(ML_OAUTH_STATE_TTL_MS / 1000));
+  else mlOAuthTransactions.set(state, transaction);
+}
+async function getMlOAuthTransaction(state: string): Promise<MlOAuthTransaction | null> {
+  if (redis) {
+    const raw = await redis.get(`${ML_OAUTH_REDIS_PREFIX}${state}`);
+    return raw ? JSON.parse(raw) as MlOAuthTransaction : null;
+  }
+  return mlOAuthTransactions.get(state) || null;
+}
+async function deleteMlOAuthTransaction(state: string) {
+  if (redis) await redis.del(`${ML_OAUTH_REDIS_PREFIX}${state}`);
+  else mlOAuthTransactions.delete(state);
+}
+const ML_OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+function cleanupExpiredMlOAuthTransactions() {
+  const now = Date.now();
+  for (const [state, tx] of mlOAuthTransactions) if (now - tx.createdAt > ML_OAUTH_STATE_TTL_MS) mlOAuthTransactions.delete(state);
+}
+
 async function startServer() {
+  const persistentStoreEnabled = Boolean(process.env.DATABASE_URL) && process.env.ALLOW_INMEMORY_STORE !== 'true';
+
+  if (process.env.NODE_ENV === 'production' && !persistentStoreEnabled) {
+    throw new Error('Production startup blocked: DATABASE_URL and persistent storage are required.');
+  }
+  if (process.env.NODE_ENV === 'production' && !redis) {
+    throw new Error('Production startup blocked: REDIS_URL is required for rate limiting, OAuth state and job infrastructure.');
+  }
+  if (persistentStoreEnabled) {
+    if (!process.env.ENCRYPTION_KEY) throw new Error('ENCRYPTION_KEY is required when persistent storage is enabled.');
+    await runMigrations();
+    // Individual authenticated workspaces are loaded lazily by the request context.
+    await ensureWorkspace('ws_default');
+  }
+
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT || 3000);
 
   app.use(express.json());
+
+  app.post('/api/auth/register', redisRateLimit({ windowSeconds: 900, max: 5, prefix: 'register' }), async (req, res) => {
+    if (!persistentStoreEnabled) return res.status(503).json({ error: 'Persistent storage is required for authentication.' });
+    try { const user = await registerUser(String(req.body.email || ''), String(req.body.password || '')); res.status(201).json({ success:true, user }); }
+    catch (error) { res.status(400).json({ error:(error as Error).message }); }
+  });
+
+  app.post('/api/auth/login', redisRateLimit({ windowSeconds: 900, max: 10, prefix: 'login' }), async (req, res) => {
+    if (!persistentStoreEnabled) return res.status(503).json({ error: 'Persistent storage is required for authentication.' });
+    const user = await authenticateUser(String(req.body.email || ''), String(req.body.password || ''));
+    if (!user) return res.status(401).json({ error:'Credenciais inválidas.' });
+    res.json({ success:true, token:createSession(user), user });
+  });
+
+  app.get('/api/auth/me', requireAuth, (req, res) => res.json({ user:req.user }));
+
+  if (persistentStoreEnabled) {
+    app.use((req, res, next) => {
+      res.on('finish', () => {
+        const workspaceId = req.user?.workspaceId;
+        if (!workspaceId) return;
+        void runWithWorkspace(workspaceId, () => store.persist(workspaceId)).catch((error) => console.error('Persistence error:', error));
+      });
+      next();
+    });
+  }
+
+  app.use('/api/accounts', requireAuth);
+  app.use('/api/offers', requireAuth);
+  app.use('/api/destinations', requireAuth);
+  app.use('/api/publications', requireAuth);
+  app.use('/api/reports', requireAuth);
+  app.use('/api/audit', requireAuth);
 
   // 1. Health check
   app.get('/api/health', (req, res) => {
@@ -34,6 +114,9 @@ async function startServer() {
       geminiConfigured: !!process.env.GEMINI_API_KEY,
       mercadolivreConfigured: !!process.env.MERCADOLIVRE_CLIENT_ID,
       shopeeConfigured: !!process.env.SHOPEE_AFFILIATE_APP_ID,
+      whatsappProvider: process.env.WHATSAPP_PROVIDER || 'cloud',
+      evolutionConfigured: !!(process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY && process.env.EVOLUTION_INSTANCE),
+      automation: { scheduler: true, discovery: true },
       timestamp: new Date().toISOString(),
     });
   });
@@ -92,10 +175,10 @@ async function startServer() {
   });
 
   // 4. Mercado Livre OAuth Flow
-  app.get('/api/auth/mercadolivre/url', (req, res) => {
-    const mlAccount = store.accounts.get('acc_mercadolivre_br');
-    const clientId = mlAccount?.credentials_encrypted.ml_client_id || process.env.MERCADOLIVRE_CLIENT_ID || '123456789';
-    const redirectUri = mlAccount?.credentials_encrypted.ml_redirect_uri || process.env.MERCADOLIVRE_REDIRECT_URI || `${process.env.APP_URL || 'https://localhost:3000'}/api/auth/mercadolivre/callback`;
+  app.get('/api/auth/mercadolivre/url', requireAuth, (req, res) => {
+    const mlAccount = findMarketplaceAccount('MERCADOLIVRE');
+    const clientId = mlAccount?.credentials_encrypted.ml_client_id || process.env.MERCADOLIVRE_CLIENT_ID || '';
+    const redirectUri = mlAccount?.credentials_encrypted.ml_redirect_uri || process.env.MERCADOLIVRE_REDIRECT_URI || '';
 
     const oauth = new MercadoLivreOAuthService({
       clientId,
@@ -104,8 +187,11 @@ async function startServer() {
     });
 
     try {
-      const url = oauth.getAuthorizationUrl();
-      res.json({ url });
+      const authorization = oauth.createAuthorization();
+      if (!mlAccount) return res.status(400).json({ error: 'Nenhuma conta do Mercado Livre foi criada neste workspace.' });
+      await saveMlOAuthTransaction(authorization.state, { codeVerifier: authorization.codeVerifier, createdAt: Date.now(), accountId: mlAccount.id, workspaceId: req.user!.workspaceId });
+      cleanupExpiredMlOAuthTransactions();
+      res.json({ url: authorization.url });
     } catch (err) {
       res.status(400).json({ error: (err as Error).message });
     }
@@ -113,27 +199,38 @@ async function startServer() {
 
   app.get('/api/auth/mercadolivre/callback', async (req, res) => {
     const code = req.query.code as string;
-    if (!code) {
-      return res.status(400).send('Código de autorização não recebido do Mercado Livre.');
-    }
+    const state = req.query.state as string;
+    cleanupExpiredMlOAuthTransactions();
+    if (!code) return res.status(400).send('Código de autorização não recebido do Mercado Livre.');
+    if (!state) return res.status(400).send('State OAuth ausente.');
 
-    const mlAccount = store.accounts.get('acc_mercadolivre_br');
-    const clientId = mlAccount?.credentials_encrypted.ml_client_id || process.env.MERCADOLIVRE_CLIENT_ID || '';
-    const clientSecret = mlAccount?.credentials_encrypted.ml_client_secret || process.env.MERCADOLIVRE_CLIENT_SECRET || '';
-    const redirectUri = mlAccount?.credentials_encrypted.ml_redirect_uri || process.env.MERCADOLIVRE_REDIRECT_URI || '';
+    const transaction = await getMlOAuthTransaction(state);
+    if (!transaction || Date.now() - transaction.createdAt > ML_OAUTH_STATE_TTL_MS) {
+      return res.status(400).send('State OAuth inválido ou expirado.');
+    }
+    mlOAuthTransactions.delete(state);
 
     try {
-      const oauth = new MercadoLivreOAuthService({ clientId, clientSecret, redirectUri });
-      const tokenData = await oauth.exchangeCodeForToken(code);
+      await runWithWorkspace(transaction.workspaceId, async () => {
+        const mlAccount = store.accounts.get(transaction.accountId);
+        const clientId = mlAccount?.credentials_encrypted.ml_client_id || process.env.MERCADOLIVRE_CLIENT_ID || '';
+        const clientSecret = mlAccount?.credentials_encrypted.ml_client_secret || process.env.MERCADOLIVRE_CLIENT_SECRET || '';
+        const redirectUri = mlAccount?.credentials_encrypted.ml_redirect_uri || process.env.MERCADOLIVRE_REDIRECT_URI || '';
 
-      if (mlAccount) {
+        const oauth = new MercadoLivreOAuthService({ clientId, clientSecret, redirectUri });
+        const tokenData = await oauth.exchangeCodeForToken(code, transaction.codeVerifier);
+
+        if (!mlAccount) throw new Error('Conta do Mercado Livre não encontrada no workspace.');
+
         mlAccount.credentials_encrypted.ml_access_token = tokenData.access_token;
         mlAccount.credentials_encrypted.ml_refresh_token = tokenData.refresh_token;
         mlAccount.credentials_encrypted.ml_user_id = String(tokenData.user_id);
         mlAccount.credentials_encrypted.ml_expires_at = Date.now() + tokenData.expires_in * 1000;
         mlAccount.status = 'CONNECTED';
         mlAccount.status_message = `Conectado com sucesso (User ID: ${tokenData.user_id})`;
-      }
+
+        await store.persist(transaction.workspaceId);
+      });
 
       res.send(`
         <html>
@@ -150,16 +247,16 @@ async function startServer() {
         </html>
       `);
     } catch (err) {
-      res.status(500).send(`Erro ao trocar código por token: ${(err as Error).message}`);
+      res.status(500).json({ error: `Erro ao trocar código por token: ${(err as Error).message}` });
     }
   });
 
   // 5. Test Integration Diagnostic (Mercado Livre & Shopee)
-  app.post('/api/test-integration/:marketplace', async (req, res) => {
+  app.post('/api/test-integration/:marketplace', requireAuth, async (req, res) => {
     const marketplace = req.params.marketplace.toUpperCase();
 
     if (marketplace === 'SHOPEE') {
-      const account = store.accounts.get('acc_shopee_br');
+      const account = findMarketplaceAccount('SHOPEE');
       const appId = account?.credentials_encrypted.shopee_app_id || process.env.SHOPEE_AFFILIATE_APP_ID || '';
       const secret = account?.credentials_encrypted.shopee_secret || process.env.SHOPEE_AFFILIATE_SECRET || '';
 
@@ -167,7 +264,7 @@ async function startServer() {
       const testResult = await adapter.testConnection();
       return res.json(testResult);
     } else if (marketplace === 'MERCADOLIVRE') {
-      const account = store.accounts.get('acc_mercadolivre_br');
+      const account = findMarketplaceAccount('MERCADOLIVRE');
       const adapter = new MercadoLivreAffiliateAdapter({
         clientId: account?.credentials_encrypted.ml_client_id,
         clientSecret: account?.credentials_encrypted.ml_client_secret,
@@ -204,7 +301,7 @@ async function startServer() {
 
     try {
       if (marketplace === 'SHOPEE') {
-        const account = store.accounts.get('acc_shopee_br');
+        const account = findMarketplaceAccount('SHOPEE');
         const appId = account?.credentials_encrypted.shopee_app_id || process.env.SHOPEE_AFFILIATE_APP_ID || '';
         const secret = account?.credentials_encrypted.shopee_secret || process.env.SHOPEE_AFFILIATE_SECRET || '';
 
@@ -264,7 +361,7 @@ async function startServer() {
         return res.json({ count: createdOffers.length, offers: createdOffers });
       } else {
         // Mercado Livre live search
-        const mlAccount = store.accounts.get('acc_mercadolivre_br');
+        const mlAccount = findMarketplaceAccount('MERCADOLIVRE');
         const adapter = new MercadoLivreAffiliateAdapter({
           clientId: mlAccount?.credentials_encrypted.ml_client_id,
           accessToken: mlAccount?.credentials_encrypted.ml_access_token,
@@ -317,6 +414,8 @@ async function startServer() {
     }
 
     const { affiliateUrl, destinationId, campaignId } = req.body;
+    const mlAccount = findMarketplaceAccount('MERCADOLIVRE');
+    if (!mlAccount) return res.status(400).json({ error: 'Conta do Mercado Livre não configurada neste workspace.' });
     if (!affiliateUrl) {
       return res.status(400).json({ error: 'affiliateUrl é obrigatória.' });
     }
@@ -326,7 +425,7 @@ async function startServer() {
         productId: offer.product.external_product_id,
         originalUrl: offer.product.original_url,
         affiliateUrl,
-        affiliateAccountId: 'acc_mercadolivre_br',
+        affiliateAccountId: mlAccount.id,
         campaign: campaignId,
         destination: destinationId,
         subIds: ['whatsapp', destinationId || 'grupo_ml'],
@@ -374,7 +473,7 @@ async function startServer() {
   });
 
   // 9. Publish Offer to WhatsApp Destination
-  app.post('/api/offers/:id/publish', async (req, res) => {
+  app.post('/api/offers/:id/publish', redisRateLimit({ windowSeconds: 60, max: 20, prefix: 'publish' }), async (req, res) => {
     const offer = store.offers.get(req.params.id);
     if (!offer) {
       return res.status(404).json({ error: 'Oferta não encontrada.' });
@@ -389,14 +488,16 @@ async function startServer() {
       });
     }
 
-    const destinationId = req.body.destinationId || 'dest_pokemon';
+    const destinationId = String(req.body.destinationId || '');
+    if (!destinationId) return res.status(400).json({ error: 'destinationId é obrigatório.' });
     const destination = store.destinations.get(destinationId);
     if (!destination) {
       return res.status(404).json({ error: 'Destino de WhatsApp não encontrado.' });
     }
 
     // Deduplication check: Section 22
-    const dedup = DeduplicationService.isDuplicate(
+    const dedup = await DeduplicationService.isDuplicate(
+      req.user!.workspaceId,
       offer.marketplace,
       offer.product.external_product_id,
       destination.id,
@@ -422,8 +523,16 @@ async function startServer() {
       offer.ai_generated_message = message;
     }
 
+    const requestedSchedule = req.body.scheduledAt ? new Date(String(req.body.scheduledAt)) : new Date();
+    if (Number.isNaN(requestedSchedule.getTime())) return res.status(400).json({ error: 'scheduledAt inválido.' });
+    if (requestedSchedule.getTime() < Date.now() - 30000) return res.status(400).json({ error: 'scheduledAt não pode estar no passado.' });
+    const scheduleBucket = Math.floor(requestedSchedule.getTime() / 86400000);
+    const forceSuffix = req.body.force ? `:force:${Date.now()}` : '';
+    const idempotencyKey = `${offer.marketplace}:${offer.product.external_product_id}:${destination.id}:${scheduleBucket}${forceSuffix}`;
     const publication: Publication = {
-      id: `pub_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      id: `pub_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+      workspace_id: req.user!.workspaceId,
+      idempotency_key: idempotencyKey,
       offer_id: offer.id,
       offer,
       destination_id: destination.id,
@@ -431,50 +540,48 @@ async function startServer() {
       affiliate_link_id: offer.affiliate_link_id || 'link_direct',
       affiliate_url: offer.affiliate_url!,
       message,
-      status: 'QUEUED',
-      scheduled_at: new Date().toISOString(),
+      status: requestedSchedule.getTime() > Date.now() ? 'SCHEDULED' : 'QUEUED',
+      scheduled_at: requestedSchedule.toISOString(),
       tracking_subids: ['whatsapp', destination.id, offer.marketplace.toLowerCase()],
     };
 
-    // Send via WhatsAppProvider
-    const provider = new WhatsAppProvider();
-    const result = await provider.sendPublication(publication, destination);
-
-    if (result.success) {
-      publication.status = 'SENT';
-      publication.sent_at = result.sentAt;
-      offer.status = 'PUBLISHED';
-
-      // Record in deduplication history
-      DeduplicationService.recordPublication(
-        publication.id,
-        offer.marketplace,
-        offer.product.external_product_id,
-        destination.id,
-        offer.product.shop_id
+    // Persistent mode performs an atomic idempotency claim before queueing.
+    // This closes the race where two concurrent requests pass the read-only dedup check.
+    if (persistentStoreEnabled) {
+      const inserted = await query<{ id: string }>(
+        `INSERT INTO publications
+          (id,workspace_id,offer_id,destination_id,status,idempotency_key,scheduled_at,affiliate_link_id,affiliate_url,message,tracking_subids)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         ON CONFLICT (workspace_id,idempotency_key) DO NOTHING
+         RETURNING id`,
+        [
+          publication.id, publication.workspace_id, publication.offer_id, publication.destination_id, publication.status,
+          publication.idempotency_key, publication.scheduled_at, publication.affiliate_link_id, publication.affiliate_url,
+          publication.message, JSON.stringify(publication.tracking_subids || []),
+        ],
       );
-
-      // Record in audit trail: Section 29
-      AuditService.logPublicationTrace({
-        offer,
-        destination,
-        publication,
-        affiliateAccountId: offer.marketplace === 'SHOPEE' ? 'acc_shopee_br' : 'acc_mercadolivre_br',
-      });
-    } else {
-      publication.status = 'FAILED';
-      publication.error_message = result.error;
-      offer.status = 'FAILED';
+      if (!inserted.length) {
+        const existing = await query<any>(
+          'SELECT id,workspace_id,offer_id,destination_id,status,idempotency_key,provider_message_id,error,scheduled_at,published_at,affiliate_link_id,affiliate_url,message,tracking_subids FROM publications WHERE workspace_id=$1 AND idempotency_key=$2',
+          [publication.workspace_id, publication.idempotency_key],
+        );
+        return res.status(202).json({ success:true, queued:false, duplicate:true, publication: existing[0] || null });
+      }
     }
 
+    // Queue publication for asynchronous processing. The worker is the only component that sends to WhatsApp.
     store.publications.set(publication.id, publication);
-
-    res.json({
-      success: result.success,
-      publication,
-      provider: result.provider,
-      messageId: result.messageId,
-    });
+    if (persistentStoreEnabled) await store.persist(req.user!.workspaceId);
+    try {
+      const { enqueuePublication } = await import('./src/infrastructure/queue.ts');
+      await enqueuePublication({ publicationId: publication.id, destinationId: destination.id, offerId: offer.id, scheduledAt: publication.scheduled_at });
+    } catch (error) {
+      publication.status = 'FAILED';
+      publication.error_message = (error as Error).message;
+      offer.status = 'FAILED';
+      return res.status(503).json({ success:false, publication, error:'Fila de publicação indisponível.' });
+    }
+    return res.status(202).json({ success:true, queued:true, publication });
   });
 
   // 10. Destinations
@@ -485,12 +592,13 @@ async function startServer() {
   app.post('/api/destinations', (req, res) => {
     const body = req.body as Partial<Destination>;
     const id = body.id || `dest_${Date.now()}`;
+    if (!body.identifier || !String(body.identifier).trim()) return res.status(400).json({ error: 'identifier é obrigatório.' });
     const destination: Destination = {
       id,
-      workspace_id: 'ws_default',
+      workspace_id: req.user!.workspaceId,
       type: body.type || 'WHATSAPP_GROUP',
-      identifier: body.identifier || '120363000000000000@g.us',
-      name: body.name || 'Novo Grupo WhatsApp',
+      identifier: body.identifier || '',
+      name: body.name || 'Novo destino WhatsApp',
       description: body.description,
       categories: body.categories || [],
       marketplaces: body.marketplaces || ['SHOPEE', 'MERCADOLIVRE'],
@@ -536,7 +644,7 @@ async function startServer() {
         productsFound: shopeeOffers.length,
         affiliateLinksReady: shopeeReadyLinks.length,
         publications: shopeePubs.length,
-        clicksEstimated: shopeePubs.length * 48,
+        clicksTracked: 0,
         conversions: shopeeConvs.length,
         commissionBrl: Number(shopeeCommission.toFixed(2)),
       },
@@ -544,7 +652,7 @@ async function startServer() {
         productsFound: mlOffers.length,
         affiliateLinksReady: mlReadyLinks.length,
         publications: mlPubs.length,
-        clicksEstimated: mlPubs.length * 35,
+        clicksTracked: 0,
         conversions: mlConvs.length,
         commissionBrl: Number(mlCommission.toFixed(2)),
       },
@@ -573,9 +681,12 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
+  const shutdown = async () => { server.close(); if (persistentStoreEnabled) await closeDatabase(); process.exit(0); };
+  process.once('SIGINT', shutdown);
+  process.once('SIGTERM', shutdown);
 }
 
 startServer();

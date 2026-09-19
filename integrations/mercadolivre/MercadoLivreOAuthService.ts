@@ -1,7 +1,15 @@
+import { randomBytes, createHash } from 'node:crypto';
+
 export interface MercadoLivreOAuthConfig {
   clientId: string;
   clientSecret: string;
   redirectUri: string;
+}
+
+export interface MercadoLivreOAuthAuthorization {
+  url: string;
+  state: string;
+  codeVerifier: string;
 }
 
 export interface MercadoLivreTokenResponse {
@@ -24,29 +32,40 @@ export class MercadoLivreOAuthService {
     this.redirectUri = config.redirectUri;
   }
 
-  /**
-   * Generates official Mercado Livre OAuth authorization URL
-   * Endpoint: https://auth.mercadolivre.com.br/authorization
-   */
-  public getAuthorizationUrl(state: string = 'ml_auth'): string {
+  public createAuthorization(): MercadoLivreOAuthAuthorization {
     if (!this.clientId || !this.redirectUri) {
       throw new Error('MERCADOLIVRE_CLIENT_ID e MERCADOLIVRE_REDIRECT_URI são obrigatórios.');
     }
+
+    const state = randomBytes(32).toString('hex');
+    const codeVerifier = randomBytes(48).toString('base64url');
+    const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
+
     const params = new URLSearchParams({
       response_type: 'code',
       client_id: this.clientId,
       redirect_uri: this.redirectUri,
       state,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
     });
 
-    return `https://auth.mercadolivre.com.br/authorization?${params.toString()}`;
+    return {
+      url: `https://auth.mercadolivre.com.br/authorization?${params.toString()}`,
+      state,
+      codeVerifier,
+    };
   }
 
-  /**
-   * Exchanges authorization code for access_token and refresh_token
-   * Endpoint: https://api.mercadolibre.com/oauth/token
-   */
-  public async exchangeCodeForToken(code: string): Promise<MercadoLivreTokenResponse> {
+  public async exchangeCodeForToken(
+    code: string,
+    codeVerifier?: string
+  ): Promise<MercadoLivreTokenResponse> {
+    if (!code) throw new Error('Código de autorização ausente.');
+    if (!this.clientId || !this.clientSecret || !this.redirectUri) {
+      throw new Error('Credenciais OAuth do Mercado Livre incompletas.');
+    }
+
     const params = new URLSearchParams({
       grant_type: 'authorization_code',
       client_id: this.clientId,
@@ -54,6 +73,8 @@ export class MercadoLivreOAuthService {
       code,
       redirect_uri: this.redirectUri,
     });
+
+    if (codeVerifier) params.set('code_verifier', codeVerifier);
 
     const response = await fetch('https://api.mercadolibre.com/oauth/token', {
       method: 'POST',
@@ -72,10 +93,9 @@ export class MercadoLivreOAuthService {
     return (await response.json()) as MercadoLivreTokenResponse;
   }
 
-  /**
-   * Refreshes expired access_token using refresh_token
-   */
   public async refreshAccessToken(refreshToken: string): Promise<MercadoLivreTokenResponse> {
+    if (!refreshToken) throw new Error('Refresh token ausente.');
+
     const params = new URLSearchParams({
       grant_type: 'refresh_token',
       client_id: this.clientId,

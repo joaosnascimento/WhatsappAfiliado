@@ -134,6 +134,8 @@ export interface TrackingSource {
 
 export interface Publication {
   id: string;
+  workspace_id?: string;
+  idempotency_key?: string;
   offer_id: string;
   offer?: Offer;
   destination_id: string;

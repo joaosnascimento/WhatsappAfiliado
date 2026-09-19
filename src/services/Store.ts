@@ -1,3 +1,7 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { randomUUID } from 'node:crypto';
+import { PersistentStoreRepository } from '../infrastructure/PersistentStoreRepository.ts';
+
 import type {
   MarketplaceAccount,
   AffiliateProduct,
@@ -11,6 +15,7 @@ import type {
 } from '../types/affiliate.ts';
 
 class MemoryStore {
+  /** In-memory storage is intentionally development-only until a persistent database adapter is enabled. */
   public accounts: Map<string, MarketplaceAccount> = new Map();
   public products: Map<string, AffiliateProduct> = new Map();
   public links: Map<string, AffiliateLink> = new Map();
@@ -20,9 +25,19 @@ class MemoryStore {
   public publications: Map<string, Publication> = new Map();
   public conversions: Map<string, Conversion> = new Map();
 
+  private readonly repository = new PersistentStoreRepository(this as any);
+
   constructor() {
-    this.seedInitialData();
+    // Demo data is opt-in. Production must never start with fabricated offers,
+    // affiliate links or conversion records.
+    if (process.env.NODE_ENV !== 'production' && process.env.DEMO_SEED === 'true') {
+      this.seedInitialData();
+    }
   }
+
+  async loadPersistent(workspaceId = 'ws_default'): Promise<boolean> { return this.repository.load(workspaceId); }
+
+  async persist(workspaceId = 'ws_default'): Promise<void> { await this.repository.save(workspaceId); }
 
   private seedInitialData() {
     // 1. Accounts
@@ -30,16 +45,13 @@ class MemoryStore {
       id: 'acc_mercadolivre_br',
       workspace_id: 'ws_default',
       marketplace: 'MERCADOLIVRE',
-      status: process.env.MERCADOLIVRE_CLIENT_ID ? 'CONNECTED' : 'AWAITING_CONFIG',
-      status_message: process.env.MERCADOLIVRE_CLIENT_ID
-        ? 'Conectado via DevCenter OAuth'
-        : 'Aguardando configuração de MERCADOLIVRE_CLIENT_ID',
+      status: process.env.MERCADOLIVRE_CLIENT_ID && process.env.MERCADOLIVRE_CLIENT_SECRET ? 'AWAITING_CONFIG' : 'AWAITING_CONFIG',
+      status_message: 'Credenciais do DevCenter configuradas; conclua o OAuth para conectar a conta.',
       credentials_encrypted: {
         ml_client_id: process.env.MERCADOLIVRE_CLIENT_ID || '',
         ml_client_secret: process.env.MERCADOLIVRE_CLIENT_SECRET || '',
         ml_redirect_uri: process.env.MERCADOLIVRE_REDIRECT_URI || `${process.env.APP_URL || 'https://localhost:3000'}/api/auth/mercadolivre/callback`,
-        ml_access_token: 'ml_demo_oauth_token',
-        ml_user_id: '123456789',
+        // Tokens OAuth are intentionally never seeded or hard-coded.
       },
       created_at: new Date(Date.now() - 86400000 * 7).toISOString(),
       updated_at: new Date().toISOString(),
@@ -49,10 +61,8 @@ class MemoryStore {
       id: 'acc_shopee_br',
       workspace_id: 'ws_default',
       marketplace: 'SHOPEE',
-      status: process.env.SHOPEE_AFFILIATE_APP_ID ? 'CONNECTED' : 'AWAITING_CONFIG',
-      status_message: process.env.SHOPEE_AFFILIATE_APP_ID
-        ? 'Shopee Affiliate Open API Brasil ativa'
-        : 'Aguardando configuração de SHOPEE_AFFILIATE_APP_ID e SECRET',
+      status: process.env.SHOPEE_AFFILIATE_APP_ID && process.env.SHOPEE_AFFILIATE_SECRET ? 'AWAITING_CONFIG' : 'AWAITING_CONFIG',
+      status_message: 'Credenciais presentes; execute o teste de integração para validar a conta na Affiliate Open API.',
       credentials_encrypted: {
         shopee_app_id: process.env.SHOPEE_AFFILIATE_APP_ID || '',
         shopee_secret: process.env.SHOPEE_AFFILIATE_SECRET || '',
@@ -304,4 +314,88 @@ class MemoryStore {
   }
 }
 
-export const store = new MemoryStore();
+export type Store = MemoryStore;
+
+const workspaceStorage = new AsyncLocalStorage<MemoryStore>();
+const workspaceStores = new Map<string, MemoryStore>();
+const workspaceLoadPromises = new Map<string, Promise<MemoryStore>>();
+
+function createWorkspaceStore(workspaceId: string): MemoryStore {
+  const instance = new MemoryStore();
+  workspaceStores.set(workspaceId, instance);
+  return instance;
+}
+
+function ensureMarketplaceAccounts(instance: MemoryStore, workspaceId: string) {
+  const marketplaces: MarketplaceType[] = ['MERCADOLIVRE', 'SHOPEE'];
+  for (const marketplace of marketplaces) {
+    if ([...instance.accounts.values()].some(account => account.marketplace === marketplace)) continue;
+    const id = `acc_${marketplace.toLowerCase()}_${randomUUID().replace(/-/g, '')}`;
+    instance.accounts.set(id, {
+      id,
+      workspace_id: workspaceId,
+      marketplace,
+      status: 'AWAITING_CONFIG',
+      status_message: 'Configure as credenciais desta conta para iniciar a integração.',
+      credentials_encrypted: {},
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+  }
+}
+
+export function findMarketplaceAccount(marketplace: MarketplaceType): MarketplaceAccount | undefined {
+  return [...store.accounts.values()].find(account => account.marketplace === marketplace);
+}
+
+export async function getWorkspaceStore(workspaceId: string): Promise<MemoryStore> {
+  const existing = workspaceStores.get(workspaceId);
+  if (existing) return existing;
+  const pending = workspaceLoadPromises.get(workspaceId);
+  if (pending) return pending;
+
+  const load = (async () => {
+    const instance = createWorkspaceStore(workspaceId);
+    if (process.env.DATABASE_URL && process.env.ALLOW_INMEMORY_STORE !== 'true') {
+      await instance.loadPersistent(workspaceId);
+      ensureMarketplaceAccounts(instance, workspaceId);
+    }
+    workspaceLoadPromises.delete(workspaceId);
+    return instance;
+  })().catch(error => {
+    workspaceLoadPromises.delete(workspaceId);
+    workspaceStores.delete(workspaceId);
+    throw error;
+  });
+  workspaceLoadPromises.set(workspaceId, load);
+  return load;
+}
+
+export async function runWithWorkspace<T>(workspaceId: string, callback: () => T | Promise<T>): Promise<T> {
+  const workspaceStore = await getWorkspaceStore(workspaceId);
+  return workspaceStorage.run(workspaceStore, callback);
+}
+
+export function currentWorkspaceStore(): MemoryStore {
+  return workspaceStorage.getStore() ?? getWorkspaceStoreSyncFallback();
+}
+
+function getWorkspaceStoreSyncFallback(): MemoryStore {
+  const fallback = workspaceStores.get('ws_default');
+  if (fallback) return fallback;
+  return createWorkspaceStore('ws_default');
+}
+
+// Legacy route code can keep using store.accounts/store.offers/etc.;
+// the proxy resolves those properties against the authenticated request workspace.
+export const store = new Proxy({} as MemoryStore, {
+  get(_target, property: string | symbol) {
+    const active = currentWorkspaceStore();
+    const value = (active as any)[property];
+    return typeof value === 'function' ? value.bind(active) : value;
+  },
+  set(_target, property: string | symbol, value: unknown) {
+    (currentWorkspaceStore() as any)[property] = value;
+    return true;
+  },
+}) as MemoryStore;

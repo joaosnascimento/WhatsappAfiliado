@@ -9,7 +9,10 @@
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "npm run lint",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "worker": "tsx src/workers/publicationWorker.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -21,7 +24,13 @@
     "vite": "^8.3.0",
     "express": "^4.21.2",
     "dotenv": "^17.2.3",
-    "motion": "^12.23.24"
+    "motion": "^12.23.24",
+    "pg": "^8.16.3",
+    "ioredis": "^5.8.2",
+    "bullmq": "^5.58.5",
+    "express-rate-limit": "^8.2.1",
+    "bcryptjs": "^3.0.2",
+    "cookie": "^1.0.2"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
