@@ -27,12 +27,14 @@ export function verifySession(value: string) {
   }
 }
 export async function registerUser(email: string, password: string) {
-  if (!email || password.length < 10) throw new Error('Email e senha com no mínimo 10 caracteres são obrigatórios.');
+  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || password.length < 10 || password.length > 128) throw new Error('Credenciais inválidas.');
   const hash = await bcrypt.hash(password, 12);
   const id = 'usr_' + randomBytes(12).toString('hex');
   const workspaceId = 'ws_' + randomBytes(12).toString('hex');
-  await query('INSERT INTO workspaces(id,name) VALUES($1,$2)',[workspaceId,'Workspace de ' + email.toLowerCase()]);
-  await query('INSERT INTO users(id,workspace_id,email,password_hash) VALUES($1,$2,$3,$4)',[id,workspaceId,email.toLowerCase(),hash]);
+  try {
+    await query('INSERT INTO workspaces(id,name) VALUES($1,$2)',[workspaceId,'Workspace de ' + email.toLowerCase()]);
+    await query('INSERT INTO users(id,workspace_id,email,password_hash) VALUES($1,$2,$3,$4)',[id,workspaceId,email.toLowerCase(),hash]);
+  } catch { throw new Error('Não foi possível criar a conta.'); }
   return { id, workspaceId };
 }
 export async function authenticateUser(email: string, password: string) {
