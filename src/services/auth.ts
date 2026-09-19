@@ -28,7 +28,7 @@ export function verifySession(value: string) {
   }
 }
 export async function registerUser(email: string, password: string) {
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || password.length < 10 || password.length > 128) throw new Error('Credenciais inválidas.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 10 || password.length > 128) throw new Error('Credenciais inválidas.');
   const hash = await bcrypt.hash(password, 12);
   const id = 'usr_' + randomBytes(12).toString('hex');
   const workspaceId = 'ws_' + randomBytes(12).toString('hex');
