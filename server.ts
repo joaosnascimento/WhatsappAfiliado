@@ -9,7 +9,6 @@ import { store, runWithWorkspace, findMarketplaceAccount } from './src/services/
 import { runMigrations } from './src/infrastructure/migrations.ts';
 import { ensureWorkspace } from './src/infrastructure/workspace.ts';
 import { closeDatabase, query } from './src/infrastructure/database.ts';
-import { decryptCredentials } from './src/infrastructure/encryption.ts';
 import { redis } from './src/infrastructure/redis.ts';
 import { registerUser, authenticateUser, createSession } from './src/services/auth.ts';
 import { requireAuth } from './src/services/authMiddleware.ts';
