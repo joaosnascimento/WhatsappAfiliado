@@ -1,0 +1,7 @@
+{
+  "name": "Automação de Afiliados WhatsApp",
+  "description": "Plataforma SaaS para automação de ofertas de afiliados do Mercado Livre Brasil e Shopee Brasil no WhatsApp com IA e integração real de APIs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

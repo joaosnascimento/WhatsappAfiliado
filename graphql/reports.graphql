@@ -1,0 +1,35 @@
+query affiliateReport(
+  $purchaseTimeStart: Int
+  $purchaseTimeEnd: Int
+  $page: Int
+  $limit: Int
+  $subIds: [String]
+) {
+  conversionReport(
+    purchaseTimeStart: $purchaseTimeStart
+    purchaseTimeEnd: $purchaseTimeEnd
+    page: $page
+    limit: $limit
+    subIds: $subIds
+  ) {
+    nodes {
+      conversionId
+      purchaseTime
+      orderId
+      subIds
+      shopId
+      itemId
+      itemPrice
+      commissionRate
+      commission
+      orderStatus
+      productName
+    }
+    pageInfo {
+      page
+      limit
+      hasNextPage
+      totalCount
+    }
+  }
+}

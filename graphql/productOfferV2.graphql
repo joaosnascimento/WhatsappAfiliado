@@ -1,0 +1,47 @@
+query productOfferV2(
+  $keyword: String
+  $page: Int
+  $limit: Int
+  $sortType: Int
+  $minPrice: Float
+  $maxPrice: Float
+  $minDiscount: Int
+  $minCommissionRate: Float
+  $categoryId: String
+) {
+  productOfferV2(
+    keyword: $keyword
+    page: $page
+    limit: $limit
+    sortType: $sortType
+    minPrice: $minPrice
+    maxPrice: $maxPrice
+    minDiscount: $minDiscount
+    minCommissionRate: $minCommissionRate
+    categoryId: $categoryId
+  ) {
+    nodes {
+      itemId
+      shopId
+      productName
+      imageUrl
+      productLink
+      price
+      priceMin
+      priceMax
+      discountRate
+      commissionRate
+      commission
+      rating
+      sales
+      shopName
+      shopType
+    }
+    pageInfo {
+      page
+      limit
+      hasNextPage
+      totalCount
+    }
+  }
+}

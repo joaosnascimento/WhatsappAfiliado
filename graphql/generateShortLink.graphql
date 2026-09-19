@@ -1,0 +1,15 @@
+mutation generateShortLink(
+  $originUrl: String!
+  $subIds: [String]
+) {
+  generateShortLink(
+    input: {
+      originUrl: $originUrl
+      subIds: $subIds
+    }
+  ) {
+    shortLink
+    originUrl
+    subIds
+  }
+}
