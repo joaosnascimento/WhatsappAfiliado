@@ -239,7 +239,7 @@ async function startServer() {
       const testResult = await adapter.testConnection();
       return res.json(testResult);
     } else if (marketplace === 'MERCADOLIVRE') {
-      const account = store.accounts.get('acc_mercadolivre_br');
+      const account = findMarketplaceAccount('MERCADOLIVRE');
       const adapter = new MercadoLivreAffiliateAdapter({
         clientId: account?.credentials_encrypted.ml_client_id,
         clientSecret: account?.credentials_encrypted.ml_client_secret,
@@ -276,7 +276,7 @@ async function startServer() {
 
     try {
       if (marketplace === 'SHOPEE') {
-        const account = store.accounts.get('acc_shopee_br');
+        const account = findMarketplaceAccount('SHOPEE');
         const appId = account?.credentials_encrypted.shopee_app_id || process.env.SHOPEE_AFFILIATE_APP_ID || '';
         const secret = account?.credentials_encrypted.shopee_secret || process.env.SHOPEE_AFFILIATE_SECRET || '';
 
@@ -336,7 +336,7 @@ async function startServer() {
         return res.json({ count: createdOffers.length, offers: createdOffers });
       } else {
         // Mercado Livre live search
-        const mlAccount = store.accounts.get('acc_mercadolivre_br');
+        const mlAccount = findMarketplaceAccount('MERCADOLIVRE');
         const adapter = new MercadoLivreAffiliateAdapter({
           clientId: mlAccount?.credentials_encrypted.ml_client_id,
           accessToken: mlAccount?.credentials_encrypted.ml_access_token,
@@ -389,6 +389,8 @@ async function startServer() {
     }
 
     const { affiliateUrl, destinationId, campaignId } = req.body;
+    const mlAccount = findMarketplaceAccount('MERCADOLIVRE');
+    if (!mlAccount) return res.status(400).json({ error: 'Conta do Mercado Livre não configurada neste workspace.' });
     if (!affiliateUrl) {
       return res.status(400).json({ error: 'affiliateUrl é obrigatória.' });
     }
@@ -461,7 +463,8 @@ async function startServer() {
       });
     }
 
-    const destinationId = req.body.destinationId || 'dest_pokemon';
+    const destinationId = String(req.body.destinationId || '');
+    if (!destinationId) return res.status(400).json({ error: 'destinationId é obrigatório.' });
     const destination = store.destinations.get(destinationId);
     if (!destination) {
       return res.status(404).json({ error: 'Destino de WhatsApp não encontrado.' });
@@ -495,10 +498,16 @@ async function startServer() {
       offer.ai_generated_message = message;
     }
 
+    const requestedSchedule = req.body.scheduledAt ? new Date(String(req.body.scheduledAt)) : new Date();
+    if (Number.isNaN(requestedSchedule.getTime())) return res.status(400).json({ error: 'scheduledAt inválido.' });
+    if (requestedSchedule.getTime() < Date.now() - 30000) return res.status(400).json({ error: 'scheduledAt não pode estar no passado.' });
+    const scheduleBucket = Math.floor(requestedSchedule.getTime() / 86400000);
+    const forceSuffix = req.body.force ? `:force:${Date.now()}` : '';
+    const idempotencyKey = `${offer.marketplace}:${offer.product.external_product_id}:${destination.id}:${scheduleBucket}${forceSuffix}`;
     const publication: Publication = {
-      id: `pub_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      id: `pub_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
       workspace_id: req.user!.workspaceId,
-      idempotency_key: `${offer.marketplace}:${offer.product.external_product_id}:${destination.id}:${new Date().toISOString().slice(0, 10)}`,
+      idempotency_key: idempotencyKey,
       offer_id: offer.id,
       offer,
       destination_id: destination.id,
@@ -506,8 +515,8 @@ async function startServer() {
       affiliate_link_id: offer.affiliate_link_id || 'link_direct',
       affiliate_url: offer.affiliate_url!,
       message,
-      status: 'QUEUED',
-      scheduled_at: new Date().toISOString(),
+      status: requestedSchedule.getTime() > Date.now() ? 'SCHEDULED' : 'QUEUED',
+      scheduled_at: requestedSchedule.toISOString(),
       tracking_subids: ['whatsapp', destination.id, offer.marketplace.toLowerCase()],
     };
 
@@ -516,7 +525,7 @@ async function startServer() {
     if (persistentStoreEnabled) await store.persist(req.user!.workspaceId);
     try {
       const { enqueuePublication } = await import('./src/infrastructure/queue.ts');
-      await enqueuePublication({ publicationId: publication.id, destinationId: destination.id, offerId: offer.id });
+      await enqueuePublication({ publicationId: publication.id, destinationId: destination.id, offerId: offer.id, scheduledAt: publication.scheduled_at });
     } catch (error) {
       publication.status = 'FAILED';
       publication.error_message = (error as Error).message;
@@ -534,12 +543,13 @@ async function startServer() {
   app.post('/api/destinations', (req, res) => {
     const body = req.body as Partial<Destination>;
     const id = body.id || `dest_${Date.now()}`;
+    if (!body.identifier || !String(body.identifier).trim()) return res.status(400).json({ error: 'identifier é obrigatório.' });
     const destination: Destination = {
       id,
       workspace_id: req.user!.workspaceId,
       type: body.type || 'WHATSAPP_GROUP',
-      identifier: body.identifier || '120363000000000000@g.us',
-      name: body.name || 'Novo Grupo WhatsApp',
+      identifier: body.identifier || '',
+      name: body.name || 'Novo destino WhatsApp',
       description: body.description,
       categories: body.categories || [],
       marketplaces: body.marketplaces || ['SHOPEE', 'MERCADOLIVRE'],
