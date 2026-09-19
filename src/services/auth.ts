@@ -21,11 +21,12 @@ export function verifySession(value: string) {
   const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {workspaceId:string;userId:string;exp:number};
   return data.exp > Date.now() ? data : null;
 }
-export async function registerUser(email: string, password: string, workspaceId = 'ws_default') {
+export async function registerUser(email: string, password: string) {
   if (!email || password.length < 10) throw new Error('Email e senha com no mínimo 10 caracteres são obrigatórios.');
   const hash = await bcrypt.hash(password, 12);
   const id = 'usr_' + randomBytes(12).toString('hex');
-  await query('INSERT INTO workspaces(id,name) VALUES($1,$2) ON CONFLICT (id) DO NOTHING',[workspaceId,'WhatsApp Afiliado']);
+  const workspaceId = 'ws_' + randomBytes(12).toString('hex');
+  await query('INSERT INTO workspaces(id,name) VALUES($1,$2)',[workspaceId,'Workspace de ' + email.toLowerCase()]);
   await query('INSERT INTO users(id,workspace_id,email,password_hash) VALUES($1,$2,$3,$4)',[id,workspaceId,email.toLowerCase(),hash]);
   return { id, workspaceId };
 }
