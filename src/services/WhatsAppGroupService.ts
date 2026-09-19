@@ -1,10 +1,10 @@
 export interface WhatsAppGroup { id:string; subject?:string; size?:number; owner?:string; creation?:number; participants?:any[]; }
 
 export class WhatsAppGroupService {
-  static async listGroups() {
-    const base=(process.env.EVOLUTION_API_URL||'').replace(/\/$/,'');
-    const key=process.env.EVOLUTION_API_KEY;
-    const instance=process.env.EVOLUTION_INSTANCE;
+  static async listGroups(settings?: {evolutionApiUrl?:string;evolutionApiKey?:string;evolutionInstance?:string}) {
+    const base=(settings?.evolutionApiUrl || process.env.EVOLUTION_API_URL||'').replace(/\/$/,'');
+    const key=settings?.evolutionApiKey || process.env.EVOLUTION_API_KEY;
+    const instance=settings?.evolutionInstance || process.env.EVOLUTION_INSTANCE;
     if(!base||!key||!instance) throw new Error('Evolution API não configurada.');
     const candidates=[
       `/group/fetchAllGroups/${encodeURIComponent(instance)}?getParticipants=true`,
