@@ -26,7 +26,7 @@ export class PersistentStoreRepository {
 
   async load(workspaceId: string): Promise<boolean> {
     const accounts = await query<{id:string;workspace_id:string;marketplace:any;status:any;status_message:string|null;credentials_encrypted:string;created_at:string;updated_at:string}>(
-      'SELECT id, workspace_id, marketplace, status, credentials_encrypted, created_at, updated_at FROM marketplace_accounts WHERE workspace_id=$1',
+      'SELECT id, workspace_id, marketplace, status, status_message, credentials_encrypted, created_at, updated_at FROM marketplace_accounts WHERE workspace_id=$1',
       [workspaceId]
     );
     const stateRows = await query<{state: State}>('SELECT state FROM workspace_state WHERE workspace_id=$1', [workspaceId]);
@@ -36,7 +36,7 @@ export class PersistentStoreRepository {
     for (const row of accounts) {
       this.store.accounts.set(row.id, {
         id: row.id, workspace_id: row.workspace_id, marketplace: row.marketplace,
-        status: row.status, credentials_encrypted: decryptCredentials<MarketplaceAccount['credentials_encrypted']>(row.credentials_encrypted),
+        status: row.status, status_message: row.status_message || undefined, credentials_encrypted: decryptCredentials<MarketplaceAccount['credentials_encrypted']>(row.credentials_encrypted),
         created_at: new Date(row.created_at).toISOString(), updated_at: new Date(row.updated_at).toISOString(),
       });
     }
@@ -66,11 +66,11 @@ export class PersistentStoreRepository {
     await transaction(async client => {
       for (const account of this.store.accounts.values()) {
         await client.query(
-          `INSERT INTO marketplace_accounts (id,workspace_id,marketplace,status,credentials_encrypted,created_at,updated_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7)
+          `INSERT INTO marketplace_accounts (id,workspace_id,marketplace,status,status_message,credentials_encrypted,created_at,updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
            ON CONFLICT (id) DO UPDATE SET workspace_id=EXCLUDED.workspace_id, marketplace=EXCLUDED.marketplace,
-             status=EXCLUDED.status, credentials_encrypted=EXCLUDED.credentials_encrypted, updated_at=EXCLUDED.updated_at`,
-          [account.id, account.workspace_id, account.marketplace, account.status, encryptCredentials(account.credentials_encrypted), account.created_at, account.updated_at]
+             status=EXCLUDED.status, status_message=EXCLUDED.status_message, credentials_encrypted=EXCLUDED.credentials_encrypted, updated_at=EXCLUDED.updated_at`,
+          [account.id, account.workspace_id, account.marketplace, account.status, account.status_message || null, encryptCredentials(account.credentials_encrypted), account.created_at, account.updated_at]
         );
       }
 
