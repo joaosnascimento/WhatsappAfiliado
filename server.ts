@@ -44,7 +44,7 @@ async function getMlOAuthTransaction(state: string): Promise<MlOAuthTransaction 
 }
 async function deleteMlOAuthTransaction(state: string) {
   if (redis) await redis.del(`${ML_OAUTH_REDIS_PREFIX}${state}`);
-  else await deleteMlOAuthTransaction(state);
+  else mlOAuthTransactions.delete(state);
 }
 const ML_OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 function cleanupExpiredMlOAuthTransactions() {
