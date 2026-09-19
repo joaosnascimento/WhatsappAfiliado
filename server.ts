@@ -11,7 +11,6 @@ import { ensureWorkspace } from './src/infrastructure/workspace.ts';
 import { closeDatabase } from './src/infrastructure/database.ts';
 import { registerUser, authenticateUser, createSession } from './src/services/auth.ts';
 import { requireAuth } from './src/services/authMiddleware.ts';
-import { enqueuePublication } from './src/infrastructure/queue.ts';
 import { ShopeeAffiliateAdapter } from './integrations/shopee/ShopeeAffiliateAdapter.ts';
 import { MercadoLivreAffiliateAdapter } from './integrations/mercadolivre/MercadoLivreAffiliateAdapter.ts';
 import { MercadoLivreOAuthService } from './integrations/mercadolivre/MercadoLivreOAuthService.ts';
@@ -506,6 +505,7 @@ async function startServer() {
     store.publications.set(publication.id, publication);
     if (persistentStoreEnabled) await store.persist('ws_default');
     try {
+      const { enqueuePublication } = await import('./src/infrastructure/queue.ts');
       await enqueuePublication({ publicationId: publication.id, destinationId: destination.id, offerId: offer.id });
     } catch (error) {
       publication.status = 'FAILED';
