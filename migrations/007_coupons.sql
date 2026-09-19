@@ -16,6 +16,6 @@ CREATE TABLE IF NOT EXISTS coupons (
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(workspace_id, marketplace, code, COALESCE(product_external_id,''))
 );
+CREATE UNIQUE INDEX IF NOT EXISTS uq_coupons_workspace_market_code_product ON coupons(workspace_id, marketplace, code, (COALESCE(product_external_id,'')));
 CREATE INDEX IF NOT EXISTS idx_coupons_active ON coupons(workspace_id,is_active,expires_at);
