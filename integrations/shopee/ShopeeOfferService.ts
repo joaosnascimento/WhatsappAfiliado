@@ -170,18 +170,12 @@ export class ShopeeOfferService {
   public normalizeProduct(node: ShopeeProductOfferNode): AffiliateProduct {
     const price = node.price || node.priceMin || 0;
     const discountRate = node.discountRate ? Number(node.discountRate) : undefined;
-    const originalPrice =
-      discountRate && discountRate > 0 && price > 0
-        ? Number((price / (1 - discountRate / 100)).toFixed(2))
-        : undefined;
+    // The API's discountRate is authoritative. Do not infer a historical/list price.
+    const originalPrice = undefined;
 
-    const commissionRate = node.commissionRate ? Number(node.commissionRate) : undefined;
-    const commission =
-      node.commission !== undefined
-        ? Number(node.commission)
-        : commissionRate
-        ? Number(((price * commissionRate) / 100).toFixed(2))
-        : 0;
+    const commissionRate = node.commissionRate !== undefined
+      ? Number(node.commissionRate)
+      : undefined;
 
     return {
       id: `shopee_${node.shopId}_${node.itemId}`,
@@ -194,7 +188,7 @@ export class ShopeeOfferService {
       price,
       original_price: originalPrice,
       discount: discountRate,
-      commission,
+      commission: node.commission !== undefined ? Number(node.commission) : undefined,
       commission_rate: commissionRate,
       rating: node.rating,
       sales: node.sales,
