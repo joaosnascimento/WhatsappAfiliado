@@ -63,7 +63,8 @@ export class WhatsAppProvider {
       });
 
       if (!res.ok) {
-        return { success: false, sentAt: timestamp, error: `WhatsApp Cloud API HTTP ${res.status}: ${await res.text()}`, provider: 'WHATSAPP_CLOUD_API' };
+        await res.text();
+        return { success: false, sentAt: timestamp, error: `WhatsApp Cloud API HTTP ${res.status}.`, provider: 'WHATSAPP_CLOUD_API' };
       }
 
       const data = await res.json();
@@ -112,7 +113,7 @@ export class WhatsAppProvider {
       try { data = bodyText ? JSON.parse(bodyText) : {}; } catch { /* preserve raw provider response below */ }
 
       if (!res.ok) {
-        return { success: false, sentAt: timestamp, error: `Evolution API HTTP ${res.status}: ${bodyText}`, provider: 'EVOLUTION_API' };
+        return { success: false, sentAt: timestamp, error: `Evolution API HTTP ${res.status}.`, provider: 'EVOLUTION_API' };
       }
 
       const messageId = data?.key?.id || data?.response?.key?.id || data?.message?.key?.id;
