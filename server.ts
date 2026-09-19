@@ -25,6 +25,7 @@ import { AnalyticsService } from './src/services/AnalyticsService.ts';
 import { WhatsAppGroupService } from './src/services/WhatsAppGroupService.ts';
 import { CouponService } from './src/services/CouponService.ts';
 import { WhatsAppSettingsService } from './src/services/WhatsAppSettingsService.ts';
+import { requestSecurityMiddleware, securityHeaders, recordSecurityEvent } from './src/security/security.ts';
 import { runTests } from './src/test/integrations.test.ts';
 import type { Offer, Publication, Destination } from './src/types/affiliate.ts';
 
@@ -75,6 +76,7 @@ async function startServer() {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : false);
+  app.use(requestSecurityMiddleware);
 
   const allowedOrigins = (process.env.CORS_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean);
   app.use((req,res,next) => {
@@ -104,13 +106,13 @@ async function startServer() {
   app.post('/api/auth/register', redisRateLimit({ windowSeconds: 900, max: 5, prefix: 'register' }), async (req, res) => {
     if (!persistentStoreEnabled) return res.status(503).json({ error: 'Persistent storage is required for authentication.' });
     try { const user = await registerUser(String(req.body.email || ''), String(req.body.password || '')); res.status(201).json({ success:true, user }); }
-    catch (error) { res.status(400).json({ error:(error as Error).message }); }
+    catch (error) { void recordSecurityEvent({eventType:'REGISTER_FAILURE',severity:'MEDIUM',ip:req.ip,userAgent:req.get('user-agent')||undefined,path:req.path}); res.status(400).json({ error:'Não foi possível criar a conta.' }); }
   });
 
   app.post('/api/auth/login', redisRateLimit({ windowSeconds: 900, max: 10, prefix: 'login' }), async (req, res) => {
     if (!persistentStoreEnabled) return res.status(503).json({ error: 'Persistent storage is required for authentication.' });
     const user = await authenticateUser(String(req.body.email || ''), String(req.body.password || ''));
-    if (!user) return res.status(401).json({ error:'Credenciais inválidas.' });
+    if (!user) { void recordSecurityEvent({eventType:'LOGIN_FAILURE',severity:'MEDIUM',ip:req.ip,userAgent:req.get('user-agent')||undefined,path:req.path}); return res.status(401).json({ error:'Credenciais inválidas.' }); }
     res.json({ success:true, token:createSession(user), user });
   });
 
@@ -147,7 +149,7 @@ async function startServer() {
       if (!userId || userId.length > 128 || !applicationId || applicationId.length > 128 || !eventId || eventId.length > 128) return res.status(400).json({error:'Webhook inválido.'});
       const rows = await query<any>('SELECT id,workspace_id FROM marketplace_accounts WHERE marketplace=\'MERCADOLIVRE\' AND provider_account_id=$1 AND provider_application_id=$2 LIMIT 1',[userId,applicationId]);
       const match = rows[0];
-      if (!match) return res.status(202).json({received:true, matched:false});
+      if (!match) { void recordSecurityEvent({eventType:'WEBHOOK_UNMATCHED',severity:'MEDIUM',ip:req.ip,userAgent:req.get('user-agent')||undefined,path:req.path,metadata:{applicationId}}); return res.status(200).json({received:true, matched:false});
       const inserted=await query<any>(`INSERT INTO processed_webhooks(workspace_id,event_id,marketplace) VALUES($1,$2,'MERCADOLIVRE') ON CONFLICT DO NOTHING RETURNING event_id`,[match.workspace_id,eventId]);
       if (!inserted.length) return res.status(200).json({received:true,duplicate:true});
       await AnalyticsService.trackWebhook(match.workspace_id,'MERCADOLIVRE',{event_id:eventId,topic:req.body?.topic||null,resource:req.body?.resource||null,user_id:userId,application_id:applicationId,received_at:new Date().toISOString()});
