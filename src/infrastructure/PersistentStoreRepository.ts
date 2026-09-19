@@ -100,8 +100,10 @@ export class PersistentStoreRepository {
           `INSERT INTO publications
              (id,workspace_id,offer_id,destination_id,status,idempotency_key,provider_message_id,error,scheduled_at,published_at,affiliate_link_id,affiliate_url,message,tracking_subids)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-           ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,provider_message_id=EXCLUDED.provider_message_id,
-             error=EXCLUDED.error,scheduled_at=EXCLUDED.scheduled_at,published_at=EXCLUDED.published_at,
+           ON CONFLICT (id) DO UPDATE SET status=CASE WHEN publications.status IN ('SENT','FAILED') THEN publications.status ELSE EXCLUDED.status END,
+             provider_message_id=COALESCE(EXCLUDED.provider_message_id, publications.provider_message_id),
+             error=CASE WHEN publications.status IN ('SENT','FAILED') AND EXCLUDED.status NOT IN ('FAILED') THEN publications.error ELSE EXCLUDED.error END,
+             scheduled_at=EXCLUDED.scheduled_at,published_at=COALESCE(EXCLUDED.published_at, publications.published_at),
              affiliate_link_id=EXCLUDED.affiliate_link_id,affiliate_url=EXCLUDED.affiliate_url,message=EXCLUDED.message,tracking_subids=EXCLUDED.tracking_subids`,
           [publication.id, workspaceId, publication.offer_id, publication.destination_id, publication.status,
             publication.idempotency_key || publication.id, publication.provider_message_id || null,
