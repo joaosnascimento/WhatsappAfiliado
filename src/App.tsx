@@ -248,7 +248,7 @@ export function App() {
         {activeTab === 'setup' && <SetupTab apiFetch={apiFetch} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} onNavigate={setActiveTab} />}\n        {activeTab === 'dashboard' && <DashboardTab reports={reports} onNavigateToOffers={()=>setActiveTab('offers')} onNavigateToAffiliates={()=>setActiveTab('affiliates')} />}
         {activeTab === 'affiliates' && <AffiliatesTab accounts={accounts} onSaveAccount={handleSaveAccount} onTestIntegration={handleTestIntegration} onConnectMercadoLivre={handleConnectMercadoLivre} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} />}
         {activeTab === 'offers' && <OffersTab offers={offers} destinations={destinations} onLiveSearch={handleLiveSearch} onOpenAssociateModal={(offer)=>setAssociateModalOffer(offer)} onOpenAiMessageModal={(offer)=>setAiModalOffer(offer)} onQuickPublish={handlePublish} />}
-        {activeTab === 'destinations' && <DestinationsTab destinations={destinations} onAddDestination={handleAddDestination} />}
+        {activeTab === 'destinations' && <DestinationsTab destinations={destinations} onAddDestination={handleAddDestination} apiFetch={apiFetch} />}
         {activeTab === 'queue' && <PublicationsTab publications={publications} onTriggerSend={async()=>{}} />}
         {activeTab === 'audit' && <AuditTab records={auditRecords} />}
         {activeTab === 'docs' && <DocsTab onRunTests={handleRunTests} testResults={testResults} isRunningTests={isTestingSuite} />}
