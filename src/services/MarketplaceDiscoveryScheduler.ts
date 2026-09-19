@@ -147,7 +147,7 @@ export class MarketplaceDiscoveryScheduler {
               state.products.push(product);
               state.offers.push(offer);
             }
-            try { await CouponService.extractFromOffer(workspaceId, existing || offer); } catch { /* only verified/provider-supplied coupon metadata is persisted */ }
+            try { const couponOffer = existing || state.offers.find((o: Offer) => o.product?.external_product_id === product.external_product_id && o.marketplace === product.marketplace); if (couponOffer) await CouponService.extractFromOffer(workspaceId, couponOffer); } catch { /* only provider-supplied coupon metadata is persisted */ }
             discovered++;
           }
         }
