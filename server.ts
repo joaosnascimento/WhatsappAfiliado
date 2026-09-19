@@ -26,6 +26,7 @@ import { AnalyticsService } from './src/services/AnalyticsService.ts';
 import { WhatsAppGroupService } from './src/services/WhatsAppGroupService.ts';
 import { CouponService } from './src/services/CouponService.ts';
 import { WhatsAppSettingsService } from './src/services/WhatsAppSettingsService.ts';
+import { assertSafeOutboundUrl } from './src/security/outboundUrl.ts';
 import { runTests } from './src/test/integrations.test.ts';
 import type { Offer, Publication, Destination } from './src/types/affiliate.ts';
 
@@ -74,9 +75,33 @@ async function startServer() {
   }
 
   const app = express();
-  const PORT = Number(process.env.PORT || 3000);
+  app.disable('x-powered-by');
+  app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : false);
 
-  app.use(express.json());
+  const allowedOrigins = (process.env.CORS_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean);
+  app.use((req,res,next) => {
+    const origin = req.get('origin');
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    }
+    if (req.method === 'OPTIONS') return res.sendStatus(origin && allowedOrigins.includes(origin) ? 204 : 403);
+    next();
+  });
+  app.use((req,res,next) => {
+    res.setHeader('X-Content-Type-Options','nosniff');
+    res.setHeader('X-Frame-Options','DENY');
+    res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');
+    if (process.env.NODE_ENV === 'production') res.setHeader('Strict-Transport-Security','max-age=31536000; includeSubDomains');
+    next();
+  });
+  app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '32kb' }));
+  app.use('/api', redisRateLimit({ windowSeconds: 60, max: Number(process.env.API_RATE_LIMIT_MAX || 120), prefix: 'api' }));
+  const PORT = Number(process.env.PORT || 3000);
 
   app.post('/api/auth/register', redisRateLimit({ windowSeconds: 900, max: 5, prefix: 'register' }), async (req, res) => {
     if (!persistentStoreEnabled) return res.status(503).json({ error: 'Persistent storage is required for authentication.' });
@@ -116,15 +141,12 @@ async function startServer() {
 
   // 1. Health check
   // Mercado Livre webhook receiver. It records the official event without inventing a sale/conversion.
-  app.post('/webhooks/mercadolivre', async (req, res) => {
+  app.post('/webhooks/mercadolivre', redisRateLimit({windowSeconds:60,max:30,prefix:'ml-webhook'}), async (req, res) => {
     try {
       const userId = String(req.body?.user_id || req.body?.userId || '');
-      const accounts = await query<any>('SELECT id,workspace_id,credentials_encrypted FROM marketplace_accounts WHERE marketplace=\'MERCADOLIVRE\'');
-      const account = accounts.find((a:any) => {
-        try { return String(decryptCredentials<any>(a.credentials_encrypted).ml_user_id || '') === userId; } catch { return false; }
-      });
-      // Encrypted credentials are intentionally opaque here; resolve by workspace account through the in-memory store when available.
-      const match = account;
+      if (!userId || userId.length > 128) return res.status(400).json({error:'Webhook inválido.'});
+      const rows = await query<any>('SELECT id,workspace_id FROM marketplace_accounts WHERE marketplace=\'MERCADOLIVRE\' AND provider_account_id=$1 LIMIT 1',[userId]);
+      const match = rows[0];
       if (!match) return res.status(202).json({received:true, matched:false});
       await AnalyticsService.trackWebhook(match.workspace_id,'MERCADOLIVRE',{topic:req.body?.topic||null,resource:req.body?.resource||null,user_id:userId,received_at:new Date().toISOString()});
       res.status(202).json({received:true,matched:true});
@@ -149,7 +171,7 @@ async function startServer() {
   });
 
   // 2. Integration Unit Tests Runner
-  app.get('/api/tests/run', (req, res) => {
+  app.get('/api/tests/run', requireAuth, async (req, res) => {
     try {
       const results = runTests();
       res.json(results);
@@ -161,13 +183,14 @@ async function startServer() {
   // 3. Accounts management
   app.get('/api/accounts', (req, res) => {
     const list = Array.from(store.accounts.values()).map((acc) => ({
-      ...acc,
-      // Hide raw secret in client response
-      credentials_encrypted: {
-        ...acc.credentials_encrypted,
-        ml_client_secret: acc.credentials_encrypted.ml_client_secret ? '••••••••' : '',
-        shopee_secret: acc.credentials_encrypted.shopee_secret ? '••••••••' : '',
-      },
+      id: acc.id,
+      workspace_id: acc.workspace_id,
+      marketplace: acc.marketplace,
+      status: acc.status,
+      status_message: acc.status_message,
+      created_at: acc.created_at,
+      updated_at: acc.updated_at,
+      credentials_configured: Object.keys(acc.credentials_encrypted || {}).filter(k => Boolean((acc.credentials_encrypted as any)[k])).length > 0,
     }));
     res.json(list);
   });
@@ -178,27 +201,25 @@ async function startServer() {
       return res.status(404).json({ error: 'Conta não encontrada' });
     }
 
-    const { credentials } = req.body;
-    if (credentials) {
-      account.credentials_encrypted = {
-        ...account.credentials_encrypted,
-        ...credentials,
-      };
-      if (account.marketplace === 'SHOPEE') {
-        account.status = credentials.shopee_app_id ? 'CONNECTED' : 'AWAITING_CONFIG';
-        account.status_message = credentials.shopee_app_id
-          ? 'Shopee Affiliate Open API configurada'
-          : 'Aguardando App ID e Secret';
-      } else {
-        account.status = credentials.ml_client_id ? 'CONNECTED' : 'AWAITING_CONFIG';
-        account.status_message = credentials.ml_client_id
-          ? 'DevCenter configurado'
-          : 'Aguardando Client ID';
+    const { credentials } = req.body || {};
+    if (credentials && typeof credentials === 'object' && !Array.isArray(credentials)) {
+      const allowed = account.marketplace === 'SHOPEE'
+        ? ['shopee_app_id','shopee_secret']
+        : ['ml_client_id','ml_client_secret','ml_redirect_uri'];
+      for (const key of Object.keys(credentials)) {
+        if (!allowed.includes(key)) return res.status(400).json({error:'Campo de credencial não permitido.'});
+        if (typeof credentials[key] !== 'string' || credentials[key].length > 512) return res.status(400).json({error:'Credencial inválida.'});
       }
+      for (const key of allowed) if (key in credentials) (account.credentials_encrypted as any)[key] = credentials[key];
+      const configured = account.marketplace === 'SHOPEE'
+        ? Boolean(account.credentials_encrypted.shopee_app_id && account.credentials_encrypted.shopee_secret)
+        : Boolean(account.credentials_encrypted.ml_client_id && account.credentials_encrypted.ml_client_secret && account.credentials_encrypted.ml_redirect_uri);
+      account.status = configured ? 'AWAITING_CONFIG' : 'AWAITING_CONFIG';
+      account.status_message = configured ? 'Credenciais configuradas; conclua o fluxo de autenticação.' : 'Aguardando credenciais obrigatórias.';
       account.updated_at = new Date().toISOString();
     }
-
-    res.json({ success: true, account });
+    const safeAccount = { id:account.id, workspace_id:account.workspace_id, marketplace:account.marketplace, status:account.status, status_message:account.status_message, created_at:account.created_at, updated_at:account.updated_at };
+    res.json({ success: true, account: safeAccount });
   });
 
   // 4. Mercado Livre OAuth Flow
@@ -235,7 +256,7 @@ async function startServer() {
     if (!transaction || Date.now() - transaction.createdAt > ML_OAUTH_STATE_TTL_MS) {
       return res.status(400).send('State OAuth inválido ou expirado.');
     }
-    mlOAuthTransactions.delete(state);
+    await deleteMlOAuthTransaction(state);
 
     try {
       await runWithWorkspace(transaction.workspaceId, async () => {
@@ -252,6 +273,7 @@ async function startServer() {
         mlAccount.credentials_encrypted.ml_access_token = tokenData.access_token;
         mlAccount.credentials_encrypted.ml_refresh_token = tokenData.refresh_token;
         mlAccount.credentials_encrypted.ml_user_id = String(tokenData.user_id);
+        await query('UPDATE marketplace_accounts SET provider_account_id=$2 WHERE id=$1',[mlAccount.id,String(tokenData.user_id)]);
         mlAccount.credentials_encrypted.ml_expires_at = Date.now() + tokenData.expires_in * 1000;
         mlAccount.status = 'CONNECTED';
         mlAccount.status_message = `Conectado com sucesso (User ID: ${tokenData.user_id})`;
