@@ -246,7 +246,7 @@ async function startServer() {
   });
 
   // 4. Mercado Livre OAuth Flow
-  app.get('/api/auth/mercadolivre/url', requireAuth, (req, res) => {
+  app.get('/api/auth/mercadolivre/url', requireAuth, async (req, res) => {
     const mlAccount = findMarketplaceAccount('MERCADOLIVRE');
     const clientId = mlAccount?.credentials_encrypted.ml_client_id || process.env.MERCADOLIVRE_CLIENT_ID || '';
     const redirectUri = mlAccount?.credentials_encrypted.ml_redirect_uri || process.env.MERCADOLIVRE_REDIRECT_URI || '';
