@@ -106,7 +106,7 @@ export class AutomationScheduler {
               destinationId: destination.id,
               subId: `whatsapp:${destination.id}:${offer.marketplace.toLowerCase()}`,
             });
-            const publicBase = (process.env.APP_URL || '').replace(/\\/$/, '');
+            const publicBase = (process.env.APP_URL || '').replace(/\/$/, '');
             const publicationAffiliateUrl = publicBase ? `${publicBase}/r/${tracked.id}` : offer.affiliate_url!;
             const message = offer.ai_generated_message
               ? offer.ai_generated_message.replaceAll(offer.affiliate_url!, publicationAffiliateUrl)
