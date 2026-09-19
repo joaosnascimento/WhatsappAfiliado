@@ -6,6 +6,7 @@ import { WhatsAppProvider } from '../services/WhatsAppProvider.ts';
 import { DeduplicationService } from '../services/DeduplicationService.ts';
 import { AutomationScheduler } from '../services/AutomationScheduler.ts';
 import { MarketplaceDiscoveryScheduler } from '../services/MarketplaceDiscoveryScheduler.ts';
+import { AccountHealthService } from '../services/AccountHealthService.ts';
 import type { Destination, Publication } from '../types/affiliate.ts';
 
 const connection = requireRedis();
@@ -73,6 +74,16 @@ const worker = new Worker('affiliate-publications', async job => {
 
 worker.on('failed', (job, err) => console.error('Publication job failed', job?.id, err.message));
 console.log('Publication worker running.');
+
+const maintenanceIntervalMs = Math.max(300000, Number(process.env.MAINTENANCE_INTERVAL_MS || 3600000));
+void DeduplicationService.purgeOldRecords(Number(process.env.DEDUP_RETENTION_DAYS || 30)).catch(error => console.error('Initial dedup cleanup failed:', error));
+void AccountHealthService.tick().catch(error => console.error('Initial account health check failed:', error));
+setInterval(() => {
+  void DeduplicationService.purgeOldRecords(Number(process.env.DEDUP_RETENTION_DAYS || 30))
+    .catch(error => console.error('Dedup cleanup failed:', error));
+  void AccountHealthService.tick()
+    .catch(error => console.error('Account health check failed:', error));
+}, maintenanceIntervalMs);
 
 const discoveryIntervalMs = Math.max(60000, Number(process.env.DISCOVERY_INTERVAL_MS || 900000));
 void MarketplaceDiscoveryScheduler.tick().catch(error => console.error('Initial marketplace discovery failed:', error));
