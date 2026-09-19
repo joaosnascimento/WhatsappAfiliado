@@ -467,7 +467,8 @@ async function startServer() {
     }
 
     // Deduplication check: Section 22
-    const dedup = DeduplicationService.isDuplicate(
+    const dedup = await DeduplicationService.isDuplicate(
+      req.user!.workspaceId,
       offer.marketplace,
       offer.product.external_product_id,
       destination.id,
@@ -509,7 +510,7 @@ async function startServer() {
 
     // Queue publication for asynchronous processing. The worker is the only component that sends to WhatsApp.
     store.publications.set(publication.id, publication);
-    if (persistentStoreEnabled) await store.persist('ws_default');
+    if (persistentStoreEnabled) await store.persist(req.user!.workspaceId);
     try {
       const { enqueuePublication } = await import('./src/infrastructure/queue.ts');
       await enqueuePublication({ publicationId: publication.id, destinationId: destination.id, offerId: offer.id });
@@ -520,14 +521,6 @@ async function startServer() {
       return res.status(503).json({ success:false, publication, error:'Fila de publicação indisponível.' });
     }
     return res.status(202).json({ success:true, queued:true, publication });
-
-
-    res.json({
-      success: result.success,
-      publication,
-      provider: result.provider,
-      messageId: result.messageId,
-    });
   });
 
   // 10. Destinations
