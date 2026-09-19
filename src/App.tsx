@@ -19,6 +19,14 @@ import type {
 } from './types/affiliate.ts';
 import type { AuditRecord } from './services/AuditService.ts';
 
+type AuthUser = { id: string; email: string; workspaceId: string };
+
+async function readJson<T = any>(response: Response): Promise<T> {
+  const text = await response.text();
+  if (!text) return {} as T;
+  try { return JSON.parse(text) as T; } catch { return {} as T; }
+}
+
 export function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [accounts, setAccounts] = useState<MarketplaceAccount[]>([]);
@@ -29,260 +37,223 @@ export function App() {
   const [reports, setReports] = useState<any>(null);
   const [whatsappSettings, setWhatsappSettings] = useState<any>(null);
 
-  // Modals
   const [associateModalOffer, setAssociateModalOffer] = useState<Offer | null>(null);
   const [aiModalOffer, setAiModalOffer] = useState<Offer | null>(null);
-
-  // Unit tests
   const [isTestingSuite, setIsTestingSuite] = useState(false);
   const [testResults, setTestResults] = useState<any>(null);
 
-  // Initial data loader
-  const loadData = async () => {
-    try {
-      const [accRes, offRes, destRes, pubRes, repRes, audRes, waRes] = await Promise.all([
-        fetch('/api/accounts').then((r) => r.json()),
-        fetch('/api/offers').then((r) => r.json()),
-        fetch('/api/destinations').then((r) => r.json()),
-        fetch('/api/publications').then((r) => r.json()),
-        fetch('/api/reports').then((r) => r.json()),
-        fetch('/api/audit').then((r) => r.json()),
-        fetch('/api/whatsapp/settings').then((r) => r.json()),
-      ]);
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('whatsappafiliado_token'));
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState('');
 
-      setAccounts(accRes || []);
-      setOffers(offRes || []);
-      setDestinations(destRes || []);
-      setPublications(pubRes || []);
-      setReports(repRes || null);
-      setAuditRecords(audRes || []);
-      setWhatsappSettings(waRes || null);
+  const apiFetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
+    const headers = new Headers(init.headers);
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    return fetch(input, { ...init, headers });
+  };
+
+  const logout = () => {
+    const currentToken = token;
+    setToken(null);
+    setUser(null);
+    localStorage.removeItem('whatsappafiliado_token');
+    if (currentToken) {
+      void fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: `Bearer ${currentToken}` } }).catch(() => undefined);
+    }
+  };
+
+  const loadData = async () => {
+    if (!token) return;
+    try {
+      const responses = await Promise.all([
+        apiFetch('/api/accounts'), apiFetch('/api/offers'), apiFetch('/api/destinations'),
+        apiFetch('/api/publications'), apiFetch('/api/reports'), apiFetch('/api/audit'),
+        apiFetch('/api/whatsapp/settings'),
+      ]);
+      if (responses.some((r) => r.status === 401)) { logout(); return; }
+
+      const [accRes, offRes, destRes, pubRes, repRes, audRes, waRes] = await Promise.all(responses.map(readJson));
+      setAccounts(Array.isArray(accRes) ? accRes : []);
+      setOffers(Array.isArray(offRes) ? offRes : []);
+      setDestinations(Array.isArray(destRes) ? destRes : []);
+      setPublications(Array.isArray(pubRes) ? pubRes : []);
+      setReports(repRes && typeof repRes === 'object' ? repRes : null);
+      setAuditRecords(Array.isArray(audRes) ? audRes : []);
+      setWhatsappSettings(waRes && typeof waRes === 'object' ? waRes : null);
     } catch (err) {
       console.error('Failed to load initial SaaS data:', err);
     }
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    let cancelled = false;
+    const verify = async () => {
+      if (!token) { if (!cancelled) setAuthChecking(false); return; }
+      try {
+        const res = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) throw new Error('SESSION_INVALID');
+        const data = await readJson<{user: AuthUser}>(res);
+        if (!cancelled) setUser(data.user);
+      } catch {
+        localStorage.removeItem('whatsappafiliado_token');
+        if (!cancelled) { setToken(null); setUser(null); }
+      } finally {
+        if (!cancelled) setAuthChecking(false);
+      }
+    };
+    void verify();
+    return () => { cancelled = true; };
+  }, [token]);
 
-  // Handler: Run Unit Tests
-  const handleRunTests = async () => {
-    setIsTestingSuite(true);
+  useEffect(() => {
+    if (token && user) void loadData();
+  }, [token, user]);
+
+  const handleAuth = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setAuthBusy(true);
+    setAuthError('');
     try {
-      const res = await fetch('/api/tests/run');
-      const data = await res.json();
-      setTestResults(data);
-    } catch (err) {
-      alert(`Falha ao executar suíte de testes: ${(err as Error).message}`);
+      if (authMode === 'register') {
+        const registerRes = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: authEmail, password: authPassword }),
+        });
+        const registerData = await readJson(registerRes);
+        if (!registerRes.ok) throw new Error(registerData.error || 'Não foi possível criar a conta.');
+      }
+      const loginRes = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: authEmail, password: authPassword }),
+      });
+      const loginData = await readJson<{token?: string; user?: AuthUser; error?: string}>(loginRes);
+      if (!loginRes.ok || !loginData.token || !loginData.user) throw new Error(loginData.error || 'Credenciais inválidas.');
+      localStorage.setItem('whatsappafiliado_token', loginData.token);
+      setToken(loginData.token);
+      setUser(loginData.user);
+      setAuthPassword('');
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Não foi possível autenticar.');
     } finally {
-      setIsTestingSuite(false);
+      setAuthBusy(false);
     }
   };
 
-  // Handler: Save Account
+  const handleRunTests = async () => {
+    setIsTestingSuite(true);
+    try {
+      const res = await apiFetch('/api/tests/run');
+      const data = await readJson(res);
+      if (!res.ok) throw new Error(data.error || 'Falha ao executar testes');
+      setTestResults(data);
+    } catch (err) {
+      alert(`Falha ao executar suíte de testes: ${(err as Error).message}`);
+    } finally { setIsTestingSuite(false); }
+  };
+
   const handleSaveWhatsApp = async (settings: any) => {
-    const res = await fetch('/api/whatsapp/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(settings)});
-    const data=await res.json(); if(!res.ok) throw new Error(data.error||'Erro ao salvar WhatsApp');
+    const res = await apiFetch('/api/whatsapp/settings', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(settings) });
+    const data=await readJson(res); if(!res.ok) throw new Error(data.error||'Erro ao salvar WhatsApp');
     setWhatsappSettings({...whatsappSettings,...settings});
   };
 
   const handleSaveAccount = async (accountId: string, credentials: Record<string, string>) => {
-    const res = await fetch(`/api/accounts/${accountId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ credentials }),
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Erro ao salvar credenciais');
-    }
+    const res = await apiFetch(`/api/accounts/${accountId}`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ credentials }) });
+    if (!res.ok) { const err=await readJson(res); throw new Error(err.error||'Erro ao salvar credenciais'); }
     await loadData();
   };
 
-  // Handler: Test Integration Diagnostic
   const handleTestIntegration = async (marketplace: 'SHOPEE' | 'MERCADOLIVRE'): Promise<IntegrationTestResult> => {
-    const res = await fetch(`/api/test-integration/${marketplace}`, {
-      method: 'POST',
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Erro no diagnóstico');
-    }
-    return res.json();
+    const res = await apiFetch(`/api/test-integration/${marketplace}`, { method:'POST' });
+    if (!res.ok) { const err=await readJson(res); throw new Error(err.error||'Erro no diagnóstico'); }
+    return readJson(res);
   };
 
-  // Handler: Connect Mercado Livre OAuth
   const handleConnectMercadoLivre = async () => {
-    const res = await fetch('/api/auth/mercadolivre/url');
-    const data = await res.json();
-    if (data.url) {
-      window.open(data.url, 'ml_oauth_popup', 'width=650,height=750');
-    } else {
-      alert('Não foi possível obter a URL de autorização do Mercado Livre.');
-    }
+    const res = await apiFetch('/api/auth/mercadolivre/url');
+    const data = await readJson(res);
+    if (data.url) window.open(data.url, 'ml_oauth_popup', 'width=650,height=750');
+    else alert(data.error || 'Não foi possível obter a URL de autorização do Mercado Livre.');
   };
 
-  // Handler: Live Search
-  const handleLiveSearch = async (params: {
-    marketplace: MarketplaceType;
-    keyword: string;
-    category?: string;
-  }) => {
-    const res = await fetch('/api/offers/search-live', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params),
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Erro na busca ao vivo');
-    }
+  const handleLiveSearch = async (params: { marketplace: MarketplaceType; keyword: string; category?: string }) => {
+    const res = await apiFetch('/api/offers/search-live', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(params) });
+    if (!res.ok) { const err=await readJson(res); throw new Error(err.error||'Erro na busca ao vivo'); }
     await loadData();
   };
 
-  // Handler: Associate ML Link
   const handleAssociateMLLink = async (offerId: string, affiliateUrl: string) => {
-    const res = await fetch(`/api/offers/${offerId}/associate-ml-link`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ affiliateUrl }),
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Erro ao associar link');
-    }
+    const res = await apiFetch(`/api/offers/${offerId}/associate-ml-link`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ affiliateUrl }) });
+    if (!res.ok) { const err=await readJson(res); throw new Error(err.error||'Erro ao associar link'); }
     await loadData();
   };
 
-  // Handler: Generate AI Message
   const handleGenerateAiMessage = async (offerId: string, destinationId?: string): Promise<string> => {
-    const res = await fetch(`/api/offers/${offerId}/generate-ai-message`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ destinationId }),
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Erro ao gerar mensagem');
-    }
-    const data = await res.json();
-    await loadData();
-    return data.message;
+    const res = await apiFetch(`/api/offers/${offerId}/generate-ai-message`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ destinationId }) });
+    if (!res.ok) { const err=await readJson(res); throw new Error(err.error||'Erro ao gerar mensagem'); }
+    const data = await readJson<{message:string}>(res); await loadData(); return data.message;
   };
 
-  // Handler: Publish
   const handlePublish = async (offerId: string, destinationId: string) => {
-    const res = await fetch(`/api/offers/${offerId}/publish`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ destinationId }),
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Erro na publicação');
-    }
+    const res = await apiFetch(`/api/offers/${offerId}/publish`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ destinationId }) });
+    if (!res.ok) { const err=await readJson(res); throw new Error(err.error||'Erro na publicação'); }
     await loadData();
   };
 
-  // Handler: Add Destination
   const handleAddDestination = async (dest: Partial<Destination>) => {
-    const res = await fetch('/api/destinations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dest),
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Erro ao criar destino');
-    }
+    const res = await apiFetch('/api/destinations', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(dest) });
+    if (!res.ok) { const err=await readJson(res); throw new Error(err.error||'Erro ao criar destino'); }
     await loadData();
   };
+
+  if (authChecking) {
+    return <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center"><div className="text-sm text-slate-400">Verificando sessão...</div></div>;
+  }
+
+  if (!token || !user) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
+        <form onSubmit={handleAuth} className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-7 shadow-xl">
+          <div className="text-center mb-7">
+            <div className="mx-auto mb-4 w-12 h-12 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 font-bold">WA</div>
+            <h1 className="text-2xl font-bold text-white">Afiliados WhatsApp <span className="text-emerald-400">Pro</span></h1>
+            <p className="text-sm text-slate-400 mt-1">{authMode === 'login' ? 'Entre para acessar seu painel.' : 'Crie sua conta para começar.'}</p>
+          </div>
+          <label className="block text-xs font-medium text-slate-300 mb-2">E-mail</label>
+          <input value={authEmail} onChange={(e)=>setAuthEmail(e.target.value)} type="email" required autoComplete="email" className="w-full mb-4 px-3 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white outline-none focus:border-emerald-500" />
+          <label className="block text-xs font-medium text-slate-300 mb-2">Senha</label>
+          <input value={authPassword} onChange={(e)=>setAuthPassword(e.target.value)} type="password" required minLength={10} maxLength={128} autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} className="w-full mb-3 px-3 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white outline-none focus:border-emerald-500" />
+          {authError && <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{authError}</div>}
+          <button disabled={authBusy} className="w-full py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-semibold">{authBusy ? 'Aguarde...' : authMode === 'login' ? 'Entrar' : 'Criar conta'}</button>
+          <button type="button" onClick={()=>{setAuthMode(authMode === 'login' ? 'register' : 'login');setAuthError('');}} className="w-full mt-3 text-sm text-emerald-400 hover:text-emerald-300">
+            {authMode === 'login' ? 'Ainda não tenho conta — criar agora' : 'Já tenho uma conta — entrar'}
+          </button>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-slate-950">
-      {/* Top Header & Navigation */}
-      <Header
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        accounts={accounts}
-        onRunTests={handleRunTests}
-        isTestingSuite={isTestingSuite}
-      />
-
-      {/* Main Tab Content */}
+      <Header activeTab={activeTab} setActiveTab={setActiveTab} accounts={accounts} onRunTests={handleRunTests} isTestingSuite={isTestingSuite} />
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeTab === 'dashboard' && (
-          <DashboardTab
-            reports={reports}
-            onNavigateToOffers={() => setActiveTab('offers')}
-            onNavigateToAffiliates={() => setActiveTab('affiliates')}
-          />
-        )}
-
-        {activeTab === 'affiliates' && (
-          <AffiliatesTab
-            accounts={accounts}
-            onSaveAccount={handleSaveAccount}
-            onTestIntegration={handleTestIntegration}
-            onConnectMercadoLivre={handleConnectMercadoLivre}
-            whatsappSettings={whatsappSettings}
-            onSaveWhatsApp={handleSaveWhatsApp}
-          />
-        )}
-
-        {activeTab === 'offers' && (
-          <OffersTab
-            offers={offers}
-            destinations={destinations}
-            onLiveSearch={handleLiveSearch}
-            onOpenAssociateModal={(offer) => setAssociateModalOffer(offer)}
-            onOpenAiMessageModal={(offer) => setAiModalOffer(offer)}
-            onQuickPublish={handlePublish}
-          />
-        )}
-
-        {activeTab === 'destinations' && (
-          <DestinationsTab
-            destinations={destinations}
-            onAddDestination={handleAddDestination}
-          />
-        )}
-
-        {activeTab === 'queue' && (
-          <PublicationsTab
-            publications={publications}
-            onTriggerSend={async () => {}}
-          />
-        )}
-
-        {activeTab === 'audit' && (
-          <AuditTab records={auditRecords} />
-        )}
-
-        {activeTab === 'docs' && (
-          <DocsTab
-            onRunTests={handleRunTests}
-            testResults={testResults}
-            isRunningTests={isTestingSuite}
-          />
-        )}
+        {activeTab === 'dashboard' && <DashboardTab reports={reports} onNavigateToOffers={()=>setActiveTab('offers')} onNavigateToAffiliates={()=>setActiveTab('affiliates')} />}
+        {activeTab === 'affiliates' && <AffiliatesTab accounts={accounts} onSaveAccount={handleSaveAccount} onTestIntegration={handleTestIntegration} onConnectMercadoLivre={handleConnectMercadoLivre} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} />}
+        {activeTab === 'offers' && <OffersTab offers={offers} destinations={destinations} onLiveSearch={handleLiveSearch} onOpenAssociateModal={(offer)=>setAssociateModalOffer(offer)} onOpenAiMessageModal={(offer)=>setAiModalOffer(offer)} onQuickPublish={handlePublish} />}
+        {activeTab === 'destinations' && <DestinationsTab destinations={destinations} onAddDestination={handleAddDestination} />}
+        {activeTab === 'queue' && <PublicationsTab publications={publications} onTriggerSend={async()=>{}} />}
+        {activeTab === 'audit' && <AuditTab records={auditRecords} />}
+        {activeTab === 'docs' && <DocsTab onRunTests={handleRunTests} testResults={testResults} isRunningTests={isTestingSuite} />}
       </main>
-
-      {/* Modals */}
-      <AssociateLinkModal
-        offer={associateModalOffer}
-        onClose={() => setAssociateModalOffer(null)}
-        onAssociate={handleAssociateMLLink}
-      />
-
-      <AiMessageModal
-        offer={aiModalOffer}
-        destinations={destinations}
-        onClose={() => setAiModalOffer(null)}
-        onGenerateMessage={handleGenerateAiMessage}
-        onPublish={handlePublish}
-      />
+      <AssociateLinkModal offer={associateModalOffer} onClose={()=>setAssociateModalOffer(null)} onAssociate={handleAssociateMLLink} />
+      <AiMessageModal offer={aiModalOffer} destinations={destinations} onClose={()=>setAiModalOffer(null)} onGenerateMessage={handleGenerateAiMessage} onPublish={handlePublish} />
     </div>
   );
 }
