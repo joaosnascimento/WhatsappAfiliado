@@ -11,6 +11,7 @@ import { ensureWorkspace } from './src/infrastructure/workspace.ts';
 import { closeDatabase } from './src/infrastructure/database.ts';
 import { registerUser, authenticateUser, createSession } from './src/services/auth.ts';
 import { requireAuth } from './src/services/authMiddleware.ts';
+import { enqueuePublication } from './src/infrastructure/queue.ts';
 import { ShopeeAffiliateAdapter } from './integrations/shopee/ShopeeAffiliateAdapter.ts';
 import { MercadoLivreAffiliateAdapter } from './integrations/mercadolivre/MercadoLivreAffiliateAdapter.ts';
 import { MercadoLivreOAuthService } from './integrations/mercadolivre/MercadoLivreOAuthService.ts';
@@ -501,38 +502,19 @@ async function startServer() {
       tracking_subids: ['whatsapp', destination.id, offer.marketplace.toLowerCase()],
     };
 
-    // Send via WhatsAppProvider
-    const provider = new WhatsAppProvider();
-    const result = await provider.sendPublication(publication, destination);
-
-    if (result.success) {
-      publication.status = 'SENT';
-      publication.sent_at = result.sentAt;
-      offer.status = 'PUBLISHED';
-
-      // Record in deduplication history
-      DeduplicationService.recordPublication(
-        publication.id,
-        offer.marketplace,
-        offer.product.external_product_id,
-        destination.id,
-        offer.product.shop_id
-      );
-
-      // Record in audit trail: Section 29
-      AuditService.logPublicationTrace({
-        offer,
-        destination,
-        publication,
-        affiliateAccountId: offer.marketplace === 'SHOPEE' ? 'acc_shopee_br' : 'acc_mercadolivre_br',
-      });
-    } else {
-      publication.status = 'FAILED';
-      publication.error_message = result.error;
-      offer.status = 'FAILED';
-    }
-
+    // Queue publication for asynchronous processing. The worker is the only component that sends to WhatsApp.
     store.publications.set(publication.id, publication);
+    if (persistentStoreEnabled) await store.persist('ws_default');
+    try {
+      await enqueuePublication({ publicationId: publication.id, destinationId: destination.id, offerId: offer.id });
+    } catch (error) {
+      publication.status = 'FAILED';
+      publication.error_message = (error as Error).message;
+      offer.status = 'FAILED';
+      return res.status(503).json({ success:false, publication, error:'Fila de publicação indisponível.' });
+    }
+    return res.status(202).json({ success:true, queued:true, publication });
+
 
     res.json({
       success: result.success,
