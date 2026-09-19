@@ -8,6 +8,15 @@ export interface MercadoLivreApiConfig {
   maxRetries?: number;
 }
 
+export interface MercadoLivreRequestOptions extends RequestInit {
+  /**
+   * Public catalog endpoints do not need the user's OAuth token.
+   * Keeping the token off those requests avoids PolicyAgent denying a
+   * public resource because the application/user lacks a private scope.
+   */
+  authenticated?: boolean;
+}
+
 export class MercadoLivreApiClient {
   private accessToken?: string;
   private refreshToken?: string;
@@ -34,10 +43,13 @@ export class MercadoLivreApiClient {
   }
 
   /**
-   * Executes HTTP request with retry, backoff, and automatic token refresh
+   * Executes HTTP request with retry, backoff, and automatic token refresh.
+   * Authentication is opt-in per request because Mercado Livre exposes
+   * public catalog resources that should be queried without a user token.
    */
-  public async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  public async request<T>(endpoint: string, options: MercadoLivreRequestOptions = {}): Promise<T> {
     const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint}`;
+    const { authenticated = true, ...requestOptions } = options;
     let attempt = 0;
 
     while (attempt < this.maxRetries) {
@@ -45,21 +57,20 @@ export class MercadoLivreApiClient {
 
       const headers: Record<string, string> = {
         Accept: 'application/json',
-        ...(options.headers as Record<string, string>),
+        ...(requestOptions.headers as Record<string, string> || {}),
       };
 
-      if (this.accessToken) {
+      if (authenticated && this.accessToken) {
         headers['Authorization'] = `Bearer ${this.accessToken}`;
       }
 
       try {
         const response = await fetch(url, {
-          ...options,
+          ...requestOptions,
           headers,
         });
 
-        // Check for token expiration (401) and attempt refresh if available
-        if (response.status === 401 && this.refreshToken && this.oauthService) {
+        if (authenticated && response.status === 401 && this.refreshToken && this.oauthService) {
           try {
             const tokenData = await this.oauthService.refreshAccessToken(this.refreshToken);
             this.accessToken = tokenData.access_token;
@@ -67,9 +78,9 @@ export class MercadoLivreApiClient {
             if (this.onTokenRefreshed) {
               this.onTokenRefreshed(tokenData.access_token, tokenData.refresh_token, tokenData.expires_in);
             }
-            // Retry request with fresh token
+
             headers['Authorization'] = `Bearer ${this.accessToken}`;
-            const retryRes = await fetch(url, { ...options, headers });
+            const retryRes = await fetch(url, { ...requestOptions, headers });
             if (!retryRes.ok) {
               const errBody = await retryRes.text();
               throw new Error(`Mercado Livre API error (${retryRes.status}): ${errBody}`);
@@ -80,7 +91,6 @@ export class MercadoLivreApiClient {
           }
         }
 
-        // Retry on 429 or 5xx
         if (response.status === 429 || (response.status >= 500 && response.status < 600)) {
           if (attempt >= this.maxRetries) {
             throw new Error(`Mercado Livre API transient error (${response.status}) after ${this.maxRetries} retries.`);
