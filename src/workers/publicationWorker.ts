@@ -4,6 +4,7 @@ import { query } from '../infrastructure/database.ts';
 import { requireRedis } from '../infrastructure/redis.ts';
 import { WhatsAppProvider } from '../services/WhatsAppProvider.ts';
 import { DeduplicationService } from '../services/DeduplicationService.ts';
+import { AutomationScheduler } from '../services/AutomationScheduler.ts';
 import type { Destination, Publication } from '../types/affiliate.ts';
 
 const connection = requireRedis();
@@ -52,3 +53,12 @@ const worker = new Worker('affiliate-publications', async job => {
 
 worker.on('failed', (job, err) => console.error('Publication job failed', job?.id, err.message));
 console.log('Publication worker running.');
+
+// The scheduler is DB-idempotent, so multiple worker replicas may run this tick safely.
+const schedulerIntervalMs = Math.max(15000, Number(process.env.SCHEDULER_INTERVAL_MS || 60000));
+void AutomationScheduler.tick().catch(error => console.error('Initial automation scheduler tick failed:', error));
+setInterval(() => {
+  void AutomationScheduler.tick()
+    .then(created => { if (created) console.log('Automation scheduler queued', created, 'publication(s).'); })
+    .catch(error => console.error('Automation scheduler tick failed:', error));
+}, schedulerIntervalMs);
