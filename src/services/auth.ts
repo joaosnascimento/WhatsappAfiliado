@@ -6,6 +6,7 @@ const TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 function secret() {
   if (!process.env.SESSION_SECRET) throw new Error('SESSION_SECRET is required.');
+  if (process.env.SESSION_SECRET.length < 32) throw new Error('SESSION_SECRET must contain at least 32 characters.');
   return process.env.SESSION_SECRET;
 }
 function sign(value: string) { return createHmac('sha256', secret()).update(value).digest('base64url'); }
