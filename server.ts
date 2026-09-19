@@ -111,6 +111,22 @@ async function startServer() {
   app.use('/api/whatsapp', requireAuth);
 
   // 1. Health check
+  // Mercado Livre webhook receiver. It records the official event without inventing a sale/conversion.
+  app.post('/webhooks/mercadolivre', async (req, res) => {
+    try {
+      const userId = String(req.body?.user_id || req.body?.userId || '');
+      const accounts = await query<any>('SELECT id,workspace_id,credentials_encrypted FROM marketplace_accounts WHERE marketplace=\'MERCADOLIVRE\'');
+      const account = accounts.find((a:any) => {
+        try { return String(JSON.parse(Buffer.from(a.credentials_encrypted,'base64').toString('utf8')).ml_user_id || '') === userId; } catch { return false; }
+      });
+      // Encrypted credentials are intentionally opaque here; resolve by workspace account through the in-memory store when available.
+      const match = accounts.find((a:any) => String(a.id) === userId) || account;
+      if (!match) return res.status(202).json({received:true, matched:false});
+      await AnalyticsService.trackWebhook(match.workspace_id,'MERCADOLIVRE',{topic:req.body?.topic||null,resource:req.body?.resource||null,user_id:userId,received_at:new Date().toISOString()});
+      res.status(202).json({received:true,matched:true});
+    } catch (err) { res.status(500).json({error:(err as Error).message}); }
+  });
+
   app.get('/api/health', async (req, res) => {
     res.json({
       status: 'ok',
@@ -664,6 +680,7 @@ async function startServer() {
         commissionBrl: Number(mlCommission.toFixed(2)),
       },
       recentConversions: allConvs,
+      analytics: await AnalyticsService.report(req.user!.workspaceId),
     });
   });
 
