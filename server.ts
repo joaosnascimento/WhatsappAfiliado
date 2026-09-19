@@ -10,7 +10,7 @@ import { runMigrations } from './src/infrastructure/migrations.ts';
 import { ensureWorkspace } from './src/infrastructure/workspace.ts';
 import { closeDatabase, query } from './src/infrastructure/database.ts';
 import { redis } from './src/infrastructure/redis.ts';
-import { registerUser, authenticateUser, createSession } from './src/services/auth.ts';
+import { registerUser, authenticateUser, createSession, revokeSession } from './src/services/auth.ts';
 import { requireAuth } from './src/services/authMiddleware.ts';
 import { redisRateLimit } from './src/services/rateLimit.ts';
 import { ShopeeAffiliateAdapter } from './integrations/shopee/ShopeeAffiliateAdapter.ts';
@@ -116,7 +116,13 @@ async function startServer() {
     res.json({ success:true, token:createSession(user), user });
   });
 
-  app.get('/api/auth/me', requireAuth, (req, res) => res.json({ user:req.user }));
+  app.get('/api/auth/me', requireAuth, (req, res) => res.json({ user:req.user }));\n  app.post('/api/auth/logout', requireAuth, async (req,res) => {
+    const header = req.get('authorization');
+    const value = header?.startsWith('Bearer ') ? header.slice(7) : '';
+    if (value) await revokeSession(value);
+    res.status(204).send();
+  });
+
 
   if (persistentStoreEnabled) {
     app.use((req, res, next) => {
