@@ -86,7 +86,9 @@ ${JSON.stringify(verifiedFacts, null, 2)}
         const generated = response.text?.trim();
         if (generated && generated.length > 20 && generated.length <= 2000) {
           // Treat the model as untrusted input: it may format facts, but cannot replace verified data.
-          const required = [product.title, priceFormatted, affiliateUrl];\n          const urlMatches = generated.match(/https?:\\/\\/[^\\s)]+/gi) || [];\n          const unexpectedUrl = urlMatches.some(url => url !== affiliateUrl);
+          const required = [product.title, priceFormatted, affiliateUrl];
+          const urlMatches = generated.match(/https?:\/\/[^\s)]+/gi) || [];
+          const unexpectedUrl = urlMatches.some(url => url !== affiliateUrl);
           const couponIsRequired = Boolean(couponCode);
           if (unexpectedUrl || !required.every(fact => generated.includes(fact)) || (couponIsRequired && !generated.includes(couponCode!))) {
             return this.buildDeterministicMessage(input);
