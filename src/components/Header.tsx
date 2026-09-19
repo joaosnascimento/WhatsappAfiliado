@@ -8,9 +8,10 @@ interface HeaderProps {
   accounts: MarketplaceAccount[];
   onRunTests: () => void;
   isTestingSuite: boolean;
+  onLogout: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, accounts, onRunTests, isTestingSuite }) => {
+export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, accounts, onRunTests, isTestingSuite, onLogout }) => {
   const ml = accounts.find(a => a.marketplace === 'MERCADOLIVRE');
   const sh = accounts.find(a => a.marketplace === 'SHOPEE');
   const primary = [
@@ -49,7 +50,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, account
           ))}
           <details className="relative">
             <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-400 hover:bg-slate-900 hover:text-white"><MoreHorizontal className="h-3.5 w-3.5"/>Mais</summary>
-            <div className="absolute right-0 top-10 z-50 min-w-52 rounded-xl border border-slate-800 bg-slate-900 p-1 shadow-2xl">
+            <div className="absolute right-0 top-10 z-50 min-w-56 rounded-xl border border-slate-800 bg-slate-900 p-1 shadow-2xl">
               {secondary.map(item=><button key={item.id} onClick={()=>setActiveTab(item.id)} className="block w-full rounded-lg px-3 py-2 text-left text-xs text-slate-300 hover:bg-slate-800 hover:text-white">{item.label}</button>)}
               <button onClick={onRunTests} disabled={isTestingSuite} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-emerald-300 hover:bg-slate-800 disabled:opacity-50"><ShieldCheck className="h-3.5 w-3.5"/>{isTestingSuite?'Executando testes...':'Executar testes'}</button>
             </div>
