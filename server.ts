@@ -11,6 +11,7 @@ import { ensureWorkspace } from './src/infrastructure/workspace.ts';
 import { closeDatabase } from './src/infrastructure/database.ts';
 import { registerUser, authenticateUser, createSession } from './src/services/auth.ts';
 import { requireAuth } from './src/services/authMiddleware.ts';
+import { redisRateLimit } from './src/services/rateLimit.ts';
 import { ShopeeAffiliateAdapter } from './integrations/shopee/ShopeeAffiliateAdapter.ts';
 import { MercadoLivreAffiliateAdapter } from './integrations/mercadolivre/MercadoLivreAffiliateAdapter.ts';
 import { MercadoLivreOAuthService } from './integrations/mercadolivre/MercadoLivreOAuthService.ts';
@@ -50,13 +51,13 @@ async function startServer() {
 
   app.use(express.json());
 
-  app.post('/api/auth/register', async (req, res) => {
+  app.post('/api/auth/register', redisRateLimit({ windowSeconds: 900, max: 5, prefix: 'register' }), async (req, res) => {
     if (!persistentStoreEnabled) return res.status(503).json({ error: 'Persistent storage is required for authentication.' });
     try { const user = await registerUser(String(req.body.email || ''), String(req.body.password || '')); res.status(201).json({ success:true, user }); }
     catch (error) { res.status(400).json({ error:(error as Error).message }); }
   });
 
-  app.post('/api/auth/login', async (req, res) => {
+  app.post('/api/auth/login', redisRateLimit({ windowSeconds: 900, max: 10, prefix: 'login' }), async (req, res) => {
     if (!persistentStoreEnabled) return res.status(503).json({ error: 'Persistent storage is required for authentication.' });
     const user = await authenticateUser(String(req.body.email || ''), String(req.body.password || ''));
     if (!user) return res.status(401).json({ error:'Credenciais inválidas.' });
@@ -445,7 +446,7 @@ async function startServer() {
   });
 
   // 9. Publish Offer to WhatsApp Destination
-  app.post('/api/offers/:id/publish', async (req, res) => {
+  app.post('/api/offers/:id/publish', redisRateLimit({ windowSeconds: 60, max: 20, prefix: 'publish' }), async (req, res) => {
     const offer = store.offers.get(req.params.id);
     if (!offer) {
       return res.status(404).json({ error: 'Oferta não encontrada.' });
