@@ -25,7 +25,6 @@ import { AnalyticsService } from './src/services/AnalyticsService.ts';
 import { WhatsAppGroupService } from './src/services/WhatsAppGroupService.ts';
 import { CouponService } from './src/services/CouponService.ts';
 import { WhatsAppSettingsService } from './src/services/WhatsAppSettingsService.ts';
-import { assertSafeOutboundUrl } from './src/security/outboundUrl.ts';
 import { runTests } from './src/test/integrations.test.ts';
 import type { Offer, Publication, Destination } from './src/types/affiliate.ts';
 
