@@ -827,6 +827,16 @@ async function startServer() {
     } catch(err){ res.status(400).json({error:(err as Error).message}); }
   });
 
+  // Normalize Evolution QR payloads so the frontend can render them directly as an image.
+  const normalizeQrCode = (value: unknown) => {
+    if (!value || typeof value !== 'string') return null;
+    const qr = value.trim();
+    if (!qr) return null;
+    if (qr.startsWith('data:image/')) return qr;
+    if (/^[A-Za-z0-9+/=]+$/.test(qr) && qr.length > 100) return 'data:image/png;base64,' + qr;
+    return qr;
+  };
+
   // WhatsApp setup center: all Evolution lifecycle operations are exposed through the authenticated UI.
   const getEvolutionConfig = async (workspaceId: string) => {
     const settings = await WhatsAppSettingsService.get(workspaceId);
@@ -866,13 +876,13 @@ async function startServer() {
         const create = await fetch(cfg.base + '/instance/create', {method:'POST',headers,body:JSON.stringify({instanceName:cfg.instance,integration:'WHATSAPP-BAILEYS',qrcode:true,groupsIgnore:false,alwaysOnline:true})});
         if (!create.ok && create.status !== 409) return res.status(create.status).json({error:'Não foi possível criar a conexão WhatsApp.'});
         const created=await create.json().catch(()=>({}));
-        const qr=created?.qrcode?.base64 || created?.qrcode?.code || null;
+        const qr=normalizeQrCode(created?.qrcode?.base64 || created?.qrcode?.code || null);
         if(qr) return res.json({state:'connecting',qrcode:qr,instance:cfg.instance});
       }
       const connect = await fetch(cfg.base + '/instance/connect/' + encodeURIComponent(cfg.instance), {headers:{apikey:cfg.key}});
       const data=await connect.json().catch(()=>({}));
       if(!connect.ok) return res.status(connect.status).json({error:'Não foi possível gerar o QR Code.'});
-      res.json({state:'connecting',qrcode:data?.base64 || data?.qrcode?.base64 || data?.qrcode?.code || data?.code || null,instance:cfg.instance});
+      res.json({state:'connecting',qrcode:normalizeQrCode(data?.base64 || data?.qrcode?.base64 || data?.qrcode?.code || data?.code || null),instance:cfg.instance});
     } catch(err) { res.status(400).json({error:(err as Error).message}); }
   });
 
@@ -882,7 +892,7 @@ async function startServer() {
       const r=await fetch(cfg.base + '/instance/connect/' + encodeURIComponent(cfg.instance),{headers:{apikey:cfg.key}});
       const data=await r.json().catch(()=>({}));
       if(!r.ok) return res.status(r.status).json({error:'Não foi possível obter o QR Code.'});
-      res.json({qrcode:data?.base64 || data?.qrcode?.base64 || data?.qrcode?.code || data?.code || null});
+      res.json({qrcode:normalizeQrCode(data?.base64 || data?.qrcode?.base64 || data?.qrcode?.code || data?.code || null)});
     } catch(err){res.status(400).json({error:(err as Error).message});}
   });
 
