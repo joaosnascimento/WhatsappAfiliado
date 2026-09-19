@@ -389,12 +389,12 @@ function getWorkspaceStoreSyncFallback(): MemoryStore {
 // Legacy route code can keep using store.accounts/store.offers/etc.;
 // the proxy resolves those properties against the authenticated request workspace.
 export const store = new Proxy({} as MemoryStore, {
-  get(_target, property: keyof MemoryStore) {
+  get(_target, property: string | symbol) {
     const active = currentWorkspaceStore();
-    const value = active[property];
+    const value = (active as any)[property];
     return typeof value === 'function' ? value.bind(active) : value;
   },
-  set(_target, property: keyof MemoryStore, value: unknown) {
+  set(_target, property: string | symbol, value: unknown) {
     (currentWorkspaceStore() as any)[property] = value;
     return true;
   },
