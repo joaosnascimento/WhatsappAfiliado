@@ -143,12 +143,16 @@ async function startServer() {
   app.post('/webhooks/mercadolivre', redisRateLimit({windowSeconds:60,max:30,prefix:'ml-webhook'}), async (req, res) => {
     try {
       const userId = String(req.body?.user_id || req.body?.userId || '');
-      if (!userId || userId.length > 128) return res.status(400).json({error:'Webhook inválido.'});
-      const rows = await query<any>('SELECT id,workspace_id FROM marketplace_accounts WHERE marketplace=\'MERCADOLIVRE\' AND provider_account_id=$1 LIMIT 1',[userId]);
+      const applicationId = String(req.body?.application_id || '');
+      const eventId = String(req.body?._id || req.body?.id || '');
+      if (!userId || userId.length > 128 || !applicationId || applicationId.length > 128 || !eventId || eventId.length > 128) return res.status(400).json({error:'Webhook inválido.'});
+      const rows = await query<any>('SELECT id,workspace_id FROM marketplace_accounts WHERE marketplace=\'MERCADOLIVRE\' AND provider_account_id=$1 AND provider_application_id=$2 LIMIT 1',[userId,applicationId]);
       const match = rows[0];
       if (!match) return res.status(202).json({received:true, matched:false});
-      await AnalyticsService.trackWebhook(match.workspace_id,'MERCADOLIVRE',{topic:req.body?.topic||null,resource:req.body?.resource||null,user_id:userId,received_at:new Date().toISOString()});
-      res.status(202).json({received:true,matched:true});
+      const inserted=await query<any>(`INSERT INTO processed_webhooks(workspace_id,event_id,marketplace) VALUES($1,$2,'MERCADOLIVRE') ON CONFLICT DO NOTHING RETURNING event_id`,[match.workspace_id,eventId]);
+      if (!inserted.length) return res.status(200).json({received:true,duplicate:true});
+      await AnalyticsService.trackWebhook(match.workspace_id,'MERCADOLIVRE',{event_id:eventId,topic:req.body?.topic||null,resource:req.body?.resource||null,user_id:userId,application_id:applicationId,received_at:new Date().toISOString()});
+      res.status(200).json({received:true,matched:true});
     } catch (err) { res.status(500).json({error:(err as Error).message}); }
   });
 
@@ -272,7 +276,7 @@ async function startServer() {
         mlAccount.credentials_encrypted.ml_access_token = tokenData.access_token;
         mlAccount.credentials_encrypted.ml_refresh_token = tokenData.refresh_token;
         mlAccount.credentials_encrypted.ml_user_id = String(tokenData.user_id);
-        await query('UPDATE marketplace_accounts SET provider_account_id=$2 WHERE id=$1',[mlAccount.id,String(tokenData.user_id)]);
+        await query('UPDATE marketplace_accounts SET provider_account_id=$2, provider_application_id=$3 WHERE id=$1',[mlAccount.id,String(tokenData.user_id),clientId]);
         mlAccount.credentials_encrypted.ml_expires_at = Date.now() + tokenData.expires_in * 1000;
         mlAccount.status = 'CONNECTED';
         mlAccount.status_message = `Conectado com sucesso (User ID: ${tokenData.user_id})`;
