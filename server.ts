@@ -645,46 +645,24 @@ async function startServer() {
     res.json(Array.from(store.publications.values()).reverse());
   });
 
-  // 12. Reports / Dashboard (Section 24: Separar claramente ML e Shopee)
-  app.get('/api/reports', (req, res) => {
-    const allOffers = Array.from(store.offers.values());
-    const allPubs = Array.from(store.publications.values());
-    const allConvs = Array.from(store.conversions.values());
-
-    // Shopee Metrics
-    const shopeeOffers = allOffers.filter((o) => o.marketplace === 'SHOPEE');
-    const shopeeReadyLinks = shopeeOffers.filter((o) => o.status === 'AFFILIATE_LINK_READY' || o.status === 'PUBLISHED');
-    const shopeePubs = allPubs.filter((p) => p.offer?.marketplace === 'SHOPEE');
-    const shopeeConvs = allConvs.filter((c) => c.marketplace === 'SHOPEE');
-    const shopeeCommission = shopeeConvs.reduce((sum, c) => sum + c.commission, 0);
-
-    // Mercado Livre Metrics
-    const mlOffers = allOffers.filter((o) => o.marketplace === 'MERCADOLIVRE');
-    const mlReadyLinks = mlOffers.filter((o) => o.status === 'AFFILIATE_LINK_READY' || o.status === 'PUBLISHED');
-    const mlPubs = allPubs.filter((p) => p.offer?.marketplace === 'MERCADOLIVRE');
-    const mlConvs = allConvs.filter((c) => c.marketplace === 'MERCADOLIVRE');
-    const mlCommission = mlConvs.reduce((sum, c) => sum + c.commission, 0);
-
-    res.json({
-      shopee: {
-        productsFound: shopeeOffers.length,
-        affiliateLinksReady: shopeeReadyLinks.length,
-        publications: shopeePubs.length,
-        clicksTracked: 0,
-        conversions: shopeeConvs.length,
-        commissionBrl: Number(shopeeCommission.toFixed(2)),
-      },
-      mercadolivre: {
-        productsFound: mlOffers.length,
-        affiliateLinksReady: mlReadyLinks.length,
-        publications: mlPubs.length,
-        clicksTracked: 0,
-        conversions: mlConvs.length,
-        commissionBrl: Number(mlCommission.toFixed(2)),
-      },
-      recentConversions: allConvs,
-      analytics: await AnalyticsService.report(req.user!.workspaceId),
-    });
+  // 12. Reports / Dashboard with persisted publication and real analytics data.
+  app.get('/api/reports', async (req, res) => {
+    try {
+      const allOffers = Array.from(store.offers.values());
+      const allPubs = Array.from(store.publications.values());
+      const analytics = await AnalyticsService.report(req.user!.workspaceId);
+      const sh = analytics.byMarketplace.SHOPEE || {clicks:0,conversions:0,valueBrl:0,commissionBrl:0};
+      const ml = analytics.byMarketplace.MERCADOLIVRE || {clicks:0,conversions:0,valueBrl:0,commissionBrl:0};
+      const shopeeOffers = allOffers.filter(o=>o.marketplace==='SHOPEE');
+      const mlOffers = allOffers.filter(o=>o.marketplace==='MERCADOLIVRE');
+      const shopeePubs = allPubs.filter(p=>p.offer?.marketplace==='SHOPEE');
+      const mlPubs = allPubs.filter(p=>p.offer?.marketplace==='MERCADOLIVRE');
+      res.json({
+        shopee:{productsFound:shopeeOffers.length,affiliateLinksReady:shopeeOffers.filter(o=>['AFFILIATE_LINK_READY','PUBLISHED'].includes(o.status)).length,publications:shopeePubs.length,clicksTracked:sh.clicks,conversions:sh.conversions,commissionBrl:Number(sh.commissionBrl.toFixed(2))},
+        mercadolivre:{productsFound:mlOffers.length,affiliateLinksReady:mlOffers.filter(o=>['AFFILIATE_LINK_READY','PUBLISHED'].includes(o.status)).length,publications:mlPubs.length,clicksTracked:ml.clicks,conversions:ml.conversions,commissionBrl:Number(ml.commissionBrl.toFixed(2))},
+        analytics
+      });
+    } catch(err) { res.status(500).json({error:(err as Error).message}); }
   });
 
   // 13. Audit records (Section 29)
