@@ -15,66 +15,64 @@ export interface MLValidationStatus {
   reason?: string;
 }
 
+const OFFICIAL_HOSTS = new Set([
+  'meli.la',
+  'www.meli.la',
+  'mercadolivre.com.br',
+  'www.mercadolivre.com.br',
+  'mercadolibre.com',
+  'www.mercadolibre.com',
+]);
+
 export class MercadoLivreAffiliateService {
-  /**
-   * Validates if a provided link is genuinely an official Mercado Livre affiliate link
-   * Official ML affiliate links typically come as meli.la shortlinks or contain valid tracking domains
-   * and parameters issued through the Mercado Livre Affiliate Portal (e.g. tracking tag or meli.la)
-   */
   public static validateAffiliateUrl(url: string, originalUrl: string): MLValidationStatus {
     if (!url || typeof url !== 'string') {
       return { isValidAffiliateLink: false, reason: 'URL de afiliado vazia ou inválida.' };
     }
 
     const trimmed = url.trim();
-
-    // Prevent tricking the system: ordinary product url is NOT an affiliate url!
     if (trimmed === originalUrl.trim()) {
-      return {
-        isValidAffiliateLink: false,
-        reason: 'A URL de afiliado fornecida é idêntica à URL comum do anúncio. É necessário o link gerado no portal de afiliados do Mercado Livre.',
-      };
+      return { isValidAffiliateLink: false, reason: 'A URL de afiliado não pode ser a mesma URL comum do produto.' };
     }
 
+    let parsed: URL;
     try {
-      const parsed = new URL(trimmed);
-      const isMeliShortlink =
-        parsed.hostname.includes('meli.la') ||
-        parsed.hostname.includes('mercadolivre.com') ||
-        parsed.hostname.includes('mercadolivre.com.br');
+      parsed = new URL(trimmed);
+    } catch {
+      return { isValidAffiliateLink: false, reason: 'Formato de URL inválido.' };
+    }
 
-      if (!isMeliShortlink) {
-        return {
-          isValidAffiliateLink: false,
-          reason: 'O domínio do link deve pertencer ao ecossistema oficial do Mercado Livre (ex: meli.la ou mercadolivre.com.br).',
-        };
-      }
+    if (parsed.protocol !== 'https:') {
+      return { isValidAffiliateLink: false, reason: 'O link de afiliado deve usar HTTPS.' };
+    }
 
-      // Check if it's either the official meli.la shortlink or has official affiliate attribution query tags
-      const hasMeliShort = parsed.hostname.includes('meli.la');
-      const hasAffiliateParams =
+    const hostname = parsed.hostname.toLowerCase();
+    if (!OFFICIAL_HOSTS.has(hostname)) {
+      return { isValidAffiliateLink: false, reason: 'O domínio não pertence ao ecossistema oficial do Mercado Livre.' };
+    }
+
+    // A URL do domínio do Mercado Livre, sozinha, NÃO prova que é afiliada.
+    // meli.la é aceito como formato de shortlink oficial, mas a validação
+    // continua sendo uma validação estrutural: a atribuição final é garantida
+    // pelo gerador/portal oficial do programa.
+    if (hostname !== 'meli.la' && hostname !== 'www.meli.la') {
+      const hasKnownAttribution =
         parsed.searchParams.has('matt_tool') ||
         parsed.searchParams.has('tracking_id') ||
         parsed.searchParams.has('affiliate_id') ||
         parsed.pathname.includes('/afiliados/');
 
-      if (!hasMeliShort && !hasAffiliateParams) {
+      if (!hasKnownAttribution) {
         return {
           isValidAffiliateLink: false,
-          reason: 'O link não possui os identificadores oficiais do Programa de Afiliados do Mercado Livre (ex: meli.la ou parâmetros de atribuição).',
+          reason: 'URL do Mercado Livre sem evidência estrutural de atribuição. Gere o link pelo portal oficial de afiliados.',
         };
       }
-
-      return { isValidAffiliateLink: true };
-    } catch {
-      return { isValidAffiliateLink: false, reason: 'Formato de URL inválido.' };
     }
+
+    return { isValidAffiliateLink: true };
   }
 
-  /**
-   * Securely associates a validated official affiliate link to a discovered ML product.
-   * Both original_url and affiliate_url are preserved permanently.
-   */
   public static associateAffiliateLink(input: MLAssociateLinkInput): AffiliateLink {
     const validation = this.validateAffiliateUrl(input.affiliateUrl, input.originalUrl);
     if (!validation.isValidAffiliateLink) {
@@ -88,7 +86,9 @@ export class MercadoLivreAffiliateService {
       product_id: input.productId,
       original_url: input.originalUrl,
       affiliate_url: input.affiliateUrl.trim(),
-      short_url: input.affiliateUrl.includes('meli.la') ? input.affiliateUrl.trim() : undefined,
+      short_url: /^https:\/\/(www\.)?meli\.la\//i.test(input.affiliateUrl.trim())
+        ? input.affiliateUrl.trim()
+        : undefined,
       tracking_data: {
         campaign: input.campaign,
         destination: input.destination,
