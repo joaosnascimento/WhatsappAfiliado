@@ -8,6 +8,7 @@ import { AutomationScheduler } from '../services/AutomationScheduler.ts';
 import { MarketplaceDiscoveryScheduler } from '../services/MarketplaceDiscoveryScheduler.ts';
 import { AccountHealthService } from '../services/AccountHealthService.ts';
 import { ConversionSyncService } from '../services/ConversionSyncService.ts';
+import { WhatsAppSettingsService } from '../services/WhatsAppSettingsService.ts';
 import type { Destination, Publication } from '../types/affiliate.ts';
 
 const connection = requireRedis();
@@ -31,7 +32,8 @@ const worker = new Worker('affiliate-publications', async job => {
     affiliate_link_id:row.affiliate_link_id || 'unknown', affiliate_url:row.affiliate_url,
     message:row.message, status:'QUEUED', scheduled_at:new Date(row.scheduled_at || row.created_at).toISOString()
   };
-  const result = await new WhatsAppProvider().sendPublication(publication, destination);
+  const whatsappSettings = await WhatsAppSettingsService.get(row.workspace_id);
+  const result = await new WhatsAppProvider(undefined, undefined, whatsappSettings).sendPublication(publication, destination);
   if (!result.success) {
     const errorMessage = result.error || 'Provider failed';
     await query("UPDATE publications SET status='FAILED', error=$2 WHERE id=$1", [row.id, errorMessage]);
