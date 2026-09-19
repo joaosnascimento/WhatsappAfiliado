@@ -12,7 +12,10 @@ export interface CouponData {
 export class CouponService {
   static async registerCoupon(workspaceId:string,coupon:CouponData) {
     if(!coupon.code?.trim()) throw new Error('Código de cupom inválido.');
-    if(!coupon.sourceUrl || !/^https:\/\//i.test(coupon.sourceUrl)) throw new Error('sourceUrl HTTPS é obrigatório para cupons verificados.');
+    if(!coupon.sourceUrl || !/^https:\/\//i.test(coupon.sourceUrl)) throw new Error('sourceUrl HTTPS é obrigatório.');
+    const source=new URL(coupon.sourceUrl);
+    const allowed=coupon.marketplace==='SHOPEE' ? ['shopee.com.br','s.shopee.com.br'] : ['mercadolivre.com.br','mercadolibre.com','meli.la'];
+    if(!allowed.some(d=>source.hostname===d || source.hostname.endsWith('.'+d))) throw new Error('A origem do cupom não pertence ao marketplace informado.');
     const rows=await query<any>(`
       INSERT INTO coupons(id,workspace_id,marketplace,code,description,discount_type,discount_value,minimum_order_value,max_discount_value,starts_at,expires_at,source_url,product_external_id,metadata)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
