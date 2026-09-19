@@ -25,6 +25,7 @@ import { AuditService } from './src/services/AuditService.ts';
 import { AnalyticsService } from './src/services/AnalyticsService.ts';
 import { WhatsAppGroupService } from './src/services/WhatsAppGroupService.ts';
 import { CouponService } from './src/services/CouponService.ts';
+import { WhatsAppSettingsService } from './src/services/WhatsAppSettingsService.ts';
 import { runTests } from './src/test/integrations.test.ts';
 import type { Offer, Publication, Destination } from './src/types/affiliate.ts';
 
@@ -712,14 +713,14 @@ async function startServer() {
     } catch (err) { res.status(500).json({ error:(err as Error).message }); }
   });
 
-  app.get('/api/whatsapp/groups', async (_req, res) => {
-    try { res.json(await WhatsAppGroupService.listGroups()); }
+  app.get('/api/whatsapp/groups', async (req, res) => {
+    try { res.json(await WhatsAppGroupService.listGroups(await WhatsAppSettingsService.get(req.user!.workspaceId))); }
     catch (err) { res.status(503).json({ error:(err as Error).message }); }
   });
 
   app.post('/api/whatsapp/groups/sync', async (req, res) => {
     try {
-      const groups=await WhatsAppGroupService.listGroups();
+      const groups=await WhatsAppGroupService.listGroups(await WhatsAppSettingsService.get(req.user!.workspaceId));
       const selectedId=String(req.body.destinationId || '');
       if(selectedId){
         const d=store.destinations.get(selectedId);
@@ -732,6 +733,30 @@ async function startServer() {
       }
       res.json({success:true,groups,destinations:Array.from(store.destinations.values())});
     } catch(err) { res.status(503).json({error:(err as Error).message}); }
+  });
+
+  app.get('/api/whatsapp/settings', async (req,res) => {
+    try {
+      const s=await WhatsAppSettingsService.get(req.user!.workspaceId);
+      res.json({...s,apiToken:s.apiToken?'configured':'',evolutionApiKey:s.evolutionApiKey?'configured':''});
+    } catch(err){ res.status(500).json({error:(err as Error).message}); }
+  });
+
+  app.post('/api/whatsapp/settings', async (req,res) => {
+    try {
+      const current=await WhatsAppSettingsService.get(req.user!.workspaceId);
+      const body=req.body || {};
+      const next={
+        provider: body.provider || current.provider || 'evolution',
+        apiToken: body.apiToken === 'configured' || !body.apiToken ? current.apiToken : String(body.apiToken),
+        phoneNumberId: body.phoneNumberId || current.phoneNumberId,
+        evolutionApiUrl: body.evolutionApiUrl || current.evolutionApiUrl,
+        evolutionApiKey: body.evolutionApiKey === 'configured' || !body.evolutionApiKey ? current.evolutionApiKey : String(body.evolutionApiKey),
+        evolutionInstance: body.evolutionInstance || current.evolutionInstance,
+      };
+      await WhatsAppSettingsService.save(req.user!.workspaceId,next as any);
+      res.json({success:true,provider:next.provider});
+    } catch(err){ res.status(400).json({error:(err as Error).message}); }
   });
 
   app.get('/api/coupons', async (req,res) => {
