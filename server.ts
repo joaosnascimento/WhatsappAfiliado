@@ -9,6 +9,8 @@ import { store } from './src/services/Store.ts';
 import { runMigrations } from './src/infrastructure/migrations.ts';
 import { ensureWorkspace } from './src/infrastructure/workspace.ts';
 import { closeDatabase } from './src/infrastructure/database.ts';
+import { registerUser, authenticateUser, createSession } from './src/services/auth.ts';
+import { requireAuth } from './src/services/authMiddleware.ts';
 import { ShopeeAffiliateAdapter } from './integrations/shopee/ShopeeAffiliateAdapter.ts';
 import { MercadoLivreAffiliateAdapter } from './integrations/mercadolivre/MercadoLivreAffiliateAdapter.ts';
 import { MercadoLivreOAuthService } from './integrations/mercadolivre/MercadoLivreOAuthService.ts';
@@ -48,6 +50,21 @@ async function startServer() {
 
   app.use(express.json());
 
+  app.post('/api/auth/register', async (req, res) => {
+    if (!persistentStoreEnabled) return res.status(503).json({ error: 'Persistent storage is required for authentication.' });
+    try { const user = await registerUser(String(req.body.email || ''), String(req.body.password || '')); res.status(201).json({ success:true, user }); }
+    catch (error) { res.status(400).json({ error:(error as Error).message }); }
+  });
+
+  app.post('/api/auth/login', async (req, res) => {
+    if (!persistentStoreEnabled) return res.status(503).json({ error: 'Persistent storage is required for authentication.' });
+    const user = await authenticateUser(String(req.body.email || ''), String(req.body.password || ''));
+    if (!user) return res.status(401).json({ error:'Credenciais inválidas.' });
+    res.json({ success:true, token:createSession(user), user });
+  });
+
+  app.get('/api/auth/me', requireAuth, (req, res) => res.json({ user:req.user }));
+
   if (persistentStoreEnabled) {
     app.use((req, res, next) => {
       res.on('finish', () => {
@@ -56,6 +73,13 @@ async function startServer() {
       next();
     });
   }
+
+  app.use('/api/accounts', requireAuth);
+  app.use('/api/offers', requireAuth);
+  app.use('/api/destinations', requireAuth);
+  app.use('/api/publications', requireAuth);
+  app.use('/api/reports', requireAuth);
+  app.use('/api/audit', requireAuth);
 
   // 1. Health check
   app.get('/api/health', (req, res) => {
