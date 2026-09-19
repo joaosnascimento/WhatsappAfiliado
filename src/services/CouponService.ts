@@ -16,7 +16,7 @@ export class CouponService {
     const rows=await query<any>(`
       INSERT INTO coupons(id,workspace_id,marketplace,code,description,discount_type,discount_value,minimum_order_value,max_discount_value,starts_at,expires_at,source_url,product_external_id,metadata)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-      ON CONFLICT (workspace_id,marketplace,code,COALESCE(product_external_id,'')) DO UPDATE SET
+      ON CONFLICT (workspace_id,marketplace,code,(COALESCE(product_external_id,''))) DO UPDATE SET
         description=EXCLUDED.description,discount_type=EXCLUDED.discount_type,discount_value=EXCLUDED.discount_value,
         minimum_order_value=EXCLUDED.minimum_order_value,max_discount_value=EXCLUDED.max_discount_value,
         starts_at=EXCLUDED.starts_at,expires_at=EXCLUDED.expires_at,source_url=EXCLUDED.source_url,
