@@ -58,6 +58,9 @@ async function startServer() {
   if (process.env.NODE_ENV === 'production' && !persistentStoreEnabled) {
     throw new Error('Production startup blocked: DATABASE_URL and persistent storage are required.');
   }
+  if (process.env.NODE_ENV === 'production' && !redis) {
+    throw new Error('Production startup blocked: REDIS_URL is required for rate limiting, OAuth state and job infrastructure.');
+  }
   if (persistentStoreEnabled) {
     if (!process.env.ENCRYPTION_KEY) throw new Error('ENCRYPTION_KEY is required when persistent storage is enabled.');
     await runMigrations();
