@@ -82,10 +82,12 @@ ${JSON.stringify(verifiedFacts, null, 2)}
         });
 
         const generated = response.text?.trim();
-        if (generated && generated.length > 20) {
-          // Extra safety check: ensure the affiliate url is present in the output
-          if (!generated.includes(affiliateUrl)) {
-            return `${generated}\n\n🛒 *Compre aqui:* ${affiliateUrl}`;
+        if (generated && generated.length > 20 && generated.length <= 2000) {
+          // Treat the model as untrusted input: it may format facts, but cannot replace verified data.
+          const required = [product.title, priceFormatted, affiliateUrl];
+          const couponIsRequired = Boolean(couponCode);
+          if (!required.every(fact => generated.includes(fact)) || (couponIsRequired && !generated.includes(couponCode!))) {
+            return this.buildDeterministicMessage(input);
           }
           return generated;
         }
