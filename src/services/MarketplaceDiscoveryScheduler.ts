@@ -78,10 +78,19 @@ export class MarketplaceDiscoveryScheduler {
             const adapter = new ShopeeAffiliateAdapter(appId, secret, account.id);
             products = await adapter.searchOffers({ keyword: job.keyword, category: job.category, limit: 10 });
             for (const product of products) {
+              const existingOffer = state.offers.find((o: Offer) => o.product?.external_product_id === product.external_product_id && o.marketplace === 'SHOPEE');
+              const existingLink = state.links.find((l: any) => l.product_id === product.id);
+              if (existingOffer?.affiliate_url) {
+                product.affiliate_url = existingOffer.affiliate_url;
+                continue;
+              }
+              if (existingLink?.affiliate_url) {
+                product.affiliate_url = existingLink.affiliate_url;
+                continue;
+              }
               try {
                 const link = await adapter.createAffiliateLink({ originalUrl: product.original_url, productId: product.external_product_id, subIds: ['whatsapp', 'auto'] });
-                const existingLink = state.links.find((l: any) => l.product_id === product.id);
-                if (!existingLink) state.links.push(link);
+                state.links.push(link);
                 product.affiliate_url = link.affiliate_url;
               } catch {
                 // Product remains discovered/validated; it is not published without a real affiliate link.
