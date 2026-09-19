@@ -3,6 +3,7 @@ import { Worker } from 'bullmq';
 import { query } from '../infrastructure/database.ts';
 import { requireRedis } from '../infrastructure/redis.ts';
 import { WhatsAppProvider } from '../services/WhatsAppProvider.ts';
+import { DeduplicationService } from '../services/DeduplicationService.ts';
 import type { Destination, Publication } from '../types/affiliate.ts';
 
 const connection = requireRedis();
@@ -32,6 +33,20 @@ const worker = new Worker('affiliate-publications', async job => {
     throw new Error(result.error || 'Publication failed');
   }
   await query("UPDATE publications SET status='SENT', provider_message_id=$2, published_at=NOW(), error=NULL WHERE id=$1", [row.id, result.messageId || null]);
+
+  const stateRows = await query<{ state: any }>('SELECT state FROM workspace_state WHERE workspace_id=$1', [row.workspace_id]);
+  const offer = stateRows[0]?.state?.offers?.find((item: any) => item.id === row.offer_id);
+  if (offer?.product?.external_product_id) {
+    await DeduplicationService.recordPublication(
+      row.workspace_id,
+      row.id,
+      offer.marketplace,
+      offer.product.external_product_id,
+      row.destination_id,
+      offer.product.shop_id,
+    );
+  }
+
   return { messageId: result.messageId };
 }, { connection, concurrency: Number(process.env.WORKER_CONCURRENCY || 5) });
 
