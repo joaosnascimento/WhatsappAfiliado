@@ -620,6 +620,8 @@ async function startServer() {
     const body = req.body as Partial<Destination>;
     const id = body.id || `dest_${Date.now()}`;
     if (!body.identifier || !String(body.identifier).trim()) return res.status(400).json({ error: 'identifier é obrigatório.' });
+    const normalizedKeywords = (body.keywords || []).map((k:string)=>String(k).trim()).filter(Boolean).slice(0,5);
+    const normalizedCategories = (body.categories || []).map((k:string)=>String(k).trim()).filter(Boolean).slice(0,5);
     const destination: Destination = {
       id,
       workspace_id: req.user!.workspaceId,
@@ -627,9 +629,9 @@ async function startServer() {
       identifier: body.identifier || '',
       name: body.name || 'Novo destino WhatsApp',
       description: body.description,
-      categories: body.categories || [],
+      categories: normalizedCategories,
       marketplaces: body.marketplaces || ['SHOPEE', 'MERCADOLIVRE'],
-      keywords: body.keywords || [],
+      keywords: normalizedKeywords,
       frequency_minutes: body.frequency_minutes || 60,
       time_start: body.time_start || '08:00',
       time_end: body.time_end || '22:00',
