@@ -827,6 +827,71 @@ async function startServer() {
     } catch(err){ res.status(400).json({error:(err as Error).message}); }
   });
 
+  // WhatsApp setup center: all Evolution lifecycle operations are exposed through the authenticated UI.
+  const getEvolutionConfig = async (workspaceId: string) => {
+    const settings = await WhatsAppSettingsService.get(workspaceId);
+    const base = (settings.evolutionApiUrl || process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
+    const key = settings.evolutionApiKey || process.env.EVOLUTION_API_KEY || '';
+    const instance = settings.evolutionInstance || process.env.EVOLUTION_INSTANCE || '';
+    if (settings.provider !== 'evolution' || !base || !key || !instance) throw new Error('Configure a Evolution API antes de continuar.');
+    await assertSafeOutboundUrl(base);
+    return { base, key, instance };
+  };
+
+  app.get('/api/whatsapp/status', async (req,res) => {
+    try {
+      const cfg = await getEvolutionConfig(req.user!.workspaceId);
+      const r = await fetch(cfg.base + '/instance/connectionState/' + encodeURIComponent(cfg.instance), { headers:{apikey:cfg.key} });
+      const data = await r.json().catch(()=>({}));
+      if (!r.ok) return res.status(r.status).json({configured:true,state:'error',error:'Evolution API não respondeu corretamente.'});
+      res.json({configured:true,instance:cfg.instance,state:data?.instance?.state || data?.state || 'unknown'});
+    } catch(err) { res.status(400).json({configured:false,state:'not_configured',error:(err as Error).message}); }
+  });
+
+  app.post('/api/whatsapp/connect', async (req,res) => {
+    try {
+      const cfg = await getEvolutionConfig(req.user!.workspaceId);
+      const headers = { apikey:cfg.key, 'Content-Type':'application/json' };
+      const instancesRes = await fetch(cfg.base + '/instance/fetchInstances', {headers:{apikey:cfg.key}});
+      let instances:any[] = [];
+      if (instancesRes.ok) { const raw=await instancesRes.json().catch(()=>[]); instances=Array.isArray(raw)?raw:(raw?.instances||raw?.response||[]); }
+      const exists = instances.some((i:any)=>String(i?.name||i?.instanceName||i?.instance?.instanceName||'')===cfg.instance);
+      if (!exists) {
+        const create = await fetch(cfg.base + '/instance/create', {method:'POST',headers,body:JSON.stringify({instanceName:cfg.instance,integration:'WHATSAPP-BAILEYS',qrcode:true,groupsIgnore:false,alwaysOnline:true})});
+        if (!create.ok && create.status !== 409) return res.status(create.status).json({error:'Não foi possível criar a conexão WhatsApp.'});
+        const created=await create.json().catch(()=>({}));
+        const qr=created?.qrcode?.base64 || created?.qrcode?.code || null;
+        if(qr) return res.json({state:'connecting',qrcode:qr,instance:cfg.instance});
+      }
+      const connect = await fetch(cfg.base + '/instance/connect/' + encodeURIComponent(cfg.instance), {headers:{apikey:cfg.key}});
+      const data=await connect.json().catch(()=>({}));
+      if(!connect.ok) return res.status(connect.status).json({error:'Não foi possível gerar o QR Code.'});
+      res.json({state:'connecting',qrcode:data?.base64 || data?.qrcode?.base64 || data?.qrcode?.code || data?.code || null,instance:cfg.instance});
+    } catch(err) { res.status(400).json({error:(err as Error).message}); }
+  });
+
+  app.get('/api/whatsapp/qrcode', async (req,res) => {
+    try {
+      const cfg=await getEvolutionConfig(req.user!.workspaceId);
+      const r=await fetch(cfg.base + '/instance/connect/' + encodeURIComponent(cfg.instance),{headers:{apikey:cfg.key}});
+      const data=await r.json().catch(()=>({}));
+      if(!r.ok) return res.status(r.status).json({error:'Não foi possível obter o QR Code.'});
+      res.json({qrcode:data?.base64 || data?.qrcode?.base64 || data?.qrcode?.code || data?.code || null});
+    } catch(err){res.status(400).json({error:(err as Error).message});}
+  });
+
+  app.post('/api/whatsapp/test', async (req,res) => {
+    try {
+      const cfg=await getEvolutionConfig(req.user!.workspaceId);
+      const number=String(req.body?.number||'').trim();
+      const text=String(req.body?.text||'Teste enviado pelo WhatsappAfiliado.').slice(0,2000);
+      if(!/^\d+@g\.us$/.test(number) && !/^\d+@s\.whatsapp\.net$/.test(number)) return res.status(400).json({error:'Informe um JID válido de grupo (@g.us) ou contato (@s.whatsapp.net).'});
+      const r=await fetch(cfg.base + '/message/sendText/' + encodeURIComponent(cfg.instance),{method:'POST',headers:{apikey:cfg.key,'Content-Type':'application/json'},body:JSON.stringify({number,text,linkPreview:true})});
+      const data=await r.json().catch(()=>({}));
+      if(!r.ok) return res.status(r.status).json({error:'A Evolution API recusou o envio da mensagem.'});
+      res.json({success:true,messageId:data?.key?.id || data?.response?.key?.id || null});
+    } catch(err){res.status(400).json({error:(err as Error).message});}
+  });
   app.get('/api/coupons', async (req,res) => {
     try { res.json(await CouponService.getCouponsForProduct(req.user!.workspaceId, String(req.query.marketplace || 'SHOPEE') as any, req.query.productId ? String(req.query.productId) : undefined)); }
     catch(err){ res.status(500).json({error:(err as Error).message}); }
