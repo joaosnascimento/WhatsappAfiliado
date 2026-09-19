@@ -50,7 +50,8 @@ export class AutomationScheduler {
           'SELECT state FROM workspace_state WHERE workspace_id=$1',
           [workspace.id],
         );
-        const offers = stateRows[0]?.state?.offers || [];
+        const workspaceState: any = stateRows[0]?.state || { products: [], links: [], offers: [], campaigns: [], destinations: [], publications: [], conversions: [] };
+        const offers = workspaceState.offers || [];
 
         for (const row of destinations) {
           const config = row.config || {};
