@@ -801,7 +801,7 @@ async function startServer() {
     try {
       const { marketplace, code, description, discountType, discountValueBrl, minPurchaseValue, maxDiscountValue, startsAt, expiresAt, sourceUrl, productExternalId } = req.body;
       if(!['SHOPEE','MERCADOLIVRE'].includes(String(marketplace))) return res.status(400).json({error:'marketplace inválido.'});
-      const coupon=await CouponService.registerCoupon(req.user!.workspaceId,{ marketplace,code,description,discountType,discountValueBrl,minPurchaseValue,maxDiscountValue,startsAt,expiresAt,sourceUrl,productExternalId,isVerified:true });
+      const coupon=await CouponService.registerCoupon(req.user!.workspaceId,{ marketplace,code,description,discountType,discountValueBrl,minPurchaseValue,maxDiscountValue,startsAt,expiresAt,sourceUrl,productExternalId,isVerified:false });
       res.status(201).json(coupon);
     } catch(err){ res.status(400).json({error:(err as Error).message}); }
   });
