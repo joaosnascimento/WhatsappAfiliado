@@ -346,6 +346,10 @@ async function startServer() {
   // Live Offer Search
   app.post('/api/offers/search-live', redisRateLimit({windowSeconds:60,max:10,prefix:'live-search'}), async (req, res) => {
     const { marketplace, keyword, category, minDiscount } = req.body;
+    if (!['SHOPEE','MERCADOLIVRE'].includes(String(marketplace))) return res.status(400).json({error:'Marketplace inválido.'});
+    if (keyword !== undefined && (typeof keyword !== 'string' || keyword.length > 120)) return res.status(400).json({error:'keyword inválida.'});
+    if (category !== undefined && (typeof category !== 'string' || category.length > 120)) return res.status(400).json({error:'category inválida.'});
+    if (minDiscount !== undefined && (!Number.isFinite(Number(minDiscount)) || Number(minDiscount) < 0 || Number(minDiscount) > 100)) return res.status(400).json({error:'minDiscount inválido.'});
 
     try {
       if (marketplace === 'SHOPEE') {
@@ -653,17 +657,23 @@ async function startServer() {
     if (!body.identifier || !String(body.identifier).trim()) return res.status(400).json({ error: 'identifier é obrigatório.' });
     const normalizedKeywords = (body.keywords || []).map((k:string)=>String(k).trim()).filter(Boolean).slice(0,5);
     const normalizedCategories = (body.categories || []).map((k:string)=>String(k).trim()).filter(Boolean).slice(0,5);
+    const destinationType=String(body.type || 'WHATSAPP_GROUP');
+    const destinationMarketplaces=(body.marketplaces || ['SHOPEE','MERCADOLIVRE']).map((v:string)=>String(v).toUpperCase());
+    if (!['WHATSAPP_GROUP','WHATSAPP_CHANNEL','WHATSAPP_BROADCAST'].includes(destinationType)) return res.status(400).json({error:'Tipo de destino inválido.'});
+    if (destinationMarketplaces.some((v:string)=>!['SHOPEE','MERCADOLIVRE'].includes(v))) return res.status(400).json({error:'Marketplace de destino inválido.'});
+    const frequency=Number(body.frequency_minutes ?? 60);
+    if (!Number.isInteger(frequency) || frequency < 5 || frequency > 1440) return res.status(400).json({error:'Frequência deve estar entre 5 e 1440 minutos.'});
     const destination: Destination = {
       id,
       workspace_id: req.user!.workspaceId,
-      type: body.type || 'WHATSAPP_GROUP',
+      type: destinationType as any,
       identifier: body.identifier || '',
       name: body.name || 'Novo destino WhatsApp',
       description: body.description,
       categories: normalizedCategories,
-      marketplaces: body.marketplaces || ['SHOPEE', 'MERCADOLIVRE'],
+      marketplaces: destinationMarketplaces as any,
       keywords: normalizedKeywords,
-      frequency_minutes: body.frequency_minutes || 60,
+      frequency_minutes: frequency,
       time_start: body.time_start || '08:00',
       time_end: body.time_end || '22:00',
       priority: body.priority || 'NORMAL',
