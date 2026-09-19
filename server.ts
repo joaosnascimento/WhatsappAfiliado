@@ -8,7 +8,7 @@ dotenv.config();
 import { store, runWithWorkspace, findMarketplaceAccount } from './src/services/Store.ts';
 import { runMigrations } from './src/infrastructure/migrations.ts';
 import { ensureWorkspace } from './src/infrastructure/workspace.ts';
-import { closeDatabase } from './src/infrastructure/database.ts';
+import { closeDatabase, query } from './src/infrastructure/database.ts';
 import { redis } from './src/infrastructure/redis.ts';
 import { registerUser, authenticateUser, createSession } from './src/services/auth.ts';
 import { requireAuth } from './src/services/authMiddleware.ts';
@@ -541,6 +541,30 @@ async function startServer() {
       scheduled_at: requestedSchedule.toISOString(),
       tracking_subids: ['whatsapp', destination.id, offer.marketplace.toLowerCase()],
     };
+
+    // Persistent mode performs an atomic idempotency claim before queueing.
+    // This closes the race where two concurrent requests pass the read-only dedup check.
+    if (persistentStoreEnabled) {
+      const inserted = await query<{ id: string }>(
+        `INSERT INTO publications
+          (id,workspace_id,offer_id,destination_id,status,idempotency_key,scheduled_at,affiliate_link_id,affiliate_url,message,tracking_subids)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         ON CONFLICT (workspace_id,idempotency_key) DO NOTHING
+         RETURNING id`,
+        [
+          publication.id, publication.workspace_id, publication.offer_id, publication.destination_id, publication.status,
+          publication.idempotency_key, publication.scheduled_at, publication.affiliate_link_id, publication.affiliate_url,
+          publication.message, JSON.stringify(publication.tracking_subids || []),
+        ],
+      );
+      if (!inserted.length) {
+        const existing = await query<any>(
+          'SELECT id,workspace_id,offer_id,destination_id,status,idempotency_key,provider_message_id,error,scheduled_at,published_at,affiliate_link_id,affiliate_url,message,tracking_subids FROM publications WHERE workspace_id=$1 AND idempotency_key=$2',
+          [publication.workspace_id, publication.idempotency_key],
+        );
+        return res.status(202).json({ success:true, queued:false, duplicate:true, publication: existing[0] || null });
+      }
+    }
 
     // Queue publication for asynchronous processing. The worker is the only component that sends to WhatsApp.
     store.publications.set(publication.id, publication);
