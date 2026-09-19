@@ -1,5 +1,5 @@
 import React from 'react';
-import { Share2, CheckCircle2, AlertCircle, ShieldCheck, Zap } from 'lucide-react';
+import { LayoutDashboard, Settings2, Search, Users, Send, ShieldCheck, MoreHorizontal, LogOut, Share2 } from 'lucide-react';
 import type { MarketplaceAccount } from '../types/affiliate.ts';
 
 interface HeaderProps {
@@ -10,101 +10,50 @@ interface HeaderProps {
   isTestingSuite: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({
-  activeTab,
-  setActiveTab,
-  accounts,
-  onRunTests,
-  isTestingSuite,
-}) => {
-  const shopeeAcc = accounts.find((a) => a.marketplace === 'SHOPEE');
-  const mlAcc = accounts.find((a) => a.marketplace === 'MERCADOLIVRE');
-
-  const tabs = [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'setup', label: 'Configuração' },
-    { id: 'affiliates', label: 'Afiliados & APIs' },
-    { id: 'offers', label: 'Radar de Ofertas' },
-    { id: 'destinations', label: 'Destinos WhatsApp' },
-    { id: 'queue', label: 'Fila WhatsApp' },
-    { id: 'audit', label: 'Auditoria' },
-    { id: 'docs', label: 'Documentação & Testes' },
+export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, accounts, onRunTests, isTestingSuite }) => {
+  const ml = accounts.find(a => a.marketplace === 'MERCADOLIVRE');
+  const sh = accounts.find(a => a.marketplace === 'SHOPEE');
+  const primary = [
+    {id:'dashboard',label:'Início',icon:LayoutDashboard},
+    {id:'setup',label:'Configuração',icon:Settings2},
+    {id:'offers',label:'Ofertas',icon:Search},
+    {id:'destinations',label:'WhatsApp',icon:Users},
+    {id:'queue',label:'Fila',icon:Send},
+  ];
+  const secondary = [
+    {id:'affiliates',label:'APIs e Afiliados'},
+    {id:'audit',label:'Auditoria'},
+    {id:'docs',label:'Testes e documentação'},
   ];
 
   return (
-    <header className="bg-slate-900 border-b border-slate-800 text-slate-100 sticky top-0 z-40 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo & Brand */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 font-bold shadow-md shadow-emerald-500/20">
-              <Share2 className="w-5 h-5 text-slate-950" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-lg tracking-tight text-white">
-                  Afiliados WhatsApp <span className="text-emerald-400">Pro</span>
-                </span>
-                <span className="text-[10px] font-semibold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-                  SaaS Real
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 hidden sm:block">
-                Mercado Livre Brasil &bull; Shopee Open API &bull; IA Gemini
-              </p>
-            </div>
-          </div>
+    <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/95 backdrop-blur-xl">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+        <div className="flex h-16 items-center justify-between gap-4">
+          <button onClick={()=>setActiveTab('dashboard')} className="flex items-center gap-3 text-left">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/10"><Share2 className="h-5 w-5"/></div>
+            <div className="hidden sm:block"><div className="font-bold tracking-tight text-white">WhatsappAfiliado</div><div className="text-[11px] text-slate-500">Automação de ofertas</div></div>
+          </button>
 
-          {/* Quick status indicators */}
-          <div className="hidden md:flex items-center gap-3">
-            {/* ML Status */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700 text-xs">
-              <span className="w-2 h-2 rounded-full bg-yellow-400"></span>
-              <span className="text-slate-300 font-medium">Mercado Livre:</span>
-              <span className={mlAcc?.status === 'CONNECTED' ? 'text-emerald-400' : 'text-amber-400'}>
-                {mlAcc?.status === 'CONNECTED' ? 'Conectado' : 'Configurado (MLB)'}
-              </span>
-            </div>
-
-            {/* Shopee Status */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700 text-xs">
-              <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-              <span className="text-slate-300 font-medium">Shopee BR:</span>
-              <span className={shopeeAcc?.status === 'CONNECTED' ? 'text-emerald-400' : 'text-slate-400'}>
-                {shopeeAcc?.status === 'CONNECTED' ? 'Open API Ativa' : 'Pronto p/ API'}
-              </span>
-            </div>
-
-            {/* Test Suite Button */}
-            <button
-              id="header-btn-run-tests"
-              onClick={onRunTests}
-              disabled={isTestingSuite}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/30 text-xs font-medium transition cursor-pointer disabled:opacity-50"
-              title="Executa suíte de testes unitários reais"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              {isTestingSuite ? 'Executando...' : 'Suíte de Testes'}
-            </button>
+          <div className="hidden items-center gap-2 md:flex">
+            <span className={ml?.status === 'CONNECTED' ? "rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-300" : "rounded-full border border-slate-800 bg-slate-900 px-2.5 py-1 text-[11px] text-slate-400"}>ML {ml?.status === 'CONNECTED' ? 'conectado' : 'pendente'}</span>
+            <span className={sh?.status === 'CONNECTED' ? "rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-300" : "rounded-full border border-slate-800 bg-slate-900 px-2.5 py-1 text-[11px] text-slate-400"}>Shopee {sh?.status === 'CONNECTED' ? 'conectada' : 'pendente'}</span>
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <nav className="flex space-x-1 overflow-x-auto py-2 border-t border-slate-800 scrollbar-none">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              id={`nav-tab-${tab.id}`}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition cursor-pointer ${
-                activeTab === tab.id
-                  ? 'bg-emerald-500 text-slate-950 font-semibold shadow-sm'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              {tab.label}
+        <nav className="flex gap-1 overflow-x-auto pb-2">
+          {primary.map(({id,label,icon:Icon}) => (
+            <button key={id} onClick={()=>setActiveTab(id)} className={activeTab===id ? "flex items-center gap-2 rounded-xl bg-emerald-500 px-3.5 py-2 text-xs font-bold text-slate-950" : "flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-400 hover:bg-slate-900 hover:text-white"}>
+              <Icon className="h-3.5 w-3.5"/>{label}
             </button>
           ))}
+          <details className="relative">
+            <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-400 hover:bg-slate-900 hover:text-white"><MoreHorizontal className="h-3.5 w-3.5"/>Mais</summary>
+            <div className="absolute right-0 top-10 z-50 min-w-52 rounded-xl border border-slate-800 bg-slate-900 p-1 shadow-2xl">
+              {secondary.map(item=><button key={item.id} onClick={()=>setActiveTab(item.id)} className="block w-full rounded-lg px-3 py-2 text-left text-xs text-slate-300 hover:bg-slate-800 hover:text-white">{item.label}</button>)}
+              <button onClick={onRunTests} disabled={isTestingSuite} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-emerald-300 hover:bg-slate-800 disabled:opacity-50"><ShieldCheck className="h-3.5 w-3.5"/>{isTestingSuite?'Executando testes...':'Executar testes'}</button>
+            </div>
+          </details>
         </nav>
       </div>
     </header>
