@@ -76,7 +76,7 @@ export class MarketplaceDiscoveryScheduler {
             const secret = credentials.shopee_secret || process.env.SHOPEE_AFFILIATE_SECRET || '';
             if (!appId || !secret) continue;
             const adapter = new ShopeeAffiliateAdapter(appId, secret, account.id);
-            products = await adapter.searchOffers({ keyword: job.keyword, category: job.category, limit: 10 });
+            products = await adapter.searchOffers({ keyword: job.keyword, limit: 10 });
             for (const product of products) {
               const existingOffer = state.offers.find((o: Offer) => o.product?.external_product_id === product.external_product_id && o.marketplace === 'SHOPEE');
               const existingLink = state.links.find((l: any) => l.product_id === product.id);
@@ -110,7 +110,7 @@ export class MarketplaceDiscoveryScheduler {
                 void query('UPDATE marketplace_accounts SET credentials_encrypted=$2, updated_at=NOW(), status=\'CONNECTED\' WHERE id=$1 AND workspace_id=$3', [account.id, encryptCredentials(nextCredentials), workspaceId]);
               },
             });
-            products = await adapter.searchOffers({ keyword: job.keyword, category: job.category, limit: 10 });
+            products = await adapter.searchOffers({ keyword: job.keyword, limit: 10 });
           }
 
           for (const product of products.filter(p => workspaceDestinations.some(d => productMatches(p, d)))) {
