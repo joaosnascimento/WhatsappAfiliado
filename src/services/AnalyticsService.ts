@@ -2,6 +2,17 @@ import { randomUUID } from 'node:crypto';
 import { query } from '../infrastructure/database.ts';
 import type { MarketplaceType } from '../types/affiliate.ts';
 
+function validateAffiliateUrl(marketplace:MarketplaceType, raw:string) {
+  let u:URL; try { u=new URL(raw); } catch { throw new Error('URL de afiliado inválida.'); }
+  if (u.protocol !== 'https:') throw new Error('O link de afiliado deve usar HTTPS.');
+  const host=u.hostname.toLowerCase();
+  const allowed=marketplace==='SHOPEE'
+    ? ['shopee.com.br','s.shopee.com.br']
+    : ['meli.la','mercadolivre.com.br','mercadolibre.com'];
+  if (!allowed.some(d=>host===d || host.endsWith('.'+d))) throw new Error('Domínio não pertence ao marketplace informado.');
+  return u.toString();
+}
+
 export class AnalyticsService {
   static async trackClick(params: {
     workspaceId: string; marketplace: MarketplaceType; trackedLinkId?: string;
@@ -67,13 +78,14 @@ export class AnalyticsService {
     workspaceId:string; marketplace:MarketplaceType; affiliateUrl:string;
     affiliateLinkId?:string; offerId?:string; destinationId?:string; subId?:string;
   }) {
+    const affiliateUrl=validateAffiliateUrl(params.marketplace,params.affiliateUrl);
     const id = randomUUID();
     const rows = await query<any>(
       `INSERT INTO tracked_links(id,workspace_id,affiliate_link_id,affiliate_url,marketplace,offer_id,destination_id,sub_id)
        VALUES($1,$2,$3,$4,$5,$6,$7,$8)
        ON CONFLICT(workspace_id,affiliate_url,destination_id,sub_id) DO UPDATE SET affiliate_url=EXCLUDED.affiliate_url
        RETURNING *`,
-      [id,params.workspaceId,params.affiliateLinkId||null,params.affiliateUrl,params.marketplace,
+      [id,params.workspaceId,params.affiliateLinkId||null,affiliateUrl,params.marketplace,
        params.offerId||null,params.destinationId||null,params.subId||null]
     );
     return rows[0];
