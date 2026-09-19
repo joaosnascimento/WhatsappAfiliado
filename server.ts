@@ -702,7 +702,7 @@ async function startServer() {
   // 13. Audit records (Section 29)
   app.get('/api/audit', (req, res) => {
     const marketplace = req.query.marketplace as any;
-    res.json(AuditService.getAuditRecords(marketplace));
+    res.json(AuditService.getAuditRecords(req.user!.workspaceId, marketplace));
   });
 
   // Analytics: real click/conversion counters persisted in PostgreSQL.
