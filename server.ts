@@ -9,6 +9,7 @@ import { store, runWithWorkspace, findMarketplaceAccount } from './src/services/
 import { runMigrations } from './src/infrastructure/migrations.ts';
 import { ensureWorkspace } from './src/infrastructure/workspace.ts';
 import { closeDatabase, query } from './src/infrastructure/database.ts';
+import { decryptCredentials } from './src/infrastructure/encryption.ts';
 import { redis } from './src/infrastructure/redis.ts';
 import { registerUser, authenticateUser, createSession } from './src/services/auth.ts';
 import { requireAuth } from './src/services/authMiddleware.ts';
@@ -117,10 +118,10 @@ async function startServer() {
       const userId = String(req.body?.user_id || req.body?.userId || '');
       const accounts = await query<any>('SELECT id,workspace_id,credentials_encrypted FROM marketplace_accounts WHERE marketplace=\'MERCADOLIVRE\'');
       const account = accounts.find((a:any) => {
-        try { return String(JSON.parse(Buffer.from(a.credentials_encrypted,'base64').toString('utf8')).ml_user_id || '') === userId; } catch { return false; }
+        try { return String(decryptCredentials<any>(a.credentials_encrypted).ml_user_id || '') === userId; } catch { return false; }
       });
       // Encrypted credentials are intentionally opaque here; resolve by workspace account through the in-memory store when available.
-      const match = accounts.find((a:any) => String(a.id) === userId) || account;
+      const match = account;
       if (!match) return res.status(202).json({received:true, matched:false});
       await AnalyticsService.trackWebhook(match.workspace_id,'MERCADOLIVRE',{topic:req.body?.topic||null,resource:req.body?.resource||null,user_id:userId,received_at:new Date().toISOString()});
       res.status(202).json({received:true,matched:true});
