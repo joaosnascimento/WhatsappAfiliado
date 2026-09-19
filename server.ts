@@ -747,16 +747,8 @@ async function startServer() {
     } catch (err) { res.status(500).send('Não foi possível processar o link.'); }
   });
 
-  app.post('/api/analytics/conversion', async (req, res) => {
-    try {
-      const { marketplace, externalId, offerId, destinationId, subId, valueBrl, commissionBrl, metadata } = req.body;
-      if (!['SHOPEE','MERCADOLIVRE'].includes(String(marketplace)) || !externalId) return res.status(400).json({ error:'marketplace e externalId são obrigatórios.' });
-      await AnalyticsService.trackConversion({ workspaceId:req.user!.workspaceId, marketplace, externalId, offerId, destinationId, subId, valueBrl, commissionBrl, metadata });
-      res.status(201).json({ success:true });
-    } catch (err) { res.status(500).json({ error:(err as Error).message }); }
-  });
 
-  app.get('/api/whatsapp/groups', async (req, res) => {
+  app.get('/api/whatsapp/groups', redisRateLimit({windowSeconds:60,max:10,prefix:'wa-groups'}), async (req, res) => {
     try { res.json(await WhatsAppGroupService.listGroups(await WhatsAppSettingsService.get(req.user!.workspaceId))); }
     catch (err) { res.status(503).json({ error:(err as Error).message }); }
   });
