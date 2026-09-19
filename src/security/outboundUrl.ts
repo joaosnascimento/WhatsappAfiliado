@@ -17,10 +17,13 @@ function isPrivateIp(address:string):boolean {
 export async function assertSafeOutboundUrl(raw:string, options:{allowHttpLocalhost?:boolean}={}) {
   let u:URL;
   try { u=new URL(raw); } catch { throw new Error('URL inválida.'); }
-  const local=u.hostname==='localhost' || u.hostname.endsWith('.localhost');
+  const localHost = u.hostname==='localhost' || u.hostname.endsWith('.localhost') || u.hostname==='127.0.0.1' || u.hostname==='::1';
+  const allowLocalDev = process.env.NODE_ENV !== 'production' && process.env.ALLOW_LOCAL_OUTBOUND_URLS === 'true' && localHost;
+  const local = localHost;
   if (u.username || u.password || u.hash || u.search) throw new Error('URL de saída contém componentes não permitidos.');
-  if (u.protocol!=='https:' && !(options.allowHttpLocalhost && u.protocol==='http:' && local)) throw new Error('Somente URLs HTTPS são permitidas.');
-  if (local || net.isIP(u.hostname) && isPrivateIp(u.hostname)) throw new Error('Destino de rede privada não permitido.');
+  if (u.protocol!=='https:' && !(allowLocalDev || (options.allowHttpLocalhost && u.protocol==='http:' && local))) throw new Error('Somente URLs HTTPS são permitidas.');
+  if (!allowLocalDev && (local || net.isIP(u.hostname) && isPrivateIp(u.hostname))) throw new Error('Destino de rede privada não permitido.');
+  if (allowLocalDev) return u;
   const records=await dns.lookup(u.hostname,{all:true});
   if (!records.length || records.some(r=>isPrivateIp(r.address))) throw new Error('Destino resolve para rede privada e foi bloqueado.');
   return u;
