@@ -100,7 +100,8 @@ export class MercadoLivreProductService {
     if (params.offset) searchParams.append('offset', String(params.offset));
 
     const data = await this.client.request<MLSearchResponse>(
-      `/sites/MLB/search?${searchParams.toString()}`
+      `/sites/MLB/search?${searchParams.toString()}`,
+      { authenticated: false }
     );
 
     const products = (data.results || []).map((item) => this.normalizeSearchResult(item));
