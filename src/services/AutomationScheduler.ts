@@ -127,13 +127,27 @@ export class AutomationScheduler {
             });
 
             if (!inserted) continue;
-            await enqueuePublication({
-              publicationId: inserted.id,
-              destinationId: destination.id,
-              offerId: offer.id,
-              scheduledAt: publication.scheduled_at,
-            });
-            created++;
+            workspaceState.publications = workspaceState.publications || [];
+            workspaceState.publications.push({ ...publication, id: inserted.id });
+            await query('UPDATE workspace_state SET state=$2, updated_at=NOW() WHERE workspace_id=$1', [workspace.id, JSON.stringify(workspaceState)]);
+            try {
+              await enqueuePublication({
+                publicationId: inserted.id,
+                destinationId: destination.id,
+                offerId: offer.id,
+                scheduledAt: publication.scheduled_at,
+              });
+              created++;
+            } catch (error) {
+              const message = (error as Error).message;
+              await query("UPDATE publications SET status='FAILED', error=$2 WHERE id=$1", [inserted.id, message]);
+              const failedPub = workspaceState.publications.find((item: any) => item.id === inserted.id);
+              if (failedPub) {
+                failedPub.status = 'FAILED';
+                failedPub.error_message = message;
+                await query('UPDATE workspace_state SET state=$2, updated_at=NOW() WHERE workspace_id=$1', [workspace.id, JSON.stringify(workspaceState)]);
+              }
+            }
           }
         }
       }
