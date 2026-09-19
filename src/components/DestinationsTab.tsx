@@ -5,11 +5,13 @@ import type { Destination, MarketplaceType } from '../types/affiliate.ts';
 interface DestinationsTabProps {
   destinations: Destination[];
   onAddDestination: (dest: Partial<Destination>) => Promise<void>;
+  apiFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 }
 
 export const DestinationsTab: React.FC<DestinationsTabProps> = ({
   destinations,
   onAddDestination,
+  apiFetch,
 }) => {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState('');
@@ -25,7 +27,7 @@ export const DestinationsTab: React.FC<DestinationsTabProps> = ({
   const [groups, setGroups] = useState<Array<{id:string;subject?:string}>>([]);
   const [loadingGroups, setLoadingGroups] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState('');
-  const loadGroups = async () => { setLoadingGroups(true); try { const r=await fetch('/api/whatsapp/groups'); const data=await r.json(); if(!r.ok) throw new Error(data.error||'Falha ao listar grupos'); setGroups(data||[]); } catch(e){ alert((e as Error).message); } finally { setLoadingGroups(false); } };
+  const loadGroups = async () => { setLoadingGroups(true); try { const r=await apiFetch('/api/whatsapp/groups'); const data=await r.json(); if(!r.ok) throw new Error(data.error||'Falha ao listar grupos'); setGroups(data||[]); } catch(e){ alert((e as Error).message); } finally { setLoadingGroups(false); } };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
