@@ -1,4 +1,5 @@
 import type { Destination, Publication } from '../types/affiliate.ts';
+import { assertSafeOutboundUrl } from '../security/outboundUrl.ts';
 
 export type WhatsAppProviderName = 'WHATSAPP_CLOUD_API' | 'EVOLUTION_API' | 'WEBHOOK_GATEWAY' | 'SIMULATOR';
 
@@ -50,7 +51,7 @@ export class WhatsAppProvider {
 
     try {
       const url = `https://graph.facebook.com/v23.0/${this.phoneNumberId}/messages`;
-      const res = await fetch(url, {
+      const controller = new AbortController();\n      const timeout = setTimeout(() => controller.abort(), Number(process.env.OUTBOUND_REQUEST_TIMEOUT_MS || 15000));\n      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiToken}` },
         body: JSON.stringify({
@@ -100,7 +101,7 @@ export class WhatsAppProvider {
     try {
       const res = await fetch(`${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', apikey: apiKey },
+        headers: { 'Content-Type': 'application/json', apikey: apiKey },\n        signal: controller.signal,
         body: JSON.stringify({
           number: destination.identifier,
           text: publication.message,
@@ -108,7 +109,7 @@ export class WhatsAppProvider {
         }),
       });
 
-      const bodyText = await res.text();
+      clearTimeout(timeout);\n      const bodyText = await res.text();
       let data: any = {};
       try { data = bodyText ? JSON.parse(bodyText) : {}; } catch { /* preserve raw provider response below */ }
 
