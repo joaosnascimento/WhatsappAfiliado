@@ -110,6 +110,7 @@ async function startServer() {
   app.use('/api/reports', requireAuth);
   app.use('/api/audit', requireAuth);
   app.use('/api/analytics', requireAuth);
+  app.use('/api/coupons', requireAuth);
   app.use('/api/whatsapp', requireAuth);
 
   // 1. Health check
