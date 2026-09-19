@@ -4,6 +4,7 @@ function keyFromEnv(): Buffer {
   const raw = process.env.ENCRYPTION_KEY;
   if (!raw) throw new Error('ENCRYPTION_KEY is required for credential encryption.');
   const hex = raw.trim();
+  if (process.env.NODE_ENV === 'production' && !/^[0-9a-fA-F]{64}$/.test(hex)) throw new Error('ENCRYPTION_KEY must be exactly 64 hexadecimal characters in production.');
   if (/^[0-9a-fA-F]{64}$/.test(hex)) return Buffer.from(hex, 'hex');
   return createHash('sha256').update(raw, 'utf8').digest();
 }
