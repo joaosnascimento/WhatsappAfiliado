@@ -85,8 +85,9 @@ export class AutomationScheduler {
 
           if (!eligible.length) continue;
 
+          const rotatedEligible = eligible.length ? eligible.map((_, index) => eligible[(index + slot) % eligible.length]) : [];
           const candidates: Offer[] = [];
-          for (const offer of eligible) {
+          for (const offer of rotatedEligible) {
             if (candidates.length >= 3) break;
             const dedup = await DeduplicationService.isDuplicate(
               workspace.id, offer.marketplace, offer.product.external_product_id, destination.id, offer.product.shop_id, 24
