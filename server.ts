@@ -136,15 +136,24 @@ async function startServer() {
     });
   }
 
-  app.use('/api/accounts', requireAuth);
-  app.use('/api/offers', requireAuth);
-  app.use('/api/destinations', requireAuth);
-  app.use('/api/publications', requireAuth);
-  app.use('/api/reports', requireAuth);
-  app.use('/api/audit', requireAuth);
-  app.use('/api/analytics', requireAuth);
-  app.use('/api/coupons', requireAuth);
-  app.use('/api/whatsapp', requireAuth);
+  // Every authenticated workspace must execute inside its own AsyncLocalStorage context.
+  // Without this middleware, the legacy `store` proxy falls back to ws_default and
+  // authenticated users can see/save against the wrong workspace (or see "Conta não encontrada").
+  const workspaceContext = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) return res.status(401).json({ error: 'Autenticação obrigatória.' });
+    void runWithWorkspace(workspaceId, next).catch(next);
+  };
+
+  app.use('/api/accounts', requireAuth, workspaceContext);
+  app.use('/api/offers', requireAuth, workspaceContext);
+  app.use('/api/destinations', requireAuth, workspaceContext);
+  app.use('/api/publications', requireAuth, workspaceContext);
+  app.use('/api/reports', requireAuth, workspaceContext);
+  app.use('/api/audit', requireAuth, workspaceContext);
+  app.use('/api/analytics', requireAuth, workspaceContext);
+  app.use('/api/coupons', requireAuth, workspaceContext);
+  app.use('/api/whatsapp', requireAuth, workspaceContext);
 
   // 1. Health check
   // Mercado Livre webhook receiver. It records the official event without inventing a sale/conversion.
@@ -164,7 +173,7 @@ async function startServer() {
     } catch (err) { res.status(500).json({error:(err as Error).message}); }
   });
 
-  app.get('/api/security/events', redisRateLimit({windowSeconds:60,max:30,prefix:'security-events'}), async (req,res) => {
+  app.get('/api/security/events', requireAuth, workspaceContext, redisRateLimit({windowSeconds:60,max:30,prefix:'security-events'}), async (req,res) => {
     try {
       const rows = await query<any>(
         'SELECT id,event_type,severity,ip_address,user_agent,path,metadata,created_at FROM security_events WHERE workspace_id=$1 ORDER BY created_at DESC LIMIT 100',
@@ -194,7 +203,7 @@ async function startServer() {
   });
 
   // 2. Integration Unit Tests Runner
-  app.get('/api/tests/run', requireAuth, async (req, res) => {
+  app.get('/api/tests/run', requireAuth, workspaceContext, async (req, res) => {
     try {
       const results = runTests();
       res.json(results);
@@ -246,7 +255,7 @@ async function startServer() {
   });
 
   // 4. Mercado Livre OAuth Flow
-  app.get('/api/auth/mercadolivre/url', requireAuth, async (req, res) => {
+  app.get('/api/auth/mercadolivre/url', requireAuth, workspaceContext, async (req, res) => {
     const mlAccount = findMarketplaceAccount('MERCADOLIVRE');
     const clientId = mlAccount?.credentials_encrypted.ml_client_id || process.env.MERCADOLIVRE_CLIENT_ID || '';
     const redirectUri = mlAccount?.credentials_encrypted.ml_redirect_uri || process.env.MERCADOLIVRE_REDIRECT_URI || '';
