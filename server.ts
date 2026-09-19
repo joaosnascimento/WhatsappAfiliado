@@ -41,8 +41,8 @@ async function startServer() {
   if (persistentStoreEnabled) {
     if (!process.env.ENCRYPTION_KEY) throw new Error('ENCRYPTION_KEY is required when persistent storage is enabled.');
     await runMigrations();
+    // Individual authenticated workspaces are loaded lazily by the request context.
     await ensureWorkspace('ws_default');
-    await store.loadPersistent('ws_default');
   }
 
   const app = express();
@@ -68,7 +68,9 @@ async function startServer() {
   if (persistentStoreEnabled) {
     app.use((req, res, next) => {
       res.on('finish', () => {
-        void store.persist('ws_default').catch((error) => console.error('Persistence error:', error));
+        const workspaceId = req.user?.workspaceId;
+        if (!workspaceId) return;
+        void store.persist(workspaceId).catch((error) => console.error('Persistence error:', error));
       });
       next();
     });
@@ -147,7 +149,7 @@ async function startServer() {
   });
 
   // 4. Mercado Livre OAuth Flow
-  app.get('/api/auth/mercadolivre/url', (req, res) => {
+  app.get('/api/auth/mercadolivre/url', requireAuth, (req, res) => {
     const mlAccount = store.accounts.get('acc_mercadolivre_br');
     const clientId = mlAccount?.credentials_encrypted.ml_client_id || process.env.MERCADOLIVRE_CLIENT_ID || '';
     const redirectUri = mlAccount?.credentials_encrypted.ml_redirect_uri || process.env.MERCADOLIVRE_REDIRECT_URI || '';
@@ -168,7 +170,7 @@ async function startServer() {
     }
   });
 
-  app.get('/api/auth/mercadolivre/callback', async (req, res) => {
+  app.get('/api/auth/mercadolivre/callback', requireAuth, async (req, res) => {
     const code = req.query.code as string;
     const state = req.query.state as string;
     cleanupExpiredMlOAuthTransactions();
