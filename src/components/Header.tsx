@@ -53,6 +53,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, account
             <div className="absolute right-0 top-10 z-50 min-w-56 rounded-xl border border-slate-800 bg-slate-900 p-1 shadow-2xl">
               {secondary.map(item=><button key={item.id} onClick={()=>setActiveTab(item.id)} className="block w-full rounded-lg px-3 py-2 text-left text-xs text-slate-300 hover:bg-slate-800 hover:text-white">{item.label}</button>)}
               <button onClick={onRunTests} disabled={isTestingSuite} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-emerald-300 hover:bg-slate-800 disabled:opacity-50"><ShieldCheck className="h-3.5 w-3.5"/>{isTestingSuite?'Executando testes...':'Executar testes'}</button>
+              <button onClick={onLogout} className="mt-1 w-full rounded-lg border-t border-slate-800 px-3 py-2 text-left text-xs text-slate-400 hover:bg-slate-800 hover:text-white">Sair da conta</button>
             </div>
           </details>
         </nav>
