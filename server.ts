@@ -5,7 +5,7 @@ import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { store } from './src/services/Store.ts';
+import { store, runWithWorkspace } from './src/services/Store.ts';
 import { runMigrations } from './src/infrastructure/migrations.ts';
 import { ensureWorkspace } from './src/infrastructure/workspace.ts';
 import { closeDatabase } from './src/infrastructure/database.ts';
@@ -25,7 +25,7 @@ import type { Offer, Publication, Destination } from './src/types/affiliate.ts';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const mlOAuthTransactions = new Map<string, { codeVerifier: string; createdAt: number; accountId: string }>();
+const mlOAuthTransactions = new Map<string, { codeVerifier: string; createdAt: number; accountId: string; workspaceId: string }>();
 const ML_OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 function cleanupExpiredMlOAuthTransactions() {
   const now = Date.now();
@@ -162,7 +162,7 @@ async function startServer() {
 
     try {
       const authorization = oauth.createAuthorization();
-      mlOAuthTransactions.set(authorization.state, { codeVerifier: authorization.codeVerifier, createdAt: Date.now(), accountId: 'acc_mercadolivre_br' });
+      mlOAuthTransactions.set(authorization.state, { codeVerifier: authorization.codeVerifier, createdAt: Date.now(), accountId: 'acc_mercadolivre_br', workspaceId: req.user!.workspaceId });
       cleanupExpiredMlOAuthTransactions();
       res.json({ url: authorization.url });
     } catch (err) {
@@ -170,37 +170,40 @@ async function startServer() {
     }
   });
 
-  app.get('/api/auth/mercadolivre/callback', requireAuth, async (req, res) => {
+  app.get('/api/auth/mercadolivre/callback', async (req, res) => {
     const code = req.query.code as string;
     const state = req.query.state as string;
     cleanupExpiredMlOAuthTransactions();
-    if (!code) {
-      return res.status(400).send('Código de autorização não recebido do Mercado Livre.');
-    }
+    if (!code) return res.status(400).send('Código de autorização não recebido do Mercado Livre.');
     if (!state) return res.status(400).send('State OAuth ausente.');
+
     const transaction = mlOAuthTransactions.get(state);
     if (!transaction || Date.now() - transaction.createdAt > ML_OAUTH_STATE_TTL_MS) {
       return res.status(400).send('State OAuth inválido ou expirado.');
     }
     mlOAuthTransactions.delete(state);
 
-    const mlAccount = store.accounts.get('acc_mercadolivre_br');
-    const clientId = mlAccount?.credentials_encrypted.ml_client_id || process.env.MERCADOLIVRE_CLIENT_ID || '';
-    const clientSecret = mlAccount?.credentials_encrypted.ml_client_secret || process.env.MERCADOLIVRE_CLIENT_SECRET || '';
-    const redirectUri = mlAccount?.credentials_encrypted.ml_redirect_uri || process.env.MERCADOLIVRE_REDIRECT_URI || '';
-
     try {
-      const oauth = new MercadoLivreOAuthService({ clientId, clientSecret, redirectUri });
-      const tokenData = await oauth.exchangeCodeForToken(code, transaction.codeVerifier);
+      await runWithWorkspace(transaction.workspaceId, async () => {
+        const mlAccount = store.accounts.get(transaction.accountId);
+        const clientId = mlAccount?.credentials_encrypted.ml_client_id || process.env.MERCADOLIVRE_CLIENT_ID || '';
+        const clientSecret = mlAccount?.credentials_encrypted.ml_client_secret || process.env.MERCADOLIVRE_CLIENT_SECRET || '';
+        const redirectUri = mlAccount?.credentials_encrypted.ml_redirect_uri || process.env.MERCADOLIVRE_REDIRECT_URI || '';
 
-      if (mlAccount) {
+        const oauth = new MercadoLivreOAuthService({ clientId, clientSecret, redirectUri });
+        const tokenData = await oauth.exchangeCodeForToken(code, transaction.codeVerifier);
+
+        if (!mlAccount) throw new Error('Conta do Mercado Livre não encontrada no workspace.');
+
         mlAccount.credentials_encrypted.ml_access_token = tokenData.access_token;
         mlAccount.credentials_encrypted.ml_refresh_token = tokenData.refresh_token;
         mlAccount.credentials_encrypted.ml_user_id = String(tokenData.user_id);
         mlAccount.credentials_encrypted.ml_expires_at = Date.now() + tokenData.expires_in * 1000;
         mlAccount.status = 'CONNECTED';
         mlAccount.status_message = `Conectado com sucesso (User ID: ${tokenData.user_id})`;
-      }
+
+        await store.persist(transaction.workspaceId);
+      });
 
       res.send(`
         <html>
