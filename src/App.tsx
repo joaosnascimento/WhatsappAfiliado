@@ -7,6 +7,7 @@ import { DestinationsTab } from './components/DestinationsTab.tsx';
 import { PublicationsTab } from './components/PublicationsTab.tsx';
 import { AuditTab } from './components/AuditTab.tsx';
 import { DocsTab } from './components/DocsTab.tsx';
+import { SetupTab } from './components/SetupTab.tsx';
 import { AssociateLinkModal } from './components/AssociateLinkModal.tsx';
 import { AiMessageModal } from './components/AiMessageModal.tsx';
 import type {
@@ -244,7 +245,7 @@ export function App() {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-slate-950">
       <Header activeTab={activeTab} setActiveTab={setActiveTab} accounts={accounts} onRunTests={handleRunTests} isTestingSuite={isTestingSuite} />
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeTab === 'dashboard' && <DashboardTab reports={reports} onNavigateToOffers={()=>setActiveTab('offers')} onNavigateToAffiliates={()=>setActiveTab('affiliates')} />}
+        {activeTab === 'setup' && <SetupTab apiFetch={apiFetch} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} onNavigate={setActiveTab} />}\n        {activeTab === 'dashboard' && <DashboardTab reports={reports} onNavigateToOffers={()=>setActiveTab('offers')} onNavigateToAffiliates={()=>setActiveTab('affiliates')} />}
         {activeTab === 'affiliates' && <AffiliatesTab accounts={accounts} onSaveAccount={handleSaveAccount} onTestIntegration={handleTestIntegration} onConnectMercadoLivre={handleConnectMercadoLivre} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} />}
         {activeTab === 'offers' && <OffersTab offers={offers} destinations={destinations} onLiveSearch={handleLiveSearch} onOpenAssociateModal={(offer)=>setAssociateModalOffer(offer)} onOpenAiMessageModal={(offer)=>setAiModalOffer(offer)} onQuickPublish={handlePublish} />}
         {activeTab === 'destinations' && <DestinationsTab destinations={destinations} onAddDestination={handleAddDestination} />}
