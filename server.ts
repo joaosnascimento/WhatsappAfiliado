@@ -301,7 +301,7 @@ async function startServer() {
   });
 
   // 5. Test Integration Diagnostic (Mercado Livre & Shopee)
-  app.post('/api/test-integration/:marketplace', requireAuth, async (req, res) => {
+  app.post('/api/test-integration/:marketplace', requireAuth, redisRateLimit({windowSeconds:60,max:5,prefix:'integration-test'}), async (req, res) => {
     const marketplace = req.params.marketplace.toUpperCase();
 
     if (marketplace === 'SHOPEE') {
@@ -345,7 +345,7 @@ async function startServer() {
   });
 
   // Live Offer Search
-  app.post('/api/offers/search-live', async (req, res) => {
+  app.post('/api/offers/search-live', redisRateLimit({windowSeconds:60,max:10,prefix:'live-search'}), async (req, res) => {
     const { marketplace, keyword, category, minDiscount } = req.body;
 
     try {
