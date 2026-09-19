@@ -5,7 +5,7 @@ import { redis } from '../infrastructure/redis.ts';
 
 const TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync('invalid-user-password-only-for-timing-equalization', 12);
-const revokedSessions = new Set<string>();
+const revokedSessions = new Map<string, number>();
 const sessionKey = (value:string) => 'session:revoked:' + createHash('sha256').update(value).digest('hex');
 
 function secret() {
@@ -55,6 +55,6 @@ export async function revokeSession(value:string) {
     const [payload] = value.split('.');
     const data = payload ? JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {nonce?:string} : {};
     if (redis) await redis.set(sessionKey(value), '1', 'EX', Math.max(1, Math.ceil(TTL_MS / 1000)));
-    if (data.nonce) revokedSessions.add(data.nonce);
+    if (data.nonce) revokedSessions.set(data.nonce, Date.now() + TTL_MS);
   } catch { /* invalid tokens are already rejected */ }
 }
