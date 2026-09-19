@@ -249,7 +249,7 @@ async function startServer() {
   });
 
   // 5. Test Integration Diagnostic (Mercado Livre & Shopee)
-  app.post('/api/test-integration/:marketplace', async (req, res) => {
+  app.post('/api/test-integration/:marketplace', requireAuth, async (req, res) => {
     const marketplace = req.params.marketplace.toUpperCase();
 
     if (marketplace === 'SHOPEE') {
