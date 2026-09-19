@@ -116,7 +116,8 @@ async function startServer() {
     res.json({ success:true, token:createSession(user), user });
   });
 
-  app.get('/api/auth/me', requireAuth, (req, res) => res.json({ user:req.user }));\n  app.post('/api/auth/logout', requireAuth, async (req,res) => {
+  app.get('/api/auth/me', requireAuth, (req, res) => res.json({ user:req.user }));
+  app.post('/api/auth/logout', requireAuth, async (req,res) => {
     const header = req.get('authorization');
     const value = header?.startsWith('Bearer ') ? header.slice(7) : '';
     if (value) await revokeSession(value);
