@@ -11,6 +11,7 @@ import type {
 } from '../types/affiliate.ts';
 
 class MemoryStore {
+  /** In-memory storage is intentionally development-only until a persistent database adapter is enabled. */
   public accounts: Map<string, MarketplaceAccount> = new Map();
   public products: Map<string, AffiliateProduct> = new Map();
   public links: Map<string, AffiliateLink> = new Map();
@@ -21,7 +22,11 @@ class MemoryStore {
   public conversions: Map<string, Conversion> = new Map();
 
   constructor() {
-    this.seedInitialData();
+    // Demo data is opt-in. Production must never start with fabricated offers,
+    // affiliate links or conversion records.
+    if (process.env.NODE_ENV !== 'production' && process.env.DEMO_SEED === 'true') {
+      this.seedInitialData();
+    }
   }
 
   private seedInitialData() {
