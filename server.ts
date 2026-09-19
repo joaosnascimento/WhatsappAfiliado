@@ -538,13 +538,21 @@ async function startServer() {
       });
     }
 
+    const tracked = await AnalyticsService.createTrackedLink({
+      workspaceId:req.user!.workspaceId, marketplace:offer.marketplace, affiliateUrl:offer.affiliate_url!,
+      affiliateLinkId:offer.affiliate_link_id, offerId:offer.id, destinationId:destination.id,
+      subId:`whatsapp:${destination.id}:${offer.marketplace.toLowerCase()}`
+    });
+    const publicBase=(process.env.APP_URL || '').replace(/\/$/,'');
+    const publicationAffiliateUrl=publicBase ? `${publicBase}/r/${tracked.id}` : offer.affiliate_url!;
+
     // Ensure AI message exists or generate it
     let message = offer.ai_generated_message;
     if (!message) {
       message = await AiMessageService.generateMessage({
         product: offer.product,
         marketplace: offer.marketplace,
-        affiliateUrl: offer.affiliate_url!,
+        affiliateUrl: publicationAffiliateUrl,
         destinationName: destination.name,
       });
       offer.ai_generated_message = message;
@@ -565,7 +573,7 @@ async function startServer() {
       destination_id: destination.id,
       destination,
       affiliate_link_id: offer.affiliate_link_id || 'link_direct',
-      affiliate_url: offer.affiliate_url!,
+      affiliate_url: publicationAffiliateUrl,
       message,
       status: requestedSchedule.getTime() > Date.now() ? 'SCHEDULED' : 'QUEUED',
       scheduled_at: requestedSchedule.toISOString(),
