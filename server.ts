@@ -856,6 +856,12 @@ async function startServer() {
       let instances:any[] = [];
       if (instancesRes.ok) { const raw=await instancesRes.json().catch(()=>[]); instances=Array.isArray(raw)?raw:(raw?.instances||raw?.response||[]); }
       const exists = instances.some((i:any)=>String(i?.name||i?.instanceName||i?.instance?.instanceName||'')===cfg.instance);
+      if (exists) {
+        const stateRes = await fetch(cfg.base + '/instance/connectionState/' + encodeURIComponent(cfg.instance), {headers:{apikey:cfg.key}});
+        const stateData = await stateRes.json().catch(()=>({}));
+        const currentState = stateData?.instance?.state || stateData?.state;
+        if (currentState === 'open') return res.json({state:'open',qrcode:null,instance:cfg.instance});
+      }
       if (!exists) {
         const create = await fetch(cfg.base + '/instance/create', {method:'POST',headers,body:JSON.stringify({instanceName:cfg.instance,integration:'WHATSAPP-BAILEYS',qrcode:true,groupsIgnore:false,alwaysOnline:true})});
         if (!create.ok && create.status !== 409) return res.status(create.status).json({error:'Não foi possível criar a conexão WhatsApp.'});
