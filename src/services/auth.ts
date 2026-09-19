@@ -14,12 +14,17 @@ function token(workspaceId: string, userId: string) {
   return payload + '.' + sign(payload);
 }
 export function verifySession(value: string) {
-  const [payload, signature] = value.split('.');
-  if (!payload || !signature) return null;
-  const expected = sign(payload);
-  if (expected.length !== signature.length || !timingSafeEqual(Buffer.from(expected), Buffer.from(signature))) return null;
-  const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {workspaceId:string;userId:string;exp:number};
-  return data.exp > Date.now() ? data : null;
+  try {
+    const [payload, signature] = value.split('.');
+    if (!payload || !signature) return null;
+    const expected = sign(payload);
+    if (expected.length !== signature.length || !timingSafeEqual(Buffer.from(expected), Buffer.from(signature))) return null;
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {workspaceId:string;userId:string;exp:number};
+    if (!data.workspaceId || !data.userId || !Number.isFinite(data.exp)) return null;
+    return data.exp > Date.now() ? data : null;
+  } catch {
+    return null;
+  }
 }
 export async function registerUser(email: string, password: string) {
   if (!email || password.length < 10) throw new Error('Email e senha com no mínimo 10 caracteres são obrigatórios.');
