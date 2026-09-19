@@ -18,6 +18,7 @@ export async function assertSafeOutboundUrl(raw:string, options:{allowHttpLocalh
   let u:URL;
   try { u=new URL(raw); } catch { throw new Error('URL inválida.'); }
   const local=u.hostname==='localhost' || u.hostname.endsWith('.localhost');
+  if (u.username || u.password || u.hash || u.search) throw new Error('URL de saída contém componentes não permitidos.');
   if (u.protocol!=='https:' && !(options.allowHttpLocalhost && u.protocol==='http:' && local)) throw new Error('Somente URLs HTTPS são permitidas.');
   if (local || net.isIP(u.hostname) && isPrivateIp(u.hostname)) throw new Error('Destino de rede privada não permitido.');
   const records=await dns.lookup(u.hostname,{all:true});
