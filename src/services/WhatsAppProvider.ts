@@ -11,6 +11,12 @@ export interface WhatsAppSendResult {
   provider: WhatsAppProviderName;
 }
 
+function timeoutSignal(ms: number) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ms);
+  return { controller, timeout };
+}
+
 export class WhatsAppProvider {
   private apiToken?: string;
   private phoneNumberId?: string;
@@ -25,35 +31,24 @@ export class WhatsAppProvider {
 
   public async sendPublication(publication: Publication, destination: Destination): Promise<WhatsAppSendResult> {
     const timestamp = new Date().toISOString();
-
     const selectedProvider = String(this.settings?.provider || this.provider).toLowerCase();
-    if (selectedProvider === 'evolution') {
-      return this.sendWithEvolution(publication, destination, timestamp);
-    }
+
+    if (selectedProvider === 'evolution') return this.sendWithEvolution(publication, destination, timestamp);
 
     if (!this.apiToken || !this.phoneNumberId) {
-      return {
-        success: false,
-        sentAt: timestamp,
-        error: 'WhatsApp não configurado. Nenhuma mensagem foi enviada.',
-        provider: 'WHATSAPP_CLOUD_API',
-      };
+      return { success: false, sentAt: timestamp, error: 'WhatsApp não configurado. Nenhuma mensagem foi enviada.', provider: 'WHATSAPP_CLOUD_API' };
     }
 
     if (destination.type !== 'WHATSAPP_BROADCAST') {
-      return {
-        success: false,
-        sentAt: timestamp,
-        error: 'O WhatsApp Cloud API oficial não suporta publicação genérica em grupos/canais. Configure WHATSAPP_PROVIDER=evolution para destinos compatíveis com WhatsApp Web.',
-        provider: 'WHATSAPP_CLOUD_API',
-      };
+      return { success: false, sentAt: timestamp, error: 'O provedor oficial não suporta publicação genérica neste tipo de destino.', provider: 'WHATSAPP_CLOUD_API' };
     }
 
+    const { controller, timeout } = timeoutSignal(Number(process.env.OUTBOUND_REQUEST_TIMEOUT_MS || 15000));
     try {
-      const url = `https://graph.facebook.com/v23.0/${this.phoneNumberId}/messages`;
-      const controller = new AbortController();\n      const timeout = setTimeout(() => controller.abort(), Number(process.env.OUTBOUND_REQUEST_TIMEOUT_MS || 15000));\n      const res = await fetch(url, {
+      const res = await fetch(`https://graph.facebook.com/v23.0/${encodeURIComponent(this.phoneNumberId)}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiToken}` },
+        signal: controller.signal,
         body: JSON.stringify({
           messaging_product: 'whatsapp',
           recipient_type: 'individual',
@@ -68,15 +63,15 @@ export class WhatsAppProvider {
         return { success: false, sentAt: timestamp, error: `WhatsApp Cloud API HTTP ${res.status}.`, provider: 'WHATSAPP_CLOUD_API' };
       }
 
-      const data = await res.json();
-      const messageId = data.messages?.[0]?.id;
-      if (!messageId) {
-        return { success: false, sentAt: timestamp, error: 'O provedor retornou sucesso HTTP, mas não informou o ID da mensagem.', provider: 'WHATSAPP_CLOUD_API' };
-      }
+      const data = await res.json() as any;
+      const messageId = data?.messages?.[0]?.id;
+      if (!messageId) return { success: false, sentAt: timestamp, error: 'O provedor não confirmou o ID da mensagem.', provider: 'WHATSAPP_CLOUD_API' };
 
-      return { success: true, messageId, sentAt: timestamp, provider: 'WHATSAPP_CLOUD_API' };
+      return { success: true, messageId: String(messageId), sentAt: timestamp, provider: 'WHATSAPP_CLOUD_API' };
     } catch (err) {
-      return { success: false, sentAt: timestamp, error: (err as Error).message, provider: 'WHATSAPP_CLOUD_API' };
+      return { success: false, sentAt: timestamp, error: err instanceof Error && err.name === 'AbortError' ? 'Timeout no provedor WhatsApp.' : 'Falha na comunicação com o provedor WhatsApp.', provider: 'WHATSAPP_CLOUD_API' };
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
@@ -86,45 +81,35 @@ export class WhatsAppProvider {
     const instance = this.settings?.evolutionInstance || process.env.EVOLUTION_INSTANCE;
 
     if (!baseUrl || !apiKey || !instance) {
-      return {
-        success: false,
-        sentAt: timestamp,
-        error: 'Evolution API não configurada. Defina EVOLUTION_API_URL, EVOLUTION_API_KEY e EVOLUTION_INSTANCE.',
-        provider: 'EVOLUTION_API',
-      };
+      return { success: false, sentAt: timestamp, error: 'Evolution API não configurada.', provider: 'EVOLUTION_API' };
     }
-
     if (!destination.identifier) {
       return { success: false, sentAt: timestamp, error: 'Destino WhatsApp sem identifier.', provider: 'EVOLUTION_API' };
     }
 
+    const { controller, timeout } = timeoutSignal(Number(process.env.OUTBOUND_REQUEST_TIMEOUT_MS || 15000));
     try {
-      const res = await fetch(`${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, {
+      const safeBase = await assertSafeOutboundUrl(baseUrl);
+      const res = await fetch(`${safeBase.toString().replace(/\/$/, '')}/message/sendText/${encodeURIComponent(instance)}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', apikey: apiKey },\n        signal: controller.signal,
-        body: JSON.stringify({
-          number: destination.identifier,
-          text: publication.message,
-          linkPreview: true,
-        }),
+        headers: { 'Content-Type': 'application/json', apikey: apiKey },
+        signal: controller.signal,
+        body: JSON.stringify({ number: destination.identifier, text: publication.message, linkPreview: true }),
       });
 
-      clearTimeout(timeout);\n      const bodyText = await res.text();
+      const bodyText = await res.text();
+      if (!res.ok) return { success: false, sentAt: timestamp, error: `Evolution API HTTP ${res.status}.`, provider: 'EVOLUTION_API' };
+
       let data: any = {};
-      try { data = bodyText ? JSON.parse(bodyText) : {}; } catch { /* preserve raw provider response below */ }
-
-      if (!res.ok) {
-        return { success: false, sentAt: timestamp, error: `Evolution API HTTP ${res.status}.`, provider: 'EVOLUTION_API' };
-      }
-
+      try { data = bodyText ? JSON.parse(bodyText) : {}; } catch { data = {}; }
       const messageId = data?.key?.id || data?.response?.key?.id || data?.message?.key?.id;
-      if (!messageId) {
-        return { success: false, sentAt: timestamp, error: 'Evolution API respondeu sem ID de mensagem; envio não foi considerado confirmado.', provider: 'EVOLUTION_API' };
-      }
+      if (!messageId) return { success: false, sentAt: timestamp, error: 'Evolution API não confirmou o ID da mensagem.', provider: 'EVOLUTION_API' };
 
-      return { success: true, messageId, sentAt: timestamp, provider: 'EVOLUTION_API' };
+      return { success: true, messageId: String(messageId), sentAt: timestamp, provider: 'EVOLUTION_API' };
     } catch (err) {
-      return { success: false, sentAt: timestamp, error: (err as Error).message, provider: 'EVOLUTION_API' };
+      return { success: false, sentAt: timestamp, error: err instanceof Error && err.name === 'AbortError' ? 'Timeout no provedor Evolution.' : 'Falha na comunicação com o provedor Evolution.', provider: 'EVOLUTION_API' };
+    } finally {
+      clearTimeout(timeout);
     }
   }
 }
