@@ -13,17 +13,20 @@ export interface WhatsAppSendResult {
 export class WhatsAppProvider {
   private apiToken?: string;
   private phoneNumberId?: string;
+  private settings?: { provider?: string; apiToken?: string; phoneNumberId?: string; evolutionApiUrl?: string; evolutionApiKey?: string; evolutionInstance?: string };
   private readonly provider = (process.env.WHATSAPP_PROVIDER || 'cloud').toLowerCase();
 
-  constructor(apiToken?: string, phoneNumberId?: string) {
-    this.apiToken = apiToken || process.env.WHATSAPP_API_TOKEN;
-    this.phoneNumberId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+  constructor(apiToken?: string, phoneNumberId?: string, settings?: { provider?: string; apiToken?: string; phoneNumberId?: string; evolutionApiUrl?: string; evolutionApiKey?: string; evolutionInstance?: string }) {
+    this.settings = settings;
+    this.apiToken = apiToken || settings?.apiToken || process.env.WHATSAPP_API_TOKEN;
+    this.phoneNumberId = phoneNumberId || settings?.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
   }
 
   public async sendPublication(publication: Publication, destination: Destination): Promise<WhatsAppSendResult> {
     const timestamp = new Date().toISOString();
 
-    if (this.provider === 'evolution') {
+    const selectedProvider = String(this.settings?.provider || this.provider).toLowerCase();
+    if (selectedProvider === 'evolution') {
       return this.sendWithEvolution(publication, destination, timestamp);
     }
 
@@ -76,9 +79,9 @@ export class WhatsAppProvider {
   }
 
   private async sendWithEvolution(publication: Publication, destination: Destination, timestamp: string): Promise<WhatsAppSendResult> {
-    const baseUrl = (process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
-    const apiKey = process.env.EVOLUTION_API_KEY;
-    const instance = process.env.EVOLUTION_INSTANCE;
+    const baseUrl = (this.settings?.evolutionApiUrl || process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
+    const apiKey = this.settings?.evolutionApiKey || process.env.EVOLUTION_API_KEY;
+    const instance = this.settings?.evolutionInstance || process.env.EVOLUTION_INSTANCE;
 
     if (!baseUrl || !apiKey || !instance) {
       return {
