@@ -162,28 +162,12 @@ export class ShopeeAffiliateAdapter implements AffiliateMarketplaceAdapter {
       };
     }
 
-    // Step 4: Test generateShortLink mutation
-    try {
-      const sampleUrl = 'https://shopee.com.br/product/123/456';
-      await this.linkService.generateAffiliateLink({
-        originUrl: sampleUrl,
-        productId: '456',
-        affiliateAccountId: this.accountId,
-        subIds: ['whatsapp', 'test'],
-      });
-      steps.push({
-        step: 'Geração de ShortLink com SubIds',
-        status: 'SUCCESS',
-        message: 'Mutação generateShortLink executada e link rastreável criado com sucesso.',
-      });
-    } catch (err: unknown) {
-      const error = err as Error;
-      steps.push({
-        step: 'Geração de ShortLink com SubIds',
-        status: 'WARNING',
-        message: `Aviso na geração de link de teste: ${error.message}. Verifique aprovação de conta de afiliado.`,
-      });
-    }
+    // Step 4: Diagnostics must remain read-only. Never create a real affiliate link just to test connectivity.
+    steps.push({
+      step: 'Geração de ShortLink',
+      status: 'PENDING',
+      message: 'Não executada no diagnóstico: generateShortLink cria um link de rastreamento real. A geração ocorre somente no fluxo de publicação/ingestão.',
+    });
 
     return {
       marketplace: 'SHOPEE',
