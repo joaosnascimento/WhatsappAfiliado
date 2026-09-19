@@ -3,7 +3,10 @@ import { Pool, type PoolClient } from 'pg';
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: Number(process.env.DATABASE_POOL_MAX || 10),
-  ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
+  ssl: process.env.DATABASE_SSL === 'true' ? {
+    rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false',
+    ca: process.env.DATABASE_CA || undefined,
+  } : undefined,
 });
 
 export async function query<T = any>(text: string, values: unknown[] = []) {
