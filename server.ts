@@ -556,6 +556,8 @@ async function startServer() {
         destinationName: destination.name,
       });
       offer.ai_generated_message = message;
+    } else {
+      message = message.replaceAll(offer.affiliate_url!, publicationAffiliateUrl);
     }
 
     const requestedSchedule = req.body.scheduledAt ? new Date(String(req.body.scheduledAt)) : new Date();
