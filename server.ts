@@ -21,6 +21,8 @@ import { AiMessageService } from './src/services/AiMessageService.ts';
 import { WhatsAppProvider } from './src/services/WhatsAppProvider.ts';
 import { DeduplicationService } from './src/services/DeduplicationService.ts';
 import { AuditService } from './src/services/AuditService.ts';
+import { AnalyticsService } from './src/services/AnalyticsService.ts';
+import { WhatsAppGroupService } from './src/services/WhatsAppGroupService.ts';
 import { runTests } from './src/test/integrations.test.ts';
 import type { Offer, Publication, Destination } from './src/types/affiliate.ts';
 
@@ -105,9 +107,11 @@ async function startServer() {
   app.use('/api/publications', requireAuth);
   app.use('/api/reports', requireAuth);
   app.use('/api/audit', requireAuth);
+  app.use('/api/analytics', requireAuth);
+  app.use('/api/whatsapp', requireAuth);
 
   // 1. Health check
-  app.get('/api/health', (req, res) => {
+  app.get('/api/health', async (req, res) => {
     res.json({
       status: 'ok',
       service: 'Automacao Afiliados WhatsApp SaaS',
@@ -117,6 +121,9 @@ async function startServer() {
       whatsappProvider: process.env.WHATSAPP_PROVIDER || 'cloud',
       evolutionConfigured: !!(process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY && process.env.EVOLUTION_INSTANCE),
       automation: { scheduler: true, discovery: true },
+      persistentStoreEnabled,
+      databaseConfigured: !!process.env.DATABASE_URL,
+      redisConfigured: !!process.env.REDIS_URL,
       timestamp: new Date().toISOString(),
     });
   });
@@ -664,6 +671,69 @@ async function startServer() {
   app.get('/api/audit', (req, res) => {
     const marketplace = req.query.marketplace as any;
     res.json(AuditService.getAuditRecords(marketplace));
+  });
+
+  // Analytics: real click/conversion counters persisted in PostgreSQL.
+  app.get('/api/analytics', async (req, res) => {
+    try { res.json(await AnalyticsService.report(req.user!.workspaceId)); }
+    catch (err) { res.status(500).json({ error: (err as Error).message }); }
+  });
+
+  // Create a first-party tracking URL without fabricating marketplace metrics.
+  app.post('/api/analytics/tracked-link', async (req, res) => {
+    try {
+      const { marketplace, affiliateUrl, affiliateLinkId, offerId, destinationId, subId } = req.body;
+      if (!['SHOPEE','MERCADOLIVRE'].includes(String(marketplace))) return res.status(400).json({ error:'marketplace inválido.' });
+      if (!affiliateUrl || !/^https:\/\//i.test(String(affiliateUrl))) return res.status(400).json({ error:'affiliateUrl HTTPS é obrigatório.' });
+      const row = await AnalyticsService.createTrackedLink({ workspaceId:req.user!.workspaceId, marketplace, affiliateUrl, affiliateLinkId, offerId, destinationId, subId });
+      const base=(process.env.APP_URL || '').replace(/\/$/,'');
+      res.status(201).json({ ...row, trackingUrl: base ? base + '/r/' + row.id : null });
+    } catch (err) { res.status(500).json({ error:(err as Error).message }); }
+  });
+
+  // Public redirect: records the click, then redirects to the real affiliate URL.
+  app.get('/r/:id', async (req, res) => {
+    try {
+      const link = await AnalyticsService.getTrackedLink(req.params.id);
+      if (!link) return res.status(404).send('Link não encontrado.');
+      await AnalyticsService.trackClick({
+        workspaceId:link.workspace_id, marketplace:link.marketplace, trackedLinkId:link.id,
+        offerId:link.offer_id, destinationId:link.destination_id, subId:link.sub_id,
+        metadata:{ userAgent:req.get('user-agent') || null, referer:req.get('referer') || null }
+      });
+      res.redirect(302, link.affiliate_url);
+    } catch (err) { res.status(500).send('Não foi possível processar o link.'); }
+  });
+
+  app.post('/api/analytics/conversion', async (req, res) => {
+    try {
+      const { marketplace, externalId, offerId, destinationId, subId, valueBrl, commissionBrl, metadata } = req.body;
+      if (!['SHOPEE','MERCADOLIVRE'].includes(String(marketplace)) || !externalId) return res.status(400).json({ error:'marketplace e externalId são obrigatórios.' });
+      await AnalyticsService.trackConversion({ workspaceId:req.user!.workspaceId, marketplace, externalId, offerId, destinationId, subId, valueBrl, commissionBrl, metadata });
+      res.status(201).json({ success:true });
+    } catch (err) { res.status(500).json({ error:(err as Error).message }); }
+  });
+
+  app.get('/api/whatsapp/groups', async (_req, res) => {
+    try { res.json(await WhatsAppGroupService.listGroups()); }
+    catch (err) { res.status(503).json({ error:(err as Error).message }); }
+  });
+
+  app.post('/api/whatsapp/groups/sync', async (req, res) => {
+    try {
+      const groups=await WhatsAppGroupService.listGroups();
+      const selectedId=String(req.body.destinationId || '');
+      if(selectedId){
+        const d=store.destinations.get(selectedId);
+        if(!d) return res.status(404).json({error:'Destino não encontrado.'});
+        const remoteJid=String(req.body.remoteJid || '');
+        const group=groups.find((g:any)=>String(g.id||g.remoteJid)===remoteJid);
+        if(!group) return res.status(404).json({error:'Grupo não encontrado na instância Evolution.'});
+        d.identifier=remoteJid;
+        d.name=d.name || group.subject || remoteJid;
+      }
+      res.json({success:true,groups,destinations:Array.from(store.destinations.values())});
+    } catch(err) { res.status(503).json({error:(err as Error).message}); }
   });
 
   // Mount Vite middleware for development or serve static in production
