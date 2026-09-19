@@ -24,6 +24,7 @@ import { DeduplicationService } from './src/services/DeduplicationService.ts';
 import { AuditService } from './src/services/AuditService.ts';
 import { AnalyticsService } from './src/services/AnalyticsService.ts';
 import { WhatsAppGroupService } from './src/services/WhatsAppGroupService.ts';
+import { CouponService } from './src/services/CouponService.ts';
 import { runTests } from './src/test/integrations.test.ts';
 import type { Offer, Publication, Destination } from './src/types/affiliate.ts';
 
@@ -752,6 +753,20 @@ async function startServer() {
       }
       res.json({success:true,groups,destinations:Array.from(store.destinations.values())});
     } catch(err) { res.status(503).json({error:(err as Error).message}); }
+  });
+
+  app.get('/api/coupons', async (req,res) => {
+    try { res.json(await CouponService.getCouponsForProduct(req.user!.workspaceId, String(req.query.marketplace || 'SHOPEE') as any, req.query.productId ? String(req.query.productId) : undefined)); }
+    catch(err){ res.status(500).json({error:(err as Error).message}); }
+  });
+
+  app.post('/api/coupons', async (req,res) => {
+    try {
+      const { marketplace, code, description, discountType, discountValueBrl, minPurchaseValue, maxDiscountValue, startsAt, expiresAt, sourceUrl, productExternalId } = req.body;
+      if(!['SHOPEE','MERCADOLIVRE'].includes(String(marketplace))) return res.status(400).json({error:'marketplace inválido.'});
+      const coupon=await CouponService.registerCoupon(req.user!.workspaceId,{ marketplace,code,description,discountType,discountValueBrl,minPurchaseValue,maxDiscountValue,startsAt,expiresAt,sourceUrl,productExternalId,isVerified:true });
+      res.status(201).json(coupon);
+    } catch(err){ res.status(400).json({error:(err as Error).message}); }
   });
 
   // Mount Vite middleware for development or serve static in production
