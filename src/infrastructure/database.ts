@@ -3,6 +3,9 @@ import { Pool, type PoolClient } from 'pg';
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: Number(process.env.DATABASE_POOL_MAX || 10),
+  connectionTimeoutMillis: Number(process.env.DATABASE_CONNECTION_TIMEOUT_MS || 5000),
+  idleTimeoutMillis: Number(process.env.DATABASE_IDLE_TIMEOUT_MS || 30000),
+  statement_timeout: Number(process.env.DATABASE_STATEMENT_TIMEOUT_MS || 15000),
   ssl: process.env.DATABASE_SSL === 'true' ? {
     rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false',
     ca: process.env.DATABASE_CA || undefined,
