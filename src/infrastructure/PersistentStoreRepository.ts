@@ -73,6 +73,43 @@ export class PersistentStoreRepository {
           [account.id, account.workspace_id, account.marketplace, account.status, encryptCredentials(account.credentials_encrypted), account.created_at, account.updated_at]
         );
       }
+
+      for (const destination of this.store.destinations.values() as Iterable<any>) {
+        if (destination.workspace_id !== workspaceId) continue;
+        const config = {
+          categories: destination.categories || [],
+          marketplaces: destination.marketplaces || [],
+          keywords: destination.keywords || [],
+          frequency_minutes: destination.frequency_minutes || 60,
+          time_start: destination.time_start || '08:00',
+          time_end: destination.time_end || '22:00',
+          priority: destination.priority || 'NORMAL',
+        };
+        await client.query(
+          `INSERT INTO destinations (id,workspace_id,type,identifier,name,config,is_active)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)
+           ON CONFLICT (id) DO UPDATE SET type=EXCLUDED.type,identifier=EXCLUDED.identifier,name=EXCLUDED.name,
+             config=EXCLUDED.config,is_active=EXCLUDED.is_active`,
+          [destination.id, workspaceId, destination.type, destination.identifier, destination.name, JSON.stringify(config), destination.is_active !== false]
+        );
+      }
+
+      for (const publication of this.store.publications.values() as Iterable<any>) {
+        if (publication.workspace_id && publication.workspace_id !== workspaceId) continue;
+        await client.query(
+          `INSERT INTO publications
+             (id,workspace_id,offer_id,destination_id,status,idempotency_key,provider_message_id,error,scheduled_at,published_at,affiliate_link_id,affiliate_url,message,tracking_subids)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+           ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,provider_message_id=EXCLUDED.provider_message_id,
+             error=EXCLUDED.error,scheduled_at=EXCLUDED.scheduled_at,published_at=EXCLUDED.published_at,
+             affiliate_link_id=EXCLUDED.affiliate_link_id,affiliate_url=EXCLUDED.affiliate_url,message=EXCLUDED.message,tracking_subids=EXCLUDED.tracking_subids`,
+          [publication.id, workspaceId, publication.offer_id, publication.destination_id, publication.status,
+            publication.idempotency_key || publication.id, publication.provider_message_id || null,
+            publication.error_message || null, publication.scheduled_at || null, publication.published_at || publication.sent_at || null,
+            publication.affiliate_link_id || null, publication.affiliate_url || null, publication.message || null,
+            JSON.stringify(publication.tracking_subids || [])]
+        );
+      }
       await client.query(
         `INSERT INTO workspace_state (workspace_id,state,updated_at) VALUES ($1,$2,NOW())
          ON CONFLICT (workspace_id) DO UPDATE SET state=EXCLUDED.state, updated_at=NOW()`,
