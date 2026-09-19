@@ -35,7 +35,7 @@ export class WhatsAppProvider {
         success: false,
         sentAt: timestamp,
         error: 'WhatsApp não configurado. Nenhuma mensagem foi enviada.',
-        provider: 'SIMULATOR',
+        provider: 'WHATSAPP_CLOUD_API',
       };
     }
 
