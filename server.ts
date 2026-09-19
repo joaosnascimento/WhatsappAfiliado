@@ -157,6 +157,18 @@ async function startServer() {
     } catch (err) { res.status(500).json({error:(err as Error).message}); }
   });
 
+  app.get('/api/security/events', redisRateLimit({windowSeconds:60,max:30,prefix:'security-events'}), async (req,res) => {
+    try {
+      const rows = await query<any>(
+        'SELECT id,event_type,severity,ip_address,user_agent,path,metadata,created_at FROM security_events WHERE workspace_id=$1 ORDER BY created_at DESC LIMIT 100',
+        [req.user?.workspaceId]
+      );
+      res.json(rows);
+    } catch (err) {
+      res.status(500).json({error:'Não foi possível consultar os eventos de segurança.'});
+    }
+  });
+
   app.get('/api/health', async (req, res) => {
     res.json({
       status: 'ok',
