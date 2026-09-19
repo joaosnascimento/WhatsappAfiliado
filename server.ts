@@ -70,7 +70,7 @@ async function startServer() {
       res.on('finish', () => {
         const workspaceId = req.user?.workspaceId;
         if (!workspaceId) return;
-        void store.persist(workspaceId).catch((error) => console.error('Persistence error:', error));
+        void runWithWorkspace(workspaceId, () => store.persist(workspaceId)).catch((error) => console.error('Persistence error:', error));
       });
       next();
     });
