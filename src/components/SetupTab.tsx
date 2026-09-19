@@ -21,9 +21,11 @@ export const SetupTab: React.FC<SetupTabProps> = ({ apiFetch, whatsappSettings, 
   const [groups, setGroups] = useState<Group[]>([]);
   const [groupsBusy, setGroupsBusy] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState('');
+  const [testSent, setTestSent] = useState(false);
   const [testText, setTestText] = useState('TESTE DO WHATSAPPAFILIADO\\n\\nMensagem enviada diretamente pela interface.');
   const [testBusy, setTestBusy] = useState(false);
   const [toast, setToast] = useState('');
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   useEffect(() => {
     if (whatsappSettings?.evolutionApiUrl) setUrl(whatsappSettings.evolutionApiUrl);
@@ -42,12 +44,32 @@ export const SetupTab: React.FC<SetupTabProps> = ({ apiFetch, whatsappSettings, 
     } catch (e) { setStatus('error'); setStatusError((e as Error).message); }
   };
 
-  useEffect(() => { void checkStatus(); const timer=window.setInterval(()=>void checkStatus(),10000); return ()=>window.clearInterval(timer); }, []);
+  useEffect(() => {
+    void checkStatus();
+    const timer=window.setInterval(()=>void checkStatus(),5000);
+    return ()=>window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (status === 'open') {
+      setQr('');
+      setAutoRefresh(false);
+      void loadGroups();
+      return;
+    }
+    if (status === 'connecting' && qr) setAutoRefresh(true);
+  }, [status]);
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const timer=window.setInterval(()=>void refreshQr(),20000);
+    return ()=>window.clearInterval(timer);
+  }, [autoRefresh]);
 
   const save = async () => {
     setSaving(true);
     try {
-      await onSaveWhatsApp({ provider, evolutionApiUrl:url.trim(), evolutionApiKey:key || (whatsappSettings?.evolutionApiKey === 'configured' ? 'configured' : ''), evolutionInstance:instance.trim() });
+      await onSaveWhatsApp({ provider, evolutionApiUrl:url.trim(), evolutionApiKey:key || undefined, evolutionInstance:instance.trim() });
       setKey('');
       showToast('Integração salva com segurança.');
       await checkStatus();
@@ -99,7 +121,7 @@ export const SetupTab: React.FC<SetupTabProps> = ({ apiFetch, whatsappSettings, 
       const res=await apiFetch('/api/whatsapp/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({number:selectedGroup,text:testText})});
       const data=await res.json();
       if(!res.ok) throw new Error(data.error || 'Falha ao enviar.');
-      showToast('Mensagem de teste enviada.');
+      setTestSent(true); showToast('Mensagem de teste enviada.');
     } catch(e) { showToast((e as Error).message); }
     finally { setTestBusy(false); }
   };
@@ -152,7 +174,7 @@ export const SetupTab: React.FC<SetupTabProps> = ({ apiFetch, whatsappSettings, 
         </div>
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
           {groups.map(g=><button key={g.id} onClick={()=>setSelectedGroup(g.id)} className={selectedGroup===g.id?"rounded-xl border border-emerald-500/50 bg-emerald-500/10 p-4 text-left":"rounded-xl border border-slate-800 bg-slate-950/50 p-4 text-left hover:border-slate-700"}><div className="font-semibold text-white">{g.subject || 'Grupo sem nome'}</div><div className="mt-1 font-mono text-[11px] text-slate-500">{g.id}</div>{typeof g.size==='number'&&<div className="mt-2 text-xs text-slate-400">{g.size} participantes</div>}</button>)}
-          {!groups.length && <div className="rounded-xl border border-dashed border-slate-800 p-8 text-center text-sm text-slate-500 md:col-span-2">Conecte o WhatsApp e clique em “Buscar meus grupos”.</div>}
+          {!groups.length && <div className="rounded-xl border border-dashed border-slate-800 p-8 text-center text-sm text-slate-500 md:col-span-2">{connected ? 'Nenhum grupo foi encontrado. Verifique se o número conectado participa de grupos e atualize a lista.' : 'Conecte o WhatsApp e clique em “Buscar meus grupos”.'}</div>}
         </div>
       </section>
 
