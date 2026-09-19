@@ -73,7 +73,7 @@ ${JSON.stringify(verifiedFacts, null, 2)}
 `;
 
         const response = await client.models.generateContent({
-          model: 'gemini-3.8-flash',
+          model: process.env.GEMINI_MODEL || 'gemini-3.8-flash',
           contents: userPrompt,
           config: {
             systemInstruction,
