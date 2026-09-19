@@ -28,6 +28,10 @@ function cleanupExpiredMlOAuthTransactions() {
 }
 
 async function startServer() {
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_INMEMORY_STORE !== 'true') {
+    throw new Error('Production startup blocked: persistent database storage is required. Set ALLOW_INMEMORY_STORE=true only for temporary validation.');
+  }
+
   const app = express();
   const PORT = 3000;
 
@@ -101,8 +105,8 @@ async function startServer() {
   // 4. Mercado Livre OAuth Flow
   app.get('/api/auth/mercadolivre/url', (req, res) => {
     const mlAccount = store.accounts.get('acc_mercadolivre_br');
-    const clientId = mlAccount?.credentials_encrypted.ml_client_id || process.env.MERCADOLIVRE_CLIENT_ID || '123456789';
-    const redirectUri = mlAccount?.credentials_encrypted.ml_redirect_uri || process.env.MERCADOLIVRE_REDIRECT_URI || `${process.env.APP_URL || 'https://localhost:3000'}/api/auth/mercadolivre/callback`;
+    const clientId = mlAccount?.credentials_encrypted.ml_client_id || process.env.MERCADOLIVRE_CLIENT_ID || '';
+    const redirectUri = mlAccount?.credentials_encrypted.ml_redirect_uri || process.env.MERCADOLIVRE_REDIRECT_URI || '';
 
     const oauth = new MercadoLivreOAuthService({
       clientId,
