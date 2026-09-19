@@ -16,6 +16,13 @@ export class AnalyticsService {
     );
   }
 
+  static async trackWebhook(workspaceId:string, marketplace:MarketplaceType, metadata:Record<string,unknown>) {
+    await query(
+      `INSERT INTO analytics_events (id,workspace_id,event_type,marketplace,metadata) VALUES ($1,$2,'WEBHOOK',$3,$4)`,
+      [randomUUID(), workspaceId, marketplace, JSON.stringify(metadata)]
+    );
+  }
+
   static async trackConversion(params: {
     workspaceId: string; marketplace: MarketplaceType; externalId: string;
     offerId?: string; destinationId?: string; subId?: string; valueBrl?: number; commissionBrl?: number; metadata?: Record<string, unknown>;
