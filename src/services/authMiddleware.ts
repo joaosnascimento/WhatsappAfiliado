@@ -5,10 +5,10 @@ import { recordSecurityEvent } from '../security/security.ts';
 
 declare global { namespace Express { interface Request { user?: { userId:string; workspaceId:string } } } }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const header = req.get('authorization');
   const value = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
-  const session = value ? verifySession(value) : null;
+  const session = value ? await verifySession(value) : null;
   if (!session) { void recordSecurityEvent({eventType:'AUTH_FAILURE',severity:'MEDIUM',ip:req.ip,userAgent:req.get('user-agent')||undefined,path:req.path}); return res.status(401).json({ error: 'Autenticação necessária.' }); }
 
   req.user = { userId: session.userId, workspaceId: session.workspaceId };
