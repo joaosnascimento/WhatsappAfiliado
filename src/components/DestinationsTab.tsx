@@ -50,6 +50,7 @@ export const DestinationsTab: React.FC<DestinationsTabProps> = ({
       setName('');
       setDescription('');
       setIdentifier('');
+      setSelectedGroup('');
       setShowForm(false);
     } catch (err) {
       alert(`Erro ao criar destino: ${(err as Error).message}`);
