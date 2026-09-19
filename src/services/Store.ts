@@ -30,16 +30,13 @@ class MemoryStore {
       id: 'acc_mercadolivre_br',
       workspace_id: 'ws_default',
       marketplace: 'MERCADOLIVRE',
-      status: process.env.MERCADOLIVRE_CLIENT_ID ? 'CONNECTED' : 'AWAITING_CONFIG',
-      status_message: process.env.MERCADOLIVRE_CLIENT_ID
-        ? 'Conectado via DevCenter OAuth'
-        : 'Aguardando configuração de MERCADOLIVRE_CLIENT_ID',
+      status: process.env.MERCADOLIVRE_CLIENT_ID && process.env.MERCADOLIVRE_CLIENT_SECRET ? 'AWAITING_CONFIG' : 'AWAITING_CONFIG',
+      status_message: 'Credenciais do DevCenter configuradas; conclua o OAuth para conectar a conta.',
       credentials_encrypted: {
         ml_client_id: process.env.MERCADOLIVRE_CLIENT_ID || '',
         ml_client_secret: process.env.MERCADOLIVRE_CLIENT_SECRET || '',
         ml_redirect_uri: process.env.MERCADOLIVRE_REDIRECT_URI || `${process.env.APP_URL || 'https://localhost:3000'}/api/auth/mercadolivre/callback`,
-        ml_access_token: 'ml_demo_oauth_token',
-        ml_user_id: '123456789',
+        // Tokens OAuth are intentionally never seeded or hard-coded.
       },
       created_at: new Date(Date.now() - 86400000 * 7).toISOString(),
       updated_at: new Date().toISOString(),
@@ -49,10 +46,8 @@ class MemoryStore {
       id: 'acc_shopee_br',
       workspace_id: 'ws_default',
       marketplace: 'SHOPEE',
-      status: process.env.SHOPEE_AFFILIATE_APP_ID ? 'CONNECTED' : 'AWAITING_CONFIG',
-      status_message: process.env.SHOPEE_AFFILIATE_APP_ID
-        ? 'Shopee Affiliate Open API Brasil ativa'
-        : 'Aguardando configuração de SHOPEE_AFFILIATE_APP_ID e SECRET',
+      status: process.env.SHOPEE_AFFILIATE_APP_ID && process.env.SHOPEE_AFFILIATE_SECRET ? 'AWAITING_CONFIG' : 'AWAITING_CONFIG',
+      status_message: 'Credenciais presentes; execute o teste de integração para validar a conta na Affiliate Open API.',
       credentials_encrypted: {
         shopee_app_id: process.env.SHOPEE_AFFILIATE_APP_ID || '',
         shopee_secret: process.env.SHOPEE_AFFILIATE_SECRET || '',
