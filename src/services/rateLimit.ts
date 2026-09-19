@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { redis } from '../infrastructure/redis.ts';
+import { recordSecurityEvent } from '../security/security.ts';
 
 export function redisRateLimit(options: { windowSeconds: number; max: number; prefix: string }) {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -20,7 +21,7 @@ export function redisRateLimit(options: { windowSeconds: number; max: number; pr
       if (count > options.max) {
         const ttl = await redis.ttl(key);
         res.setHeader('Retry-After', Math.max(1, ttl));
-        return res.status(429).json({ error: 'Muitas solicitações. Tente novamente mais tarde.' });
+        void recordSecurityEvent({eventType:'RATE_LIMIT_EXCEEDED',severity:'MEDIUM',workspaceId:req.user?.workspaceId,userId:req.user?.userId,ip:req.ip,userAgent:req.get('user-agent')||undefined,path:req.path,metadata:{prefix:options.prefix,limit:options.max}});\n        return res.status(429).json({ error: 'Muitas solicitações. Tente novamente mais tarde.' });
       }
       return next();
     } catch (error) {
