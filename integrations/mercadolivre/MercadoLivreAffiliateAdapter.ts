@@ -25,6 +25,7 @@ export class MercadoLivreAffiliateAdapter implements AffiliateMarketplaceAdapter
     accessToken?: string;
     refreshToken?: string;
     accountId?: string;
+    onTokenRefreshed?: (newToken: string, newRefresh: string, expiresIn: number) => void;
   }) {
     this.accountId = params.accountId || 'default_ml';
 
@@ -40,6 +41,7 @@ export class MercadoLivreAffiliateAdapter implements AffiliateMarketplaceAdapter
       accessToken: params.accessToken,
       refreshToken: params.refreshToken,
       oauthService: this.oauthService,
+      onTokenRefreshed: params.onTokenRefreshed,
     });
 
     this.productService = new MercadoLivreProductService(this.client);
