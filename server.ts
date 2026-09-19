@@ -156,7 +156,7 @@ async function startServer() {
       if (!userId || userId.length > 128 || !applicationId || applicationId.length > 128 || !eventId || eventId.length > 128) return res.status(400).json({error:'Webhook inválido.'});
       const rows = await query<any>('SELECT id,workspace_id FROM marketplace_accounts WHERE marketplace=\'MERCADOLIVRE\' AND provider_account_id=$1 AND provider_application_id=$2 LIMIT 1',[userId,applicationId]);
       const match = rows[0];
-      if (!match) { void recordSecurityEvent({eventType:'WEBHOOK_UNMATCHED',severity:'MEDIUM',ip:req.ip,userAgent:req.get('user-agent')||undefined,path:req.path,metadata:{applicationId}}); return res.status(200).json({received:true, matched:false});
+      if (!match) { void recordSecurityEvent({eventType:'WEBHOOK_UNMATCHED',severity:'MEDIUM',ip:req.ip,userAgent:req.get('user-agent')||undefined,path:req.path,metadata:{applicationId}}); return res.status(200).json({received:true, matched:false}); }
       const inserted=await query<any>(`INSERT INTO processed_webhooks(workspace_id,event_id,marketplace) VALUES($1,$2,'MERCADOLIVRE') ON CONFLICT DO NOTHING RETURNING event_id`,[match.workspace_id,eventId]);
       if (!inserted.length) return res.status(200).json({received:true,duplicate:true});
       await AnalyticsService.trackWebhook(match.workspace_id,'MERCADOLIVRE',{event_id:eventId,topic:req.body?.topic||null,resource:req.body?.resource||null,user_id:userId,application_id:applicationId,received_at:new Date().toISOString()});
