@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { PersistentStoreRepository } from '../infrastructure/PersistentStoreRepository.ts';
 
 import type {
@@ -312,6 +313,65 @@ class MemoryStore {
   }
 }
 
-export const store = new MemoryStore();
-
 export type Store = MemoryStore;
+
+const workspaceStorage = new AsyncLocalStorage<MemoryStore>();
+const workspaceStores = new Map<string, MemoryStore>();
+const workspaceLoadPromises = new Map<string, Promise<MemoryStore>>();
+
+function createWorkspaceStore(workspaceId: string): MemoryStore {
+  const instance = new MemoryStore();
+  workspaceStores.set(workspaceId, instance);
+  return instance;
+}
+
+export async function getWorkspaceStore(workspaceId: string): Promise<MemoryStore> {
+  const existing = workspaceStores.get(workspaceId);
+  if (existing) return existing;
+  const pending = workspaceLoadPromises.get(workspaceId);
+  if (pending) return pending;
+
+  const load = (async () => {
+    const instance = createWorkspaceStore(workspaceId);
+    if (process.env.DATABASE_URL && process.env.ALLOW_INMEMORY_STORE !== 'true') {
+      await instance.loadPersistent(workspaceId);
+    }
+    workspaceLoadPromises.delete(workspaceId);
+    return instance;
+  })().catch(error => {
+    workspaceLoadPromises.delete(workspaceId);
+    workspaceStores.delete(workspaceId);
+    throw error;
+  });
+  workspaceLoadPromises.set(workspaceId, load);
+  return load;
+}
+
+export async function runWithWorkspace<T>(workspaceId: string, callback: () => T | Promise<T>): Promise<T> {
+  const workspaceStore = await getWorkspaceStore(workspaceId);
+  return workspaceStorage.run(workspaceStore, callback);
+}
+
+export function currentWorkspaceStore(): MemoryStore {
+  return workspaceStorage.getStore() ?? getWorkspaceStoreSyncFallback();
+}
+
+function getWorkspaceStoreSyncFallback(): MemoryStore {
+  const fallback = workspaceStores.get('ws_default');
+  if (fallback) return fallback;
+  return createWorkspaceStore('ws_default');
+}
+
+// Legacy route code can keep using store.accounts/store.offers/etc.;
+// the proxy resolves those properties against the authenticated request workspace.
+export const store = new Proxy({} as MemoryStore, {
+  get(_target, property: keyof MemoryStore) {
+    const active = currentWorkspaceStore();
+    const value = active[property];
+    return typeof value === 'function' ? value.bind(active) : value;
+  },
+  set(_target, property: keyof MemoryStore, value: unknown) {
+    (currentWorkspaceStore() as any)[property] = value;
+    return true;
+  },
+}) as MemoryStore;
