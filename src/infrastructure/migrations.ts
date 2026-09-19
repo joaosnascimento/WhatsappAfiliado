@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { query } from './database.ts';
+import { query, transaction } from './database.ts';
 
 export async function runMigrations() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required to run database migrations.');
@@ -11,13 +11,12 @@ export async function runMigrations() {
     const applied = await query<{filename:string}>('SELECT filename FROM schema_migrations WHERE filename=$1', [filename]);
     if (applied.length) continue;
     const sql = await readFile(path.join(dir, filename), 'utf8');
-    await query('BEGIN');
     try {
-      await query(sql);
-      await query('INSERT INTO schema_migrations(filename) VALUES($1)', [filename]);
-      await query('COMMIT');
+      await transaction(async client => {
+        await client.query(sql);
+        await client.query('INSERT INTO schema_migrations(filename) VALUES($1)', [filename]);
+      });
     } catch (error) {
-      await query('ROLLBACK');
       throw new Error('Migration failed (' + filename + '): ' + (error as Error).message);
     }
   }
