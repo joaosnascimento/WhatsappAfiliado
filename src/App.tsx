@@ -30,6 +30,7 @@ async function readJson<T = any>(response: Response): Promise<T> {
 
 export function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [firstRunRedirected, setFirstRunRedirected] = useState(false);
   const [accounts, setAccounts] = useState<MarketplaceAccount[]>([]);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>([]);
@@ -114,6 +115,17 @@ export function App() {
   useEffect(() => {
     if (token && user) void loadData();
   }, [token, user]);
+
+  useEffect(() => {
+    if (!user || firstRunRedirected || whatsappSettings === null) return;
+    const whatsappConfigured = whatsappSettings?.provider === 'evolution'
+      ? Boolean(whatsappSettings?.evolutionApiUrl && whatsappSettings?.evolutionApiKey === 'configured' && whatsappSettings?.evolutionInstance)
+      : Boolean(whatsappSettings?.provider);
+    if (!whatsappConfigured) {
+      setActiveTab('setup');
+      setFirstRunRedirected(true);
+    }
+  }, [user, whatsappSettings, firstRunRedirected]);
 
   const handleAuth = async (event: React.FormEvent) => {
     event.preventDefault();
