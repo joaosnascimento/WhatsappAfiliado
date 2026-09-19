@@ -30,13 +30,32 @@ const worker = new Worker('affiliate-publications', async job => {
   };
   const result = await new WhatsAppProvider().sendPublication(publication, destination);
   if (!result.success) {
-    await query("UPDATE publications SET status='FAILED', error=$2 WHERE id=$1", [row.id, result.error || 'Provider failed']);
-    throw new Error(result.error || 'Publication failed');
+    const errorMessage = result.error || 'Provider failed';
+    await query("UPDATE publications SET status='FAILED', error=$2 WHERE id=$1", [row.id, errorMessage]);
+    const failedStateRows = await query<{ state: any }>('SELECT state FROM workspace_state WHERE workspace_id=$1', [row.workspace_id]);
+    const failedState = failedStateRows[0]?.state;
+    const failedPub = failedState?.publications?.find((item: any) => item.id === row.id);
+    if (failedPub) {
+      failedPub.status = 'FAILED';
+      failedPub.error_message = errorMessage;
+      await query('UPDATE workspace_state SET state=$2, updated_at=NOW() WHERE workspace_id=$1', [row.workspace_id, JSON.stringify(failedState)]);
+    }
+    throw new Error(errorMessage);
   }
   await query("UPDATE publications SET status='SENT', provider_message_id=$2, published_at=NOW(), error=NULL WHERE id=$1", [row.id, result.messageId || null]);
 
   const stateRows = await query<{ state: any }>('SELECT state FROM workspace_state WHERE workspace_id=$1', [row.workspace_id]);
-  const offer = stateRows[0]?.state?.offers?.find((item: any) => item.id === row.offer_id);
+  const state = stateRows[0]?.state;
+  const statePub = state?.publications?.find((item: any) => item.id === row.id);
+  if (statePub) {
+    statePub.status = 'SENT';
+    statePub.sent_at = new Date().toISOString();
+    statePub.error_message = undefined;
+  }
+  if (state) {
+    await query('UPDATE workspace_state SET state=$2, updated_at=NOW() WHERE workspace_id=$1', [row.workspace_id, JSON.stringify(state)]);
+  }
+  const offer = state?.offers?.find((item: any) => item.id === row.offer_id);
   if (offer?.product?.external_product_id) {
     await DeduplicationService.recordPublication(
       row.workspace_id,
