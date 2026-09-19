@@ -9,6 +9,7 @@ import { store, runWithWorkspace, findMarketplaceAccount } from './src/services/
 import { runMigrations } from './src/infrastructure/migrations.ts';
 import { ensureWorkspace } from './src/infrastructure/workspace.ts';
 import { closeDatabase } from './src/infrastructure/database.ts';
+import { redis } from './src/infrastructure/redis.ts';
 import { registerUser, authenticateUser, createSession } from './src/services/auth.ts';
 import { requireAuth } from './src/services/authMiddleware.ts';
 import { redisRateLimit } from './src/services/rateLimit.ts';
@@ -27,6 +28,24 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const mlOAuthTransactions = new Map<string, { codeVerifier: string; createdAt: number; accountId: string; workspaceId: string }>();
+const ML_OAUTH_REDIS_PREFIX = 'oauth:mercadolivre:';
+
+type MlOAuthTransaction = { codeVerifier: string; createdAt: number; accountId: string; workspaceId: string };
+async function saveMlOAuthTransaction(state: string, transaction: MlOAuthTransaction) {
+  if (redis) await redis.set(`${ML_OAUTH_REDIS_PREFIX}${state}`, JSON.stringify(transaction), 'EX', Math.ceil(ML_OAUTH_STATE_TTL_MS / 1000));
+  else mlOAuthTransactions.set(state, transaction);
+}
+async function getMlOAuthTransaction(state: string): Promise<MlOAuthTransaction | null> {
+  if (redis) {
+    const raw = await redis.get(`${ML_OAUTH_REDIS_PREFIX}${state}`);
+    return raw ? JSON.parse(raw) as MlOAuthTransaction : null;
+  }
+  return mlOAuthTransactions.get(state) || null;
+}
+async function deleteMlOAuthTransaction(state: string) {
+  if (redis) await redis.del(`${ML_OAUTH_REDIS_PREFIX}${state}`);
+  else await deleteMlOAuthTransaction(state);
+}
 const ML_OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 function cleanupExpiredMlOAuthTransactions() {
   const now = Date.now();
@@ -164,7 +183,7 @@ async function startServer() {
     try {
       const authorization = oauth.createAuthorization();
       if (!mlAccount) return res.status(400).json({ error: 'Nenhuma conta do Mercado Livre foi criada neste workspace.' });
-      mlOAuthTransactions.set(authorization.state, { codeVerifier: authorization.codeVerifier, createdAt: Date.now(), accountId: mlAccount.id, workspaceId: req.user!.workspaceId });
+      await saveMlOAuthTransaction(authorization.state, { codeVerifier: authorization.codeVerifier, createdAt: Date.now(), accountId: mlAccount.id, workspaceId: req.user!.workspaceId });
       cleanupExpiredMlOAuthTransactions();
       res.json({ url: authorization.url });
     } catch (err) {
@@ -179,7 +198,7 @@ async function startServer() {
     if (!code) return res.status(400).send('Código de autorização não recebido do Mercado Livre.');
     if (!state) return res.status(400).send('State OAuth ausente.');
 
-    const transaction = mlOAuthTransactions.get(state);
+    const transaction = await getMlOAuthTransaction(state);
     if (!transaction || Date.now() - transaction.createdAt > ML_OAUTH_STATE_TTL_MS) {
       return res.status(400).send('State OAuth inválido ou expirado.');
     }
