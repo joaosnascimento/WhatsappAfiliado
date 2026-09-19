@@ -18,6 +18,8 @@ interface AffiliatesTabProps {
   onSaveAccount: (accountId: string, credentials: Record<string, string>) => Promise<void>;
   onTestIntegration: (marketplace: 'SHOPEE' | 'MERCADOLIVRE') => Promise<IntegrationTestResult>;
   onConnectMercadoLivre: () => Promise<void>;
+  whatsappSettings?: any;
+  onSaveWhatsApp: (settings:any)=>Promise<void>;
 }
 
 export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
@@ -25,6 +27,8 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
   onSaveAccount,
   onTestIntegration,
   onConnectMercadoLivre,
+  whatsappSettings,
+  onSaveWhatsApp,
 }) => {
   const mlAcc = accounts.find((a) => a.marketplace === 'MERCADOLIVRE');
   const shopeeAcc = accounts.find((a) => a.marketplace === 'SHOPEE');
@@ -43,6 +47,11 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
   const [isSavingShopee, setIsSavingShopee] = useState(false);
   const [testingMarketplace, setTestingMarketplace] = useState<'SHOPEE' | 'MERCADOLIVRE' | null>(null);
   const [diagnosticResult, setDiagnosticResult] = useState<IntegrationTestResult | null>(null);
+  const [waProvider,setWaProvider]=useState(whatsappSettings?.provider||'evolution');
+  const [waUrl,setWaUrl]=useState(whatsappSettings?.evolutionApiUrl||'');
+  const [waKey,setWaKey]=useState('');
+  const [waInstance,setWaInstance]=useState(whatsappSettings?.evolutionInstance||'');
+  const [waSaving,setWaSaving]=useState(false);
 
   const handleSaveML = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,6 +114,21 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
               Cada marketplace possui infraestrutura, segurança e modelos de autenticação completamente isolados. Configure as credenciais oficiais para permitir buscas automáticas de catálogo, cálculo de assinaturas criptográficas e validação estrita de atribuição.
             </p>
           </div>
+        </div>
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+        <div><h3 className="font-bold text-white">WhatsApp / Evolution API</h3><p className="text-xs text-slate-400 mt-1">Configuração por workspace; a chave fica criptografada no banco.</p></div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <select value={waProvider} onChange={e=>setWaProvider(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+            <option value="evolution">Evolution API</option><option value="cloud">Meta Cloud API</option>
+          </select>
+          <input value={waUrl} onChange={e=>setWaUrl(e.target.value)} placeholder="https://sua-evolution" className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+          <input value={waInstance} onChange={e=>setWaInstance(e.target.value)} placeholder="Nome da instância" className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+        </div>
+        <div className="flex gap-3">
+          <input type="password" value={waKey} onChange={e=>setWaKey(e.target.value)} placeholder={whatsappSettings?.evolutionApiKey==='configured'?'Chave já configurada':'Evolution API Key'} className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+          <button disabled={waSaving} onClick={async()=>{setWaSaving(true);try{await onSaveWhatsApp({provider:waProvider,evolutionApiUrl:waUrl,evolutionApiKey:waKey,evolutionInstance:waInstance});alert('WhatsApp configurado.')}catch(e){alert((e as Error).message)}finally{setWaSaving(false)}}} className="px-4 py-2 bg-emerald-500 text-slate-950 rounded-xl text-xs font-bold">{waSaving?'Salvando...':'Salvar WhatsApp'}</button>
         </div>
       </div>
 
