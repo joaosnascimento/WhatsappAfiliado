@@ -2,6 +2,7 @@ import { query } from '../infrastructure/database.ts';
 import { decryptCredentials, encryptCredentials } from '../infrastructure/encryption.ts';
 import { ShopeeAffiliateAdapter } from '../../integrations/shopee/ShopeeAffiliateAdapter.ts';
 import { MercadoLivreAffiliateAdapter } from '../../integrations/mercadolivre/MercadoLivreAffiliateAdapter.ts';
+import { CouponService } from './CouponService.ts';
 import type { AffiliateProduct, Offer, MarketplaceType } from '../types/affiliate.ts';
 
 type DestinationRow = { id: string; workspace_id: string; config: any; is_active: boolean };
@@ -146,6 +147,7 @@ export class MarketplaceDiscoveryScheduler {
               state.products.push(product);
               state.offers.push(offer);
             }
+            try { await CouponService.extractFromOffer(workspaceId, existing || offer); } catch { /* only verified/provider-supplied coupon metadata is persisted */ }
             discovered++;
           }
         }
