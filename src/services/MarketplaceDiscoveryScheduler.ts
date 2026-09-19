@@ -1,5 +1,5 @@
 import { query } from '../infrastructure/database.ts';
-import { decryptCredentials, encryptCredentials } from '../infrastructure/encryption.ts';
+import { decryptCredentials } from '../infrastructure/encryption.ts';
 import { ShopeeAffiliateAdapter } from '../../integrations/shopee/ShopeeAffiliateAdapter.ts';
 import { MercadoLivreAffiliateAdapter } from '../../integrations/mercadolivre/MercadoLivreAffiliateAdapter.ts';
 import type { AffiliateProduct, Offer, MarketplaceType } from '../types/affiliate.ts';
