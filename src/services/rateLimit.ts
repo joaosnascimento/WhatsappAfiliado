@@ -21,7 +21,8 @@ export function redisRateLimit(options: { windowSeconds: number; max: number; pr
       if (count > options.max) {
         const ttl = await redis.ttl(key);
         res.setHeader('Retry-After', Math.max(1, ttl));
-        void recordSecurityEvent({eventType:'RATE_LIMIT_EXCEEDED',severity:'MEDIUM',workspaceId:req.user?.workspaceId,userId:req.user?.userId,ip:req.ip,userAgent:req.get('user-agent')||undefined,path:req.path,metadata:{prefix:options.prefix,limit:options.max}});\n        return res.status(429).json({ error: 'Muitas solicitações. Tente novamente mais tarde.' });
+        void recordSecurityEvent({eventType:'RATE_LIMIT_EXCEEDED',severity:'MEDIUM',workspaceId:req.user?.workspaceId,userId:req.user?.userId,ip:req.ip,userAgent:req.get('user-agent')||undefined,path:req.path,metadata:{prefix:options.prefix,limit:options.max}});
+        return res.status(429).json({ error: 'Muitas solicitações. Tente novamente mais tarde.' });
       }
       return next();
     } catch (error) {
