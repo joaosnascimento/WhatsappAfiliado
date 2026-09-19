@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { query } from '../infrastructure/database.ts';
 
 const TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync('invalid-user-password-only-for-timing-equalization', 12);
 
 function secret() {
   if (!process.env.SESSION_SECRET) throw new Error('SESSION_SECRET is required.');
@@ -40,7 +41,9 @@ export async function registerUser(email: string, password: string) {
 }
 export async function authenticateUser(email: string, password: string) {
   const rows = await query<{id:string;workspace_id:string;password_hash:string}>('SELECT id,workspace_id,password_hash FROM users WHERE email=$1',[email.toLowerCase()]);
-  if (!rows[0] || !(await bcrypt.compare(password, rows[0].password_hash))) return null;
+  const hash = rows[0]?.password_hash || DUMMY_PASSWORD_HASH;
+  const valid = await bcrypt.compare(password, hash);
+  if (!rows[0] || !valid) return null;
   return { id: rows[0].id, workspaceId: rows[0].workspace_id };
 }
 export function createSession(user: {id:string;workspaceId:string}) { return token(user.workspaceId, user.id); }
