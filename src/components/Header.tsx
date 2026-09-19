@@ -22,6 +22,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard' },
+    { id: 'setup', label: 'Configuração' },
     { id: 'affiliates', label: 'Afiliados & APIs' },
     { id: 'offers', label: 'Radar de Ofertas' },
     { id: 'destinations', label: 'Destinos WhatsApp' },
