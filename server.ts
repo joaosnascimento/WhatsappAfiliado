@@ -114,6 +114,9 @@ async function startServer() {
       geminiConfigured: !!process.env.GEMINI_API_KEY,
       mercadolivreConfigured: !!process.env.MERCADOLIVRE_CLIENT_ID,
       shopeeConfigured: !!process.env.SHOPEE_AFFILIATE_APP_ID,
+      whatsappProvider: process.env.WHATSAPP_PROVIDER || 'cloud',
+      evolutionConfigured: !!(process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY && process.env.EVOLUTION_INSTANCE),
+      automation: { scheduler: true, discovery: true },
       timestamp: new Date().toISOString(),
     });
   });
