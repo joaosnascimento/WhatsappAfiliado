@@ -102,8 +102,7 @@ export class MercadoLivreAffiliateAdapter implements AffiliateMarketplaceAdapter
   }
 
   public async getReports(): Promise<Conversion[]> {
-    // Mercado Livre reports are obtained via the Affiliate Portal dashboard export or specific affiliate webhook
-    return [];
+    throw new Error('Relatórios de afiliados do Mercado Livre não estão expostos por este adaptador como API pública de afiliados. O sistema não fabrica conversões; conecte uma fonte oficial de relatórios quando disponível.');
   }
 
   public async testConnection(): Promise<IntegrationTestResult> {
