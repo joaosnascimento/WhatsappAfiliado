@@ -8,6 +8,7 @@ import type {
 
 export interface AuditRecord {
   id: string;
+  workspaceId: string;
   marketplace: MarketplaceType;
   productId: string;
   productTitle: string;
@@ -40,6 +41,7 @@ export class AuditService {
     affiliateAccountId: string;
   }): AuditRecord {
     const record: AuditRecord = {
+      workspaceId: params.publication.workspace_id,
       id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       marketplace: params.offer.marketplace,
       productId: params.offer.product.external_product_id,
@@ -66,8 +68,9 @@ export class AuditService {
   /**
    * Retrieves audit records with optional filtering
    */
-  public static getAuditRecords(marketplace?: MarketplaceType, destinationId?: string): AuditRecord[] {
+  public static getAuditRecords(workspaceId: string, marketplace?: MarketplaceType, destinationId?: string): AuditRecord[] {
     return this.records.filter((r) => {
+      if (r.workspaceId !== workspaceId) return false;
       if (marketplace && r.marketplace !== marketplace) return false;
       if (destinationId && r.destinationId !== destinationId) return false;
       return true;
@@ -77,7 +80,7 @@ export class AuditService {
   /**
    * Finds a trace by publication ID
    */
-  public static getByPublicationId(publicationId: string): AuditRecord | undefined {
-    return this.records.find((r) => r.publicationId === publicationId);
+  public static getByPublicationId(workspaceId: string, publicationId: string): AuditRecord | undefined {
+    return this.records.find((r) => r.workspaceId === workspaceId && r.publicationId === publicationId);
   }
 }
