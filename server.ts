@@ -496,6 +496,8 @@ async function startServer() {
 
     const publication: Publication = {
       id: `pub_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      workspace_id: req.user!.workspaceId,
+      idempotency_key: `${offer.marketplace}:${offer.product.external_product_id}:${destination.id}:${new Date().toISOString().slice(0, 10)}`,
       offer_id: offer.id,
       offer,
       destination_id: destination.id,
@@ -533,7 +535,7 @@ async function startServer() {
     const id = body.id || `dest_${Date.now()}`;
     const destination: Destination = {
       id,
-      workspace_id: 'ws_default',
+      workspace_id: req.user!.workspaceId,
       type: body.type || 'WHATSAPP_GROUP',
       identifier: body.identifier || '120363000000000000@g.us',
       name: body.name || 'Novo Grupo WhatsApp',
