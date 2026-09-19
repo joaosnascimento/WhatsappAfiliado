@@ -247,7 +247,7 @@ async function startServer() {
         </html>
       `);
     } catch (err) {
-      res.status(500).send(`Erro ao trocar código por token: ${(err as Error).message}`);
+      res.status(500).json({ error: `Erro ao trocar código por token: ${(err as Error).message}` });
     }
   });
 
