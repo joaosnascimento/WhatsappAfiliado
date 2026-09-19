@@ -1,3 +1,5 @@
+import { PersistentStoreRepository } from '../infrastructure/PersistentStoreRepository.ts';
+
 import type {
   MarketplaceAccount,
   AffiliateProduct,
@@ -21,6 +23,8 @@ class MemoryStore {
   public publications: Map<string, Publication> = new Map();
   public conversions: Map<string, Conversion> = new Map();
 
+  private readonly repository = new PersistentStoreRepository(this as any);
+
   constructor() {
     // Demo data is opt-in. Production must never start with fabricated offers,
     // affiliate links or conversion records.
@@ -28,6 +32,10 @@ class MemoryStore {
       this.seedInitialData();
     }
   }
+
+  async loadPersistent(workspaceId = 'ws_default'): Promise<boolean> { return this.repository.load(workspaceId); }
+
+  async persist(workspaceId = 'ws_default'): Promise<void> { await this.repository.save(workspaceId); }
 
   private seedInitialData() {
     // 1. Accounts
@@ -305,3 +313,5 @@ class MemoryStore {
 }
 
 export const store = new MemoryStore();
+
+export type Store = MemoryStore;
