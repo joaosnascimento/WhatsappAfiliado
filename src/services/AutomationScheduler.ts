@@ -1,6 +1,7 @@
 import { query, transaction } from '../infrastructure/database.ts';
 import { enqueuePublication } from '../infrastructure/queue.ts';
 import { AiMessageService } from './AiMessageService.ts';
+import { AnalyticsService } from './AnalyticsService.ts';
 import type { Destination, Offer, Publication } from '../types/affiliate.ts';
 
 type WorkspaceState = { offers?: Offer[] };
@@ -85,10 +86,21 @@ export class AutomationScheduler {
 
           for (const offer of eligible.slice(0, 3)) {
             const idempotencyKey = `auto:${dateKey}:${slot}:${offer.marketplace}:${offer.product.external_product_id}:${destination.id}`;
+            const tracked = await AnalyticsService.createTrackedLink({
+              workspaceId: workspace.id,
+              marketplace: offer.marketplace,
+              affiliateUrl: offer.affiliate_url!,
+              affiliateLinkId: offer.affiliate_link_id,
+              offerId: offer.id,
+              destinationId: destination.id,
+              subId: `whatsapp:${destination.id}:${offer.marketplace.toLowerCase()}`,
+            });
+            const publicBase = (process.env.APP_URL || '').replace(/\\/$/, '');
+            const publicationAffiliateUrl = publicBase ? `${publicBase}/r/${tracked.id}` : offer.affiliate_url!;
             const message = offer.ai_generated_message || await AiMessageService.generateMessage({
               product: offer.product,
               marketplace: offer.marketplace,
-              affiliateUrl: offer.affiliate_url!,
+              affiliateUrl: publicationAffiliateUrl,
               destinationName: destination.name,
               category: offer.product.category,
               couponCode: offer.coupon_code,
@@ -103,7 +115,7 @@ export class AutomationScheduler {
               destination_id: destination.id,
               destination,
               affiliate_link_id: offer.affiliate_link_id || 'link_direct',
-              affiliate_url: offer.affiliate_url!,
+              affiliate_url: publicationAffiliateUrl,
               message,
               status: 'QUEUED',
               scheduled_at: now.toISOString(),
