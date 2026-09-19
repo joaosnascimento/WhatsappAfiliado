@@ -42,13 +42,13 @@ export class PersistentStoreRepository {
     }
     if (stateRows[0]) {
       const s = stateRows[0].state;
-      this.replace(this.store.products, s.products);
-      this.replace(this.store.links, s.links);
-      this.replace(this.store.offers, s.offers);
-      this.replace(this.store.campaigns, s.campaigns);
-      this.replace(this.store.destinations, s.destinations);
-      this.replace(this.store.publications, s.publications);
-      this.replace(this.store.conversions, s.conversions);
+      this.replace(this.store.products, s.products || []);
+      this.replace(this.store.links, s.links || []);
+      this.replace(this.store.offers, s.offers || []);
+      this.replace(this.store.campaigns, s.campaigns || []);
+      this.replace(this.store.destinations, s.destinations || []);
+      this.replace(this.store.publications, s.publications || []);
+      this.replace(this.store.conversions, s.conversions || []);
     }
     return true;
   }
