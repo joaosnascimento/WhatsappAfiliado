@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { randomUUID } from 'node:crypto';
 import { PersistentStoreRepository } from '../infrastructure/PersistentStoreRepository.ts';
 
 import type {
@@ -325,6 +326,28 @@ function createWorkspaceStore(workspaceId: string): MemoryStore {
   return instance;
 }
 
+function ensureMarketplaceAccounts(instance: MemoryStore, workspaceId: string) {
+  const marketplaces: MarketplaceType[] = ['MERCADOLIVRE', 'SHOPEE'];
+  for (const marketplace of marketplaces) {
+    if ([...instance.accounts.values()].some(account => account.marketplace === marketplace)) continue;
+    const id = `acc_${marketplace.toLowerCase()}_${randomUUID().replace(/-/g, '')}`;
+    instance.accounts.set(id, {
+      id,
+      workspace_id: workspaceId,
+      marketplace,
+      status: 'AWAITING_CONFIG',
+      status_message: 'Configure as credenciais desta conta para iniciar a integração.',
+      credentials_encrypted: {},
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+  }
+}
+
+export function findMarketplaceAccount(marketplace: MarketplaceType): MarketplaceAccount | undefined {
+  return [...store.accounts.values()].find(account => account.marketplace === marketplace);
+}
+
 export async function getWorkspaceStore(workspaceId: string): Promise<MemoryStore> {
   const existing = workspaceStores.get(workspaceId);
   if (existing) return existing;
@@ -335,6 +358,7 @@ export async function getWorkspaceStore(workspaceId: string): Promise<MemoryStor
     const instance = createWorkspaceStore(workspaceId);
     if (process.env.DATABASE_URL && process.env.ALLOW_INMEMORY_STORE !== 'true') {
       await instance.loadPersistent(workspaceId);
+      ensureMarketplaceAccounts(instance, workspaceId);
     }
     workspaceLoadPromises.delete(workspaceId);
     return instance;
