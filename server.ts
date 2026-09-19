@@ -5,7 +5,7 @@ import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { store, runWithWorkspace } from './src/services/Store.ts';
+import { store, runWithWorkspace, findMarketplaceAccount } from './src/services/Store.ts';
 import { runMigrations } from './src/infrastructure/migrations.ts';
 import { ensureWorkspace } from './src/infrastructure/workspace.ts';
 import { closeDatabase } from './src/infrastructure/database.ts';
@@ -150,7 +150,7 @@ async function startServer() {
 
   // 4. Mercado Livre OAuth Flow
   app.get('/api/auth/mercadolivre/url', requireAuth, (req, res) => {
-    const mlAccount = store.accounts.get('acc_mercadolivre_br');
+    const mlAccount = findMarketplaceAccount('MERCADOLIVRE');
     const clientId = mlAccount?.credentials_encrypted.ml_client_id || process.env.MERCADOLIVRE_CLIENT_ID || '';
     const redirectUri = mlAccount?.credentials_encrypted.ml_redirect_uri || process.env.MERCADOLIVRE_REDIRECT_URI || '';
 
@@ -162,7 +162,8 @@ async function startServer() {
 
     try {
       const authorization = oauth.createAuthorization();
-      mlOAuthTransactions.set(authorization.state, { codeVerifier: authorization.codeVerifier, createdAt: Date.now(), accountId: 'acc_mercadolivre_br', workspaceId: req.user!.workspaceId });
+      if (!mlAccount) return res.status(400).json({ error: 'Nenhuma conta do Mercado Livre foi criada neste workspace.' });
+      mlOAuthTransactions.set(authorization.state, { codeVerifier: authorization.codeVerifier, createdAt: Date.now(), accountId: mlAccount.id, workspaceId: req.user!.workspaceId });
       cleanupExpiredMlOAuthTransactions();
       res.json({ url: authorization.url });
     } catch (err) {
@@ -229,7 +230,7 @@ async function startServer() {
     const marketplace = req.params.marketplace.toUpperCase();
 
     if (marketplace === 'SHOPEE') {
-      const account = store.accounts.get('acc_shopee_br');
+      const account = findMarketplaceAccount('SHOPEE');
       const appId = account?.credentials_encrypted.shopee_app_id || process.env.SHOPEE_AFFILIATE_APP_ID || '';
       const secret = account?.credentials_encrypted.shopee_secret || process.env.SHOPEE_AFFILIATE_SECRET || '';
 
@@ -396,7 +397,7 @@ async function startServer() {
         productId: offer.product.external_product_id,
         originalUrl: offer.product.original_url,
         affiliateUrl,
-        affiliateAccountId: 'acc_mercadolivre_br',
+        affiliateAccountId: mlAccount.id,
         campaign: campaignId,
         destination: destinationId,
         subIds: ['whatsapp', destinationId || 'grupo_ml'],
