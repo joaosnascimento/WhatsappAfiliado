@@ -18,7 +18,7 @@ interface ReportData {
     productsFound: number;
     affiliateLinksReady: number;
     publications: number;
-    clicksEstimated: number;
+    clicksTracked: number;
     conversions: number;
     commissionBrl: number;
   };
@@ -26,7 +26,7 @@ interface ReportData {
     productsFound: number;
     affiliateLinksReady: number;
     publications: number;
-    clicksEstimated: number;
+    clicksTracked: number;
     conversions: number;
     commissionBrl: number;
   };
@@ -48,7 +48,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
     productsFound: 0,
     affiliateLinksReady: 0,
     publications: 0,
-    clicksEstimated: 0,
+    clicksTracked: 0,
     conversions: 0,
     commissionBrl: 0,
   };
@@ -57,7 +57,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
     productsFound: 0,
     affiliateLinksReady: 0,
     publications: 0,
-    clicksEstimated: 0,
+    clicksTracked: 0,
     conversions: 0,
     commissionBrl: 0,
   };
@@ -152,14 +152,14 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Cliques Totais Estimados</span>
+            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Cliques Rastreados</span>
             <div className="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center">
               <ArrowUpRight className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3">
             <div className="text-2xl font-bold text-white">
-              {shopee.clicksEstimated + ml.clicksEstimated}
+              {shopee.clicksTracked + ml.clicksTracked}
             </div>
             <p className="text-xs text-slate-400 mt-1">Rastreados via SubIds únicos</p>
           </div>
