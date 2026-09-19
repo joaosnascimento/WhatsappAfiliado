@@ -1,5 +1,5 @@
 import { query } from '../infrastructure/database.ts';
-import { decryptCredentials } from '../infrastructure/encryption.ts';
+import { decryptCredentials, encryptCredentials } from '../infrastructure/encryption.ts';
 import { ShopeeAffiliateAdapter } from '../../integrations/shopee/ShopeeAffiliateAdapter.ts';
 import { MercadoLivreAffiliateAdapter } from '../../integrations/mercadolivre/MercadoLivreAffiliateAdapter.ts';
 import type { AffiliateProduct, Offer, MarketplaceType } from '../types/affiliate.ts';
@@ -105,6 +105,10 @@ export class MarketplaceDiscoveryScheduler {
             if (!clientId || !accessToken) continue;
             const adapter = new MercadoLivreAffiliateAdapter({
               clientId, clientSecret, redirectUri, accessToken, refreshToken, accountId: account.id,
+              onTokenRefreshed: (newToken, newRefresh, expiresIn) => {
+                const nextCredentials = { ...credentials, ml_access_token: newToken, ml_refresh_token: newRefresh, ml_expires_at: Date.now() + expiresIn * 1000 };
+                void query('UPDATE marketplace_accounts SET credentials_encrypted=$2, updated_at=NOW(), status=\'CONNECTED\' WHERE id=$1 AND workspace_id=$3', [account.id, encryptCredentials(nextCredentials), workspaceId]);
+              },
             });
             products = await adapter.searchOffers({ keyword: job.keyword, category: job.category, limit: 10 });
           }
