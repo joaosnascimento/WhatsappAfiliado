@@ -36,7 +36,7 @@ export class PersistentStoreRepository {
     for (const row of accounts) {
       this.store.accounts.set(row.id, {
         id: row.id, workspace_id: row.workspace_id, marketplace: row.marketplace,
-        status: row.status, credentials_encrypted: decryptCredentials(row.credentials_encrypted),
+        status: row.status, credentials_encrypted: decryptCredentials<MarketplaceAccount['credentials_encrypted']>(row.credentials_encrypted),
         created_at: new Date(row.created_at).toISOString(), updated_at: new Date(row.updated_at).toISOString(),
       });
     }
