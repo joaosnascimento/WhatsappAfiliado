@@ -97,14 +97,16 @@ export class AutomationScheduler {
             });
             const publicBase = (process.env.APP_URL || '').replace(/\\/$/, '');
             const publicationAffiliateUrl = publicBase ? `${publicBase}/r/${tracked.id}` : offer.affiliate_url!;
-            const message = offer.ai_generated_message || await AiMessageService.generateMessage({
-              product: offer.product,
-              marketplace: offer.marketplace,
-              affiliateUrl: publicationAffiliateUrl,
-              destinationName: destination.name,
-              category: offer.product.category,
-              couponCode: offer.coupon_code,
-            });
+            const message = offer.ai_generated_message
+              ? offer.ai_generated_message.replaceAll(offer.affiliate_url!, publicationAffiliateUrl)
+              : await AiMessageService.generateMessage({
+                  product: offer.product,
+                  marketplace: offer.marketplace,
+                  affiliateUrl: publicationAffiliateUrl,
+                  destinationName: destination.name,
+                  category: offer.product.category,
+                  couponCode: offer.coupon_code,
+                });
 
             const publication: Publication = {
               id: `pub_auto_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
