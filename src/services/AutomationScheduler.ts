@@ -2,6 +2,7 @@ import { query, transaction } from '../infrastructure/database.ts';
 import { enqueuePublication } from '../infrastructure/queue.ts';
 import { AiMessageService } from './AiMessageService.ts';
 import { AnalyticsService } from './AnalyticsService.ts';
+import { DeduplicationService } from './DeduplicationService.ts';
 import type { Destination, Offer, Publication } from '../types/affiliate.ts';
 
 type WorkspaceState = { offers?: Offer[] };
@@ -84,7 +85,16 @@ export class AutomationScheduler {
 
           if (!eligible.length) continue;
 
-          for (const offer of eligible.slice(0, 3)) {
+          const candidates: Offer[] = [];
+          for (const offer of eligible) {
+            if (candidates.length >= 3) break;
+            const dedup = await DeduplicationService.isDuplicate(
+              workspace.id, offer.marketplace, offer.product.external_product_id, destination.id, offer.product.shop_id, 24
+            );
+            if (!dedup.isDuplicate) candidates.push(offer);
+          }
+
+          for (const offer of candidates) {
             const idempotencyKey = `auto:${dateKey}:${slot}:${offer.marketplace}:${offer.product.external_product_id}:${destination.id}`;
             const tracked = await AnalyticsService.createTrackedLink({
               workspaceId: workspace.id,
