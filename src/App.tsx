@@ -27,6 +27,7 @@ export function App() {
   const [publications, setPublications] = useState<Publication[]>([]);
   const [auditRecords, setAuditRecords] = useState<AuditRecord[]>([]);
   const [reports, setReports] = useState<any>(null);
+  const [whatsappSettings, setWhatsappSettings] = useState<any>(null);
 
   // Modals
   const [associateModalOffer, setAssociateModalOffer] = useState<Offer | null>(null);
@@ -39,13 +40,14 @@ export function App() {
   // Initial data loader
   const loadData = async () => {
     try {
-      const [accRes, offRes, destRes, pubRes, repRes, audRes] = await Promise.all([
+      const [accRes, offRes, destRes, pubRes, repRes, audRes, waRes] = await Promise.all([
         fetch('/api/accounts').then((r) => r.json()),
         fetch('/api/offers').then((r) => r.json()),
         fetch('/api/destinations').then((r) => r.json()),
         fetch('/api/publications').then((r) => r.json()),
         fetch('/api/reports').then((r) => r.json()),
         fetch('/api/audit').then((r) => r.json()),
+        fetch('/api/whatsapp/settings').then((r) => r.json()),
       ]);
 
       setAccounts(accRes || []);
@@ -54,6 +56,7 @@ export function App() {
       setPublications(pubRes || []);
       setReports(repRes || null);
       setAuditRecords(audRes || []);
+      setWhatsappSettings(waRes || null);
     } catch (err) {
       console.error('Failed to load initial SaaS data:', err);
     }
@@ -78,6 +81,12 @@ export function App() {
   };
 
   // Handler: Save Account
+  const handleSaveWhatsApp = async (settings: any) => {
+    const res = await fetch('/api/whatsapp/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(settings)});
+    const data=await res.json(); if(!res.ok) throw new Error(data.error||'Erro ao salvar WhatsApp');
+    setWhatsappSettings({...whatsappSettings,...settings});
+  };
+
   const handleSaveAccount = async (accountId: string, credentials: Record<string, string>) => {
     const res = await fetch(`/api/accounts/${accountId}`, {
       method: 'POST',
@@ -217,6 +226,8 @@ export function App() {
             onSaveAccount={handleSaveAccount}
             onTestIntegration={handleTestIntegration}
             onConnectMercadoLivre={handleConnectMercadoLivre}
+            whatsappSettings={whatsappSettings}
+            onSaveWhatsApp={handleSaveWhatsApp}
           />
         )}
 
