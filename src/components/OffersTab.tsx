@@ -59,6 +59,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
   const [mlPrice, setMlPrice] = useState('');
   const [mlBusy, setMlBusy] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [publishDestinationId, setPublishDestinationId] = useState<string>('');
 
   // Filter offers locally
   const filteredOffers = offers.filter((offer) => {
@@ -120,7 +121,8 @@ export const OffersTab: React.FC<OffersTabProps> = ({
       return;
     }
 
-    const destId = destinations[0]?.id || 'dest_pokemon';
+    const destId = publishDestinationId || destinations[0]?.id;
+    if (!destId) { toast('error','Nenhum destino configurado','Configure um grupo WhatsApp antes de publicar.'); return; }
     setPublishingId(offer.id);
     try {
       await onQuickPublish(offer.id, destId);
