@@ -54,6 +54,10 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({
           const isSent = pub.status === 'SENT';
           const isFailed = pub.status === 'FAILED';
           const isQueued = pub.status === 'QUEUED' || pub.status === 'SCHEDULED';
+          const isProcessing = pub.status === 'PROCESSING';
+          const isRetrying = pub.status === 'RETRYING';
+          const isCancelled = pub.status === 'CANCELLED';
+          const isExpired = pub.status === 'EXPIRED';
           const isShopee = pub.offer?.marketplace === 'SHOPEE';
 
           return (
