@@ -123,9 +123,10 @@ async function openAffiliateGenerator(page: Page) {
     try {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
       await page.waitForLoadState('networkidle').catch(() => undefined);
-      const body = await page.locator('body').innerText().catch(() => '');
-      const hasGeneratorField = await page.locator('textarea, input[type="url"], input').count() > 0;
-      if (hasGeneratorField || /gerador de links|insira .*url|criar link|gerar link/i.test(body)) return;
+      const hasGeneratorField = await page.locator(
+        'textarea[placeholder*="url" i], textarea[name*="url" i], input[type="url"], input[placeholder*="url" i], input[name*="url" i], input[aria-label*="url" i], [contenteditable="true"]'
+      ).count() > 0;
+      if (hasGeneratorField) return;
     } catch {}
   }
 
@@ -154,7 +155,6 @@ async function fillGenerator(page: Page, originalUrl: string) {
     page.locator('input[name*="url" i], input[aria-label*="url" i], input[type="url"]').first(),
     page.locator('[contenteditable="true"]').first(),
     page.locator('textarea').first(),
-    page.locator('input').first(),
   ];
 
   let filled = false;
