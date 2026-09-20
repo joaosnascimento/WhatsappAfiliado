@@ -47,7 +47,7 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
   };
   const disconnectMl = async () => {
     setMlBusy(true);
-    try { const r = await apiFetch('/api/mercadolivre/disconnect', { method: 'POST' }); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Não foi possível desconectar.'); setMlStatus(d); }
+    try { const r = await apiFetch('/api/mercadolivre/disconnect', { method: 'POST' }); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Não foi possível desconectar.'); await refreshMlStatus(); toast('success','Mercado Livre desconectado','A sessão foi removida.'); }
     catch (e) { toast('error','Falha ao desconectar Mercado Livre',(e as Error).message); } finally { setMlBusy(false); }
   };
 
@@ -136,7 +136,7 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
                 <h3 className="font-bold text-text text-lg">Mercado Livre</h3>
                 <p className="text-sm text-muted">Automação pelo navegador usando sua sessão autenticada.</p>
               </div>
-              <span className={`text-sm uppercase font-bold px-2 py-1 rounded-full border ${(mlStatus?.status === 'CONNECTED' || mlAcc?.status === 'CONNECTED') ? 'text-brand-200 bg-brand-500/10 border-brand-500/20' : 'text-amber-300 bg-amber-500/10 border-amber-500/20'}`}>
+              <span className={`text-sm uppercase font-bold px-2 py-1 rounded-full border ${(mlStatus?.status === 'CONNECTED' || (!mlStatus && mlAcc?.status === 'CONNECTED')) ? 'text-brand-200 bg-brand-500/10 border-brand-500/20' : 'text-amber-300 bg-amber-500/10 border-amber-500/20'}`}>
                 {(mlStatus?.status === 'CONNECTED' || mlAcc?.status === 'CONNECTED') ? 'Conectado' : mlStatus?.status === 'LOGIN_REQUIRED' ? 'Login necessário' : 'Desconectado'}
               </span>
             </div>
