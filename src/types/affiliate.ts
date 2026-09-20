@@ -24,7 +24,7 @@ export interface MarketplaceAccount {
     ml_user_id?: string;
     ml_expires_at?: number;
     ml_session_state?: string;
-    ml_session_status?: 'NOT_CONFIGURED' | 'LOGIN_REQUIRED' | 'CONNECTED' | 'EXPIRED' | 'DISCONNECTED' | 'RECONNECTING' | 'ERROR';
+    ml_session_status?: 'NOT_CONFIGURED' | 'CONNECTING' | 'LOGIN_REQUIRED' | 'CONNECTED' | 'EXPIRED' | 'DISCONNECTED' | 'RECONNECTING' | 'ERROR';
     ml_session_updated_at?: string;
     // Shopee
     shopee_app_id?: string;
