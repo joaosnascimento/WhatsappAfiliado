@@ -8,6 +8,7 @@ import { DestinationsTab } from './components/DestinationsTab.tsx';
 import { PublicationsTab } from './components/PublicationsTab.tsx';
 import { AuditTab } from './components/AuditTab.tsx';
 import { DocsTab } from './components/DocsTab.tsx';
+import { CouponsTab } from './components/CouponsTab.tsx';
 import { SetupTab } from './components/SetupTab.tsx';
 import { AssociateLinkModal } from './components/AssociateLinkModal.tsx';
 import { AiMessageModal } from './components/AiMessageModal.tsx';
@@ -305,7 +306,7 @@ function AppContent() {
         {activeTab === 'setup' && <SetupTab apiFetch={apiFetch} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} onNavigate={setActiveTab} />}
         {activeTab === 'dashboard' && <DashboardTab reports={reports} accounts={accounts} whatsappSettings={whatsappSettings} apiFetch={apiFetch} onNavigateToOffers={()=>setActiveTab('offers')} onNavigateToAffiliates={()=>setActiveTab('affiliates')} onNavigateToSetup={()=>setActiveTab('setup')} onNavigateToQueue={()=>setActiveTab('queue')} />}
         {activeTab === 'affiliates' && <AffiliatesTab apiFetch={apiFetch} accounts={accounts} onSaveAccount={handleSaveAccount} onTestIntegration={handleTestIntegration} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} />}
-        {activeTab === 'offers' && <OffersTab offers={offers} destinations={destinations} onLiveSearch={handleLiveSearch} onManualAddMercadoLivre={handleManualMercadoLivre} onOpenAssociateModal={(offer)=>setAssociateModalOffer(offer)} onOpenAiMessageModal={(offer)=>setAiModalOffer(offer)} onQuickPublish={handlePublish} onDeleteOffer={handleDeleteOffer} />}
+        {activeTab === 'coupons' && <CouponsTab apiFetch={apiFetch} />}\n        {activeTab === 'offers' && <OffersTab offers={offers} destinations={destinations} onLiveSearch={handleLiveSearch} onManualAddMercadoLivre={handleManualMercadoLivre} onOpenAssociateModal={(offer)=>setAssociateModalOffer(offer)} onOpenAiMessageModal={(offer)=>setAiModalOffer(offer)} onQuickPublish={handlePublish} onDeleteOffer={handleDeleteOffer} />}
         {activeTab === 'destinations' && <DestinationsTab destinations={destinations} onAddDestination={handleAddDestination} apiFetch={apiFetch} onChanged={loadData} />}
         {activeTab === 'queue' && <PublicationsTab publications={publications} onTriggerSend={handleTriggerSend} onDelete={handleDeletePublication} onRetry={handleRetryPublication} />}
         {activeTab === 'audit' && <AuditTab records={auditRecords} />}
