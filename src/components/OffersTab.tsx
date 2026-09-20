@@ -247,7 +247,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
           const isShopee = offer.marketplace === 'SHOPEE';
           const isReady = offer.status === 'AFFILIATE_LINK_READY' || offer.status === 'READY_TO_PUBLISH';
           const isPublished = offer.status === 'PUBLISHED';
-          const needsLinkAssociation = offer.marketplace === 'MERCADOLIVRE' && !offer.affiliate_url;
+          const needsLinkAssociation = false;
 
           return (
             <div
@@ -354,12 +354,10 @@ export const OffersTab: React.FC<OffersTabProps> = ({
                 </div>
 
                 {/* Status reason notice if pending */}
-                {needsLinkAssociation && (
-                  <div className="p-2.5 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-[11px] text-yellow-300 flex items-start gap-1.5">
-                    <ShieldAlert className="w-3.5 h-3.5 text-yellow-400 shrink-0 mt-0.5" />
-                    <span>
-                      Regra 4: A API pública não gera link rastreado. Vincule o link oficial do portal (<code className="text-amber-200">meli.la</code>) para publicar.
-                    </span>
+                {offer.marketplace === 'MERCADOLIVRE' && !offer.affiliate_url && (
+                  <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-[11px] text-blue-300 flex items-start gap-1.5">
+                    <ShieldAlert className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
+                    <span>O link oficial do Mercado Livre será gerado automaticamente quando a oferta for processada/publicada.</span>
                   </div>
                 )}
               </div>
@@ -368,16 +366,13 @@ export const OffersTab: React.FC<OffersTabProps> = ({
               <div className="p-4 pt-0 border-t border-slate-800/80 mt-2 space-y-2">
                 <div className="grid grid-cols-2 gap-2 pt-2">
                   {/* If ML needs link association */}
-                  {needsLinkAssociation ? (
-                    <button
-                      id={`btn-associate-link-${offer.id}`}
-                      onClick={() => onOpenAssociateModal(offer)}
-                      className="col-span-2 py-2 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
-                    >
-                      <Link2 className="w-3.5 h-3.5" />
-                      Gerar / Associar Link de Afiliado
-                    </button>
-                  ) : (
+                  {offer.marketplace === 'MERCADOLIVRE' && !isReady && (
+                    <div className="col-span-2 py-2 text-center text-[11px] text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                      Link oficial sendo gerado automaticamente…
+                    </div>
+                  )}
+                  {(
+
                     <>
                       <button
                         id={`btn-open-ai-modal-${offer.id}`}
