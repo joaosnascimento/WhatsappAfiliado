@@ -254,12 +254,16 @@ async function startServer() {
   });
 
   // Mercado Livre official browser automation
-  app.get('/api/mercadolivre/status', requireAuth, workspaceContext, (req, res) => {
+  app.get('/api/mercadolivre/status', requireAuth, workspaceContext, async (req, res) => {
     const account = findMarketplaceAccount('MERCADOLIVRE');
     if (!account) return res.json({ connected: false, status: 'DISCONNECTED' });
-    void MercadoLivreOfficialSessionProvider.status(account)
-      .then(result => res.json(result))
-      .catch(error => res.status(500).json({ error: (error as Error).message }));
+    try {
+      const result = await MercadoLivreOfficialSessionProvider.status(account);
+      if (persistentStoreEnabled) await store.persist(req.user!.workspaceId);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
   });
 
   app.post('/api/mercadolivre/connect', requireAuth, workspaceContext, async (req, res) => {
