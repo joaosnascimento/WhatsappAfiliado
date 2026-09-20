@@ -68,3 +68,12 @@ Audit of the existing production codebase, with priority on P0/P1 reliability, s
 - Isolamento: a falha de atualização de retry foi corrigida para restringir o UPDATE ao workspace autenticado.
 - Frontend: Setup de WhatsApp passou a consumir `runtimeState`, em vez de depender exclusivamente dos estados crus da Evolution.
 - CI: os ciclos concluídos desta etapa passaram por typecheck, regressão e build; novas alterações permanecem bloqueadas até o CI correspondente concluir com sucesso.
+
+
+## 2026-09-20 — user-function audit: destinations
+- Completed destination lifecycle: list active destinations, edit configuration, pause/resume automation, and delete from the user's active workspace view.
+- Destination deletion is a soft delete (`deleted_at`) so historical publications remain auditable; pending/retrying publications for the removed destination are cancelled.
+- Destination ownership is checked against the authenticated workspace on every lifecycle mutation.
+- Publication destination selection is now explicit in the Offers UI instead of silently using the first destination.
+- Dashboard WhatsApp status now consumes persisted runtime lifecycle states.
+- Remaining external validation: run real Evolution API, Mercado Livre browser/session, Redis worker and PostgreSQL E2E against configured services; CI validates source-level regressions but cannot prove those external services.
