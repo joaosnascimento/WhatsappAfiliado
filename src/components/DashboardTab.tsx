@@ -23,7 +23,7 @@ const empty = { productsFound:0, affiliateLinksReady:0, publications:0, clicksTr
 
 export const DashboardTab: React.FC<DashboardTabProps> = ({ reports, accounts, whatsappSettings, apiFetch, onNavigateToOffers, onNavigateToAffiliates, onNavigateToSetup, onNavigateToQueue }) => {
   const [loading,setLoading]=useState(true);
-  const [waState,setWaState]=useState<'open'|'close'|'connecting'|'error'|'not_configured'|'unknown'>('unknown');
+  const [waState,setWaState]=useState<string>('UNKNOWN');
   const [mlState,setMlState]=useState<'CONNECTED'|'LOGIN_REQUIRED'|'EXPIRED'|'DISCONNECTED'|'ERROR'|'unknown'>('unknown');
   const [refreshing,setRefreshing]=useState(false);
 
@@ -34,7 +34,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ reports, accounts, w
         apiFetch('/api/whatsapp/status').then(async r=>({ok:r.ok,data:await r.json().catch(()=>({}))})),
         apiFetch('/api/mercadolivre/status').then(async r=>({ok:r.ok,data:await r.json().catch(()=>({}))})),
       ]);
-      setWaState((wa.data?.state || (wa.ok?'unknown':'error')) as any);
+      setWaState(String(wa.data?.runtimeState || (wa.ok?'UNKNOWN':'ERROR')).toUpperCase());
       setMlState((ml.data?.status || (ml.ok?'unknown':'ERROR')) as any);
     } catch {
       setWaState('error');
@@ -63,7 +63,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ reports, accounts, w
   const totalCommission = shopee.commissionBrl + ml.commissionBrl;
   const shopeeConnected=accounts.some(a=>a.marketplace==='SHOPEE' && a.status==='CONNECTED');
   const whatsappConfigured=Boolean(whatsappSettings?.provider==='evolution' && whatsappSettings?.evolutionApiUrl && whatsappSettings?.evolutionApiKey==='configured' && whatsappSettings?.evolutionInstance);
-  const waOpen=waState==='open';
+  const waOpen=waState==='CONNECTED';
   const mlConnected=mlState==='CONNECTED';
 
   const stats: Array<{label:string; value:number|string; icon:typeof ShoppingBag; action?:()=>void}> = [
