@@ -55,3 +55,16 @@ Audit of the existing production codebase, with priority on P0/P1 reliability, s
 - Central integration health model for WhatsApp/Evolution, worker, Redis and marketplaces.
 - Cross-process locks for connection/reconnection.
 - Full E2E suite against disposable PostgreSQL/Redis and a provider test instance.
+
+
+## Continuidade da auditoria — ciclo de integração/lifecycle
+
+- WhatsApp: o estado runtime agora é persistido por workspace e reconciliado com a Evolution API.
+- Logout do WhatsApp confirma o estado real antes de responder sucesso.
+- QR Code, criação, conexão e reconexão atualizam o lifecycle persistido.
+- A máquina de estados de WhatsApp está integrada ao ponto de persistência e possui regressões automatizadas.
+- Mercado Livre: início da conexão agora registra `CONNECTING`; a sessão persistida continua sendo usada para reconstruir o runtime quando o Chromium está fechado.
+- Health: o diagnóstico de integrações agora verifica conectividade real da Evolution e sinaliza integrações não configuradas como `degraded`.
+- Isolamento: a falha de atualização de retry foi corrigida para restringir o UPDATE ao workspace autenticado.
+- Frontend: Setup de WhatsApp passou a consumir `runtimeState`, em vez de depender exclusivamente dos estados crus da Evolution.
+- CI: os ciclos concluídos desta etapa passaram por typecheck, regressão e build; novas alterações permanecem bloqueadas até o CI correspondente concluir com sucesso.
