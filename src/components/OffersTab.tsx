@@ -26,6 +26,7 @@ interface OffersTabProps {
     keyword: string;
     category?: string;
   }) => Promise<void>;
+  onManualAddMercadoLivre: (payload: { originalUrl: string; title?: string; price: number }) => Promise<void>;
   onOpenAssociateModal: (offer: Offer) => void;
   onOpenAiMessageModal: (offer: Offer) => void;
   onQuickPublish: (offerId: string, destinationId: string) => Promise<void>;
@@ -36,6 +37,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
   offers,
   destinations,
   onLiveSearch,
+  onManualAddMercadoLivre,
   onOpenAssociateModal,
   onOpenAiMessageModal,
   onQuickPublish,
@@ -97,11 +99,9 @@ export const OffersTab: React.FC<OffersTabProps> = ({
     if (!mlUrl.trim()) return;
     setMlBusy(true);
     try {
-      const res = await fetch('/api/offers/manual-mercadolivre', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ originalUrl:mlUrl.trim(), title:mlTitle.trim(), price:mlPrice ? Number(mlPrice) : 0 }) });
-      const data = await res.json().catch(()=>({}));
-      if (!res.ok) throw new Error(data.error || 'Não foi possível adicionar a oferta.');
+      await onManualAddMercadoLivre({ originalUrl: mlUrl.trim(), title: mlTitle.trim(), price: mlPrice ? Number(mlPrice) : 0 });
       setMlUrl(''); setMlTitle(''); setMlPrice('');
-      window.location.reload();
+      toast('success','Oferta adicionada','A oferta foi inserida no pipeline e a lista foi atualizada.');
     } catch (err) { toast('error','Não foi possível adicionar a oferta',(err as Error).message); } finally { setMlBusy(false); }
   };
 
