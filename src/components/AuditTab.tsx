@@ -62,7 +62,7 @@ export const AuditTab: React.FC<AuditTabProps> = ({ records }) => {
                 </div>
                 <h4 className="text-sm font-semibold text-text truncate">{rec.productTitle}</h4>
                 <p className="text-sm text-muted mt-1 flex items-center gap-1">
-                  Destino: <span className="text-slate-200">{rec.destinationName}</span>
+                  Destino: <span className="text-text">{rec.destinationName}</span>
                 </p>
               </button>
             ))}
@@ -147,7 +147,7 @@ export const AuditTab: React.FC<AuditTabProps> = ({ records }) => {
                       <div className="flex items-center gap-1.5 mt-1 font-mono text-sm">
                         <span className="text-muted">SubIds:</span>
                         {selectedRecord.trackingSubIds.map((s, i) => (
-                          <span key={i} className="bg-surface-3 border-border-strong px-1.5 py-0.5 rounded text-slate-200">
+                          <span key={i} className="bg-surface-3 border-border-strong px-1.5 py-0.5 rounded text-text">
                             {s}
                           </span>
                         ))}
