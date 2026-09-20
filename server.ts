@@ -225,6 +225,22 @@ async function startServer() {
     });
   });
 
+  app.get('/api/health/queue', requireAuth, workspaceContext, async (req,res) => {
+    try {
+      const { checkPublicationQueue } = await import('./src/infrastructure/queue.ts');
+      await checkPublicationQueue();
+      res.json({ status:'ok', available:true, service:'bullmq-publication-queue', redisConfigured:Boolean(process.env.REDIS_URL) });
+    } catch (error) {
+      res.status(503).json({
+        status:'down',
+        available:false,
+        service:'bullmq-publication-queue',
+        redisConfigured:Boolean(process.env.REDIS_URL),
+        error:error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
   app.get('/api/health/integrations', requireAuth, workspaceContext, async (req,res) => {
     try { res.json(await IntegrationHealthService.check(req.user!.workspaceId)); }
     catch(err){ res.status(503).json({status:'degraded',error:(err as Error).message}); }
@@ -636,8 +652,13 @@ async function startServer() {
       const { enqueuePublication } = await import('./src/infrastructure/queue.ts');
       await enqueuePublication({ publicationId: rows[0].id, destinationId: rows[0].destination_id, offerId: rows[0].offer_id, scheduledAt: rows[0].scheduled_at });
     } catch (error) {
-      await query("UPDATE publications SET status='FAILED', error=$2, updated_at=NOW() WHERE id=$1 AND workspace_id=$3", [rows[0].id, (error as Error).message, req.user!.workspaceId]);
-      return res.status(503).json({ error: 'Fila de publicação indisponível.' });
+      const message = error instanceof Error ? error.message : String(error);
+      await query("UPDATE publications SET status='FAILED', error=$2, updated_at=NOW() WHERE id=$1 AND workspace_id=$3", [rows[0].id, message, req.user!.workspaceId]);
+      return res.status(503).json({
+        error: 'Fila de publicação indisponível.',
+        detail: message,
+        code: 'PUBLICATION_QUEUE_UNAVAILABLE',
+      });
     }
     res.json({ success: true, status: 'QUEUED' });
   });
@@ -679,13 +700,18 @@ async function startServer() {
       if (persistentStoreEnabled) await store.persist(req.user!.workspaceId);
       return res.status(202).json({ success: true, queued: true, immediate: true, jobId: queued.id, scheduledAt });
     } catch (error) {
-      await query("UPDATE publications SET status='FAILED', error=$2 WHERE id=$1 AND workspace_id=$3", [rows[0].id, (error as Error).message, req.user!.workspaceId]);
+      const message = error instanceof Error ? error.message : String(error);
+      await query("UPDATE publications SET status='QUEUED', error=$2, updated_at=NOW() WHERE id=$1 AND workspace_id=$3", [rows[0].id, message, req.user!.workspaceId]);
       const cached = store.publications.get(rows[0].id);
       if (cached) {
-        cached.status = 'FAILED';
-        cached.error_message = (error as Error).message;
+        cached.status = 'QUEUED';
+        cached.error_message = message;
       }
-      return res.status(503).json({ error: 'Não foi possível colocar a publicação na fila para envio imediato.' });
+      return res.status(503).json({
+        error: 'Fila de publicação indisponível.',
+        detail: message,
+        code: 'PUBLICATION_QUEUE_UNAVAILABLE',
+      });
     }
   });
 
@@ -872,11 +898,19 @@ async function startServer() {
       const { enqueuePublication } = await import('./src/infrastructure/queue.ts');
       await enqueuePublication({ publicationId: publication.id, destinationId: destination.id, offerId: offer.id, scheduledAt: publication.scheduled_at });
     } catch (error) {
-      publication.status = 'FAILED';
-      publication.error_message = (error as Error).message;
-      // Falha de infraestrutura da fila não invalida o link de afiliado.
-      // A oferta continua pronta para nova tentativa quando o Redis/worker voltar.
-      return res.status(503).json({ success:false, publication, error:'Fila de publicação indisponível.' });
+      const message = error instanceof Error ? error.message : String(error);
+      publication.status = 'QUEUED';
+      publication.error_message = message;
+      // Falha de infraestrutura da fila não invalida a publicação. Ela permanece
+      // QUEUED para ser reenfileirada assim que o Redis estiver disponível.
+      if (persistentStoreEnabled) await store.persist(req.user!.workspaceId);
+      return res.status(503).json({
+        success:false,
+        publication,
+        error:'Fila de publicação indisponível.',
+        detail: message,
+        code: 'PUBLICATION_QUEUE_UNAVAILABLE',
+      });
     }
     return res.status(202).json({ success:true, queued:true, publication, aiUsed: !aiFallback, aiFallback, warning: aiWarning });
   });
