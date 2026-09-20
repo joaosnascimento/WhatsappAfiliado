@@ -256,6 +256,20 @@ async function startServer() {
     res.json(list);
   });
 
+  app.delete('/api/accounts/:id', requireAuth, workspaceContext, async (req,res) => {
+    try {
+      const account=store.accounts.get(req.params.id);
+      if(!account || account.workspace_id!==req.user!.workspaceId) return res.status(404).json({error:'Conta não encontrada.'});
+      if(account.marketplace==='MERCADOLIVRE') return res.status(409).json({error:'Use Desconectar Mercado Livre para remover a sessão com segurança.'});
+      account.credentials_encrypted={};
+      account.status='AWAITING_CONFIG';
+      account.status_message='Credenciais removidas pelo usuário.';
+      account.updated_at=new Date().toISOString();
+      if (persistentStoreEnabled) await store.persist(req.user!.workspaceId);
+      res.json({success:true,reset:true,id:account.id});
+    } catch(error) { res.status(500).json({error:(error as Error).message}); }
+  });
+
   app.post('/api/accounts/:id', (req, res) => {
     const account = store.accounts.get(req.params.id);
     if (!account) {
