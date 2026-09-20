@@ -66,7 +66,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ reports, accounts, w
   const waOpen=waState==='open';
   const mlConnected=mlState==='CONNECTED';
 
-  const stats: Array<{label:string; value:number|string; icon:React.ElementType; action?:()=>void}> = [
+  const stats: Array<{label:string; value:number|string; icon:typeof ShoppingBag; action?:()=>void}> = [
     { label:'Ofertas encontradas', value:totalOffers, icon:ShoppingBag, action:onNavigateToOffers },
     { label:'Links prontos', value:totalReady, icon:CheckCircle2, action:onNavigateToOffers },
     { label:'Envios registrados', value:totalPublications, icon:Send, action:onNavigateToQueue },
