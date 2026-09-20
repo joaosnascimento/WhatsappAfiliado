@@ -829,7 +829,15 @@ async function startServer() {
     let message = offer.ai_generated_message;
     let aiFallback = false;
     let aiWarning: string | undefined;
-    if (!message) {
+
+    // Cached messages created before the fixed template/sanitizer must not be reused.
+    // Detect the old Mercado Livre card metadata pattern and regenerate the message
+    // from the current verified product data.
+    const cachedMessageIsLegacy =
+      !message ||
+      /Classificação\s+\d|Mais\s+de\s+[\d.,]+\s*(?:mil|k)?\s+produtos?|\d+(?:[.,]\d+)?\s*\|\s*\+[\d.,]+\s*(?:mil|k)?\s+vendidos|Custom Id/i.test(message);
+
+    if (cachedMessageIsLegacy) {
       const generated = await AiMessageService.generateMessageWithStatus({
         product: offer.product,
         marketplace: offer.marketplace,
@@ -840,8 +848,8 @@ async function startServer() {
       aiFallback = generated.usedFallback;
       aiWarning = generated.fallbackReason;
       offer.ai_generated_message = message;
-    } else {
-      message = message.replaceAll(offer.affiliate_url!, publicationAffiliateUrl);
+    } else if (offer.affiliate_url) {
+      message = message.replaceAll(offer.affiliate_url, publicationAffiliateUrl);
     }
 
     const requestedSchedule = req.body.scheduledAt ? new Date(String(req.body.scheduledAt)) : new Date();
