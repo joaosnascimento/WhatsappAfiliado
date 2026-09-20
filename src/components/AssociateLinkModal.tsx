@@ -122,7 +122,7 @@ export const AssociateLinkModal: React.FC<AssociateLinkModalProps> = ({
         </div>
 
         <div className="flex gap-2">
-          <button type="button" onClick={openOfficialGenerator} className="flex-1 py-2.5 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold text-sm rounded-md flex items-center justify-center gap-2"><ExternalLink className="w-3.5 h-3.5" /> Abrir gerador oficial</button>
+          <button type="button" onClick={openOfficialGenerator} className="flex-1 py-2.5 bg-yellow-500 hover:bg-yellow-400 text-bg font-bold text-sm rounded-md flex items-center justify-center gap-2"><ExternalLink className="w-3.5 h-3.5" /> Abrir gerador oficial</button>
           <button type="button" onClick={handlePasteClipboard} disabled={isReadingClipboard} className="flex-1 py-2.5 bg-surface-2 hover:bg-surface-3 border-border-strong text-text font-bold text-sm rounded-md border border-border-strong flex items-center justify-center gap-2 disabled:opacity-50"><ClipboardPaste className="w-3.5 h-3.5" /> {isReadingClipboard ? 'Lendo...' : 'Colar automaticamente'}</button>
         </div>
 
@@ -176,7 +176,7 @@ export const AssociateLinkModal: React.FC<AssociateLinkModalProps> = ({
               id="btn-confirm-associate-link"
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold text-sm rounded-md transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              className="px-5 py-2 bg-yellow-500 hover:bg-yellow-400 text-bg font-bold text-sm rounded-md transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               <CheckCircle2 className="w-4 h-4" />
               {isSubmitting ? 'Validando...' : 'Validar e Vincular Link'}
