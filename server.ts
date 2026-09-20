@@ -376,7 +376,7 @@ async function startServer() {
     const originalUrl = String(req.body?.originalUrl || '').trim();
     if (!originalUrl) return res.status(400).json({ error: 'originalUrl é obrigatória.' });
     try {
-      const affiliateUrl = await MercadoLivreOfficialSessionProvider.generateLink(account, originalUrl, ['whatsapp', 'auto']);
+      const affiliateUrl = await MercadoLivreOfficialSessionProvider.generateLink(account, originalUrl);
       res.json({ success: true, affiliateUrl });
     } catch (error) {
       res.status(409).json({ error: (error as Error).message });
@@ -551,10 +551,10 @@ async function startServer() {
     const account = findMarketplaceAccount('MERCADOLIVRE');
     if (account) {
       try {
-        const affiliateUrl = await MercadoLivreOfficialSessionProvider.generateLink(account, originalUrl, ['whatsapp', 'auto_manual']);
+        const affiliateUrl = await MercadoLivreOfficialSessionProvider.generateLink(account, originalUrl);
         const link = MercadoLivreAffiliateService.associateAffiliateLink({
           productId: product.external_product_id, originalUrl, affiliateUrl,
-          affiliateAccountId: account.id, subIds: ['whatsapp', 'auto_manual'],
+          affiliateAccountId: account.id,
         });
         store.links.set(link.id, link);
         offer.affiliate_link_id = link.id;
@@ -575,7 +575,8 @@ async function startServer() {
     const offer = store.offers.get(req.params.id);
     if (!offer) return res.status(404).json({ error: 'Oferta não encontrada.' });
     if ((offer as any).workspace_id && (offer as any).workspace_id !== req.user!.workspaceId) return res.status(404).json({ error: 'Oferta não encontrada.' });
-    if (persistentStoreEnabled) { const owned = await query<{id:string}>('SELECT id FROM offers WHERE id=$1 AND workspace_id=$2 LIMIT 1',[offer.id,req.user!.workspaceId]); if (!owned.length) return res.status(404).json({error:'Oferta não encontrada.'}); }
+    // Offers are persisted inside workspace_state, not in a standalone offers table.
+    // The in-memory offer has already been workspace-validated above.
     const pubs = await query<any>('SELECT id FROM publications WHERE offer_id=$1 AND workspace_id=$2', [offer.id, req.user!.workspaceId]);
     for (const pub of pubs) {
       await query("UPDATE publications SET status='CANCELLED',cancelled_at=NOW(),updated_at=NOW(),error='Oferta excluída antes do envio.' WHERE id=$1 AND workspace_id=$2", [pub.id, req.user!.workspaceId]);
