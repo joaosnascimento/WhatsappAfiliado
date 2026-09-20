@@ -53,8 +53,10 @@ export class WhatsAppProvider {
           messaging_product: 'whatsapp',
           recipient_type: 'individual',
           to: destination.identifier,
-          type: 'text',
-          text: { preview_url: true, body: publication.message },
+          type: publication.image_url ? 'image' : 'text',
+          ...(publication.image_url
+            ? { image: { link: publication.image_url, caption: publication.message } }
+            : { text: { preview_url: true, body: publication.message } }),
         }),
       });
 
@@ -94,11 +96,13 @@ export class WhatsAppProvider {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: apiKey },
         signal: controller.signal,
-        body: JSON.stringify({ number: destination.identifier, text: publication.message, linkPreview: true }),
+        body: publication.image_url
+          ? JSON.stringify({ number: destination.identifier, mediatype: 'image', media: publication.image_url, caption: publication.message, fileName: 'oferta.jpg' })
+          : JSON.stringify({ number: destination.identifier, text: publication.message, linkPreview: true }),
       });
 
       const bodyText = await res.text();
-      if (!res.ok) return { success: false, sentAt: timestamp, error: `Evolution API HTTP ${res.status}.`, provider: 'EVOLUTION_API' };
+      if (!res.ok) return { success: false, sentAt: timestamp, error: `Evolution API HTTP ${res.status}: ${bodyText.slice(0, 500)}`, provider: 'EVOLUTION_API' };
 
       let data: any = {};
       try { data = bodyText ? JSON.parse(bodyText) : {}; } catch { data = {}; }
