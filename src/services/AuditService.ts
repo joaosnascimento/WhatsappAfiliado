@@ -41,7 +41,7 @@ export class AuditService {
     affiliateAccountId: string;
   }): AuditRecord {
     const record: AuditRecord = {
-      workspaceId: params.publication.workspace_id,
+      workspaceId: params.publication.workspace_id || 'unknown',
       id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       marketplace: params.offer.marketplace,
       productId: params.offer.product.external_product_id,
