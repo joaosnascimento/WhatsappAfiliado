@@ -190,6 +190,10 @@ export class MercadoLivreOfficialSessionProvider {
   }
 
   static async connect(account: MarketplaceAccount) {
+    account.credentials_encrypted.ml_session_status = 'CONNECTING';
+    account.status = 'AWAITING_CONFIG';
+    account.status_message = 'Abrindo sessão do Mercado Livre...';
+    account.updated_at = new Date().toISOString();
     const runtime = await launch(account, true);
     try {
       await runtime.page.goto('https://www.mercadolivre.com.br/', { waitUntil: 'domcontentloaded', timeout: 30000 });
