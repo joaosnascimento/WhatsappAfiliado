@@ -100,6 +100,13 @@ async function findAffiliateLink(page: Page): Promise<string | null> {
   ).catch(() => [] as string[]);
   for (const href of hrefs) if (MeliShortLink.test(href)) return href.match(MeliShortLink)![0];
 
+  const values = await page.locator('input, textarea').evaluateAll((els) =>
+    els.map((el) => String((el as HTMLInputElement).value || (el as HTMLInputElement).getAttribute('value') || '')).filter(Boolean)
+  ).catch(() => [] as string[]);
+  for (const value of values) {
+    const match = value.match(/https:\/\/(?:www\.)?meli\.la\/[A-Za-z0-9_-]+/i);
+    if (match) return match[0];
+  }
   const body = await page.locator('body').innerText().catch(() => '');
   const match = body.match(/https:\/\/(?:www\.)?meli\.la\/[A-Za-z0-9_-]+/i);
   return match ? match[0] : null;
@@ -208,8 +215,12 @@ export class MercadoLivreOfficialSessionProvider {
       throw new Error('Sessão do Mercado Livre expirada. Clique em Conectar Mercado Livre e faça login novamente.');
     }
 
-    await runtime.page.goto(PORTAL_URL, { waitUntil: 'domcontentloaded' });
+    await runtime.page.goto(PORTAL_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await runtime.page.waitForLoadState('networkidle').catch(() => undefined);
+    if (!(await isLoggedIn(runtime.page))) {
+      await persistSession(account, runtime.context, 'EXPIRED');
+      throw new Error('O Portal de Afiliados redirecionou para o login. Reconecte o Mercado Livre.');
+    }
     await fillGenerator(runtime.page, originalUrl);
 
     if (labels?.length) {
