@@ -136,7 +136,7 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
                 <h3 className="font-bold text-text text-lg">Mercado Livre</h3>
                 <p className="text-sm text-muted">Automação pelo navegador usando sua sessão autenticada.</p>
               </div>
-              <span className={`text-sm uppercase font-bold px-2 py-1 rounded-full border ${(mlStatus?.status === 'CONNECTED' || (!mlStatus && mlAcc?.status === 'CONNECTED')) ? 'text-brand-200 bg-brand-500/10 border-brand-500/20' : 'text-amber-300 bg-amber-500/10 border-amber-500/20'}`}>
+              <span className={`text-sm uppercase font-bold px-2 py-1 rounded-full border ${mlStatus?.status === 'CONNECTED' ? 'text-brand-200 bg-brand-500/10 border-brand-500/20' : mlStatus?.status === 'LOGIN_REQUIRED' || mlStatus?.status === 'EXPIRED' ? 'text-amber-300 bg-amber-500/10 border-amber-500/20' : 'text-rose-300 bg-rose-500/10 border-rose-500/20'}`}>
                 {mlStatus?.status === 'CONNECTED' ? 'Conectado' : mlStatus?.status === 'LOGIN_REQUIRED' || mlStatus?.status === 'EXPIRED' ? 'Login necessário' : 'Desconectado'}
               </span>
             </div>
