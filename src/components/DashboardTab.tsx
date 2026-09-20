@@ -26,9 +26,12 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ reports, accounts, w
   const [waState,setWaState]=useState<string>('UNKNOWN');
   const [mlState,setMlState]=useState<'CONNECTED'|'LOGIN_REQUIRED'|'EXPIRED'|'DISCONNECTED'|'ERROR'|'unknown'>('unknown');
   const [refreshing,setRefreshing]=useState(false);
+  const [automationEnabled,setAutomationEnabled]=useState(true);
+  const [automationBusy,setAutomationBusy]=useState(false);
 
   const refreshIntegrations=async()=>{
     setRefreshing(true);
+    try { const a=await apiFetch('/api/automation/status'); const d=await a.json().catch(()=>({})); if(a.ok) setAutomationEnabled(Boolean(d.enabled)); } catch {}
     try {
       const [wa,ml]=await Promise.all([
         apiFetch('/api/whatsapp/status').then(async r=>({ok:r.ok,data:await r.json().catch(()=>({}))})),
@@ -75,6 +78,13 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ reports, accounts, w
 
   return (
     <div className="mx-auto max-w-7xl space-y-5">
+      <section className="rounded-xl border border-border bg-surface-1 p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-subtle">Automação global</p><div className="mt-1 flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-full ${automationEnabled?'bg-emerald-400':'bg-amber-400'}`}/><span className="text-sm font-bold text-text">{automationEnabled?'Ativa':'Pausada'}</span></div><p className="mt-1 text-xs text-muted">Pausar impede novas publicações automáticas; o histórico e os envios manuais continuam disponíveis.</p></div>
+          <button type="button" disabled={automationBusy} onClick={async()=>{setAutomationBusy(true);try{const r=await apiFetch('/api/automation/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:!automationEnabled})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Não foi possível alterar a automação.');setAutomationEnabled(Boolean(d.enabled));}catch{}finally{setAutomationBusy(false)}}} className={`rounded-md px-4 py-2 text-sm font-bold border ${automationEnabled?'border-amber-500/30 bg-amber-500/10 text-amber-300':'border-brand-500/30 bg-brand-500/10 text-brand-300'} disabled:opacity-50`}>{automationBusy?'Atualizando...':automationEnabled?'Pausar automação':'Ativar automação'}</button>
+        </div>
+      </section>
+
       <section className="rounded-xl border border-border bg-surface-1 p-6 sm:p-7">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
