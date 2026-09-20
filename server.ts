@@ -546,7 +546,7 @@ async function startServer() {
         });
 
         return res.json({ count: createdOffers.length, offers: createdOffers, automated: true, affiliateGeneration: 'background' });
-      }}
+      }
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
     }
