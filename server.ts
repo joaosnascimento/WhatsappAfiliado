@@ -166,6 +166,23 @@ async function startServer() {
     }
   });
 
+  app.get('/api/automation/status', async (req,res) => {
+    try {
+      const rows=await query<any>('SELECT COALESCE(automation_enabled,true) AS automation_enabled FROM workspaces WHERE id=$1',[req.user!.workspaceId]);
+      if(!rows[0]) return res.status(404).json({error:'Workspace não encontrado.'});
+      res.json({enabled:Boolean(rows[0].automation_enabled)});
+    } catch(error) { res.status(500).json({error:(error as Error).message}); }
+  });
+
+  app.post('/api/automation/toggle', async (req,res) => {
+    try {
+      const enabled=Boolean(req.body?.enabled);
+      const rows=await query<any>('UPDATE workspaces SET automation_enabled=$2 WHERE id=$1 RETURNING automation_enabled',[req.user!.workspaceId,enabled]);
+      if(!rows[0]) return res.status(404).json({error:'Workspace não encontrado.'});
+      res.json({success:true,enabled:Boolean(rows[0].automation_enabled)});
+    } catch(error) { res.status(500).json({error:(error as Error).message}); }
+  });
+
   app.get('/api/health', async (req, res) => {
     res.json({
       status: 'ok',
