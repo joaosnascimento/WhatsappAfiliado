@@ -897,11 +897,13 @@ async function startServer() {
     if (body.frequency_minutes !== undefined && (!Number.isInteger(Number(body.frequency_minutes)) || Number(body.frequency_minutes) < 5 || Number(body.frequency_minutes) > 1440)) return res.status(400).json({error:'Frequência deve estar entre 5 e 1440 minutos.'});
     if (body.marketplaces && body.marketplaces.some((v:any)=>!['SHOPEE','MERCADOLIVRE'].includes(String(v).toUpperCase()))) return res.status(400).json({error:'Marketplace de destino inválido.'});
     if (body.keywords && body.keywords.length > 5) return res.status(400).json({error:'No máximo 5 palavras-chave.'});
+    if (body.tags && body.tags.length > 5) return res.status(400).json({error:'No máximo 5 tags.'});
     Object.assign(destination, {
       ...(body.name !== undefined ? {name:String(body.name).trim() || destination.name} : {}),
       ...(body.identifier !== undefined ? {identifier:String(body.identifier).trim()} : {}),
       ...(body.description !== undefined ? {description:String(body.description)} : {}),
       ...(body.keywords !== undefined ? {keywords:body.keywords.map((x:any)=>String(x).trim()).filter(Boolean).slice(0,5)} : {}),
+      ...(body.tags !== undefined ? {tags:body.tags.map((x:any)=>String(x).trim()).filter(Boolean).slice(0,5)} : {}),
       ...(body.categories !== undefined ? {categories:body.categories.map((x:any)=>String(x).trim()).filter(Boolean).slice(0,5)} : {}),
       ...(body.marketplaces !== undefined ? {marketplaces:body.marketplaces.map((x:any)=>String(x).toUpperCase())} : {}),
       ...(body.frequency_minutes !== undefined ? {frequency_minutes:Number(body.frequency_minutes)} : {}),
@@ -943,6 +945,7 @@ async function startServer() {
     const id = body.id || `dest_${Date.now()}`;
     if (!body.identifier || !String(body.identifier).trim()) return res.status(400).json({ error: 'identifier é obrigatório.' });
     const normalizedKeywords = (body.keywords || []).map((k:string)=>String(k).trim()).filter(Boolean).slice(0,5);
+    const normalizedTags = (body.tags || body.keywords || []).map((k:string)=>String(k).trim()).filter(Boolean).slice(0,5);
     const normalizedCategories = (body.categories || []).map((k:string)=>String(k).trim()).filter(Boolean).slice(0,5);
     const destinationType=String(body.type || 'WHATSAPP_GROUP');
     const destinationMarketplaces=(body.marketplaces || ['SHOPEE','MERCADOLIVRE']).map((v:string)=>String(v).toUpperCase());
@@ -960,6 +963,7 @@ async function startServer() {
       categories: normalizedCategories,
       marketplaces: destinationMarketplaces as any,
       keywords: normalizedKeywords,
+      tags: normalizedTags,
       frequency_minutes: frequency,
       time_start: body.time_start || '08:00',
       time_end: body.time_end || '22:00',
