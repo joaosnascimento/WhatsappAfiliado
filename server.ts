@@ -658,6 +658,11 @@ async function startServer() {
     if (!offer) {
       return res.status(404).json({ error: 'Oferta não encontrada.' });
     }
+    if ((offer as any).workspace_id && (offer as any).workspace_id !== req.user!.workspaceId) return res.status(404).json({ error: 'Oferta não encontrada.' });
+    if (persistentStoreEnabled) {
+      const ownership = await query<{id:string}>('SELECT id FROM offers WHERE id=$1 AND workspace_id=$2 LIMIT 1',[req.params.id,req.user!.workspaceId]);
+      if (!ownership.length) return res.status(404).json({ error: 'Oferta não encontrada.' });
+    }
 
     // Mercado Livre: nunca peça associação manual no fluxo normal.
     // Se a oferta estiver pendente/FAILED ou sem link, gere e valide o link oficial
@@ -702,8 +707,12 @@ async function startServer() {
     const destinationId = String(req.body.destinationId || '');
     if (!destinationId) return res.status(400).json({ error: 'destinationId é obrigatório.' });
     const destination = store.destinations.get(destinationId);
-    if (!destination) {
+    if (!destination || destination.workspace_id !== req.user!.workspaceId) {
       return res.status(404).json({ error: 'Destino de WhatsApp não encontrado.' });
+    }
+    if (persistentStoreEnabled) {
+      const ownership = await query<{id:string}>('SELECT id FROM destinations WHERE id=$1 AND workspace_id=$2 LIMIT 1',[destinationId,req.user!.workspaceId]);
+      if (!ownership.length) return res.status(404).json({ error: 'Destino de WhatsApp não encontrado.' });
     }
 
     // Deduplication check: Section 22
