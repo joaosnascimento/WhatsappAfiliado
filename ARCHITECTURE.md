@@ -50,6 +50,6 @@ Mercado Livre mantém storageState persistido independentemente do processo Chro
 
 ## Operational controls
 - Workspace automation is controlled by the persisted `workspaces.automation_enabled` flag; the scheduler refuses to create new automatic publications while disabled.
-- Evolution lifecycle events can be received through the secured workspace webhook endpoint. `CONNECTION_UPDATE` and `QRCODE_UPDATED` reconcile the persisted WhatsApp runtime state without requiring a dashboard refresh. Evolution documents these events as connection/QR lifecycle events. citeturn0search0
+- Evolution lifecycle events can be received through the secured workspace webhook endpoint. `CONNECTION_UPDATE` and `QRCODE_UPDATED` reconcile the persisted WhatsApp runtime state without requiring a dashboard refresh. Evolution documents these events as connection/QR lifecycle events.
 - Publication cancellation does not claim to cancel an in-flight external send: `PROCESSING` records return a conflict and are allowed to finish, avoiding a false `CANCELLED` state.
 - Coupons have a workspace-scoped lifecycle: list, activation/deactivation and soft deletion.
