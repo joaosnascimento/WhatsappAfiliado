@@ -241,7 +241,8 @@ export class MercadoLivreOfficialSessionProvider {
         metadata: { source: 'mercadolivre_browser_search', keyword: q },
       });
     }
-    await persistSession(account, runtime.context, 'CONNECTED');
+    const priorStatus = account.credentials_encrypted.ml_session_status;
+    if (priorStatus === 'CONNECTED') await persistSession(account, runtime.context, 'CONNECTED');
     return products;
   }
 
