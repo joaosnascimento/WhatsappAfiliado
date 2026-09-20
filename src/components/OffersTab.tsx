@@ -41,6 +41,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchingLive, setIsSearchingLive] = useState(false);
+  const [searchFeedback, setSearchFeedback] = useState<{type:'idle'|'loading'|'success'|'error'; message:string}>({type:'idle', message:''});
   const [liveSearchMarketplace, setLiveSearchMarketplace] = useState<MarketplaceType>('SHOPEE');
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [mlUrl, setMlUrl] = useState('');
@@ -61,18 +62,21 @@ export const OffersTab: React.FC<OffersTabProps> = ({
     return true;
   });
 
-  const handleLiveSearchTrigger = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-
+  const handleLiveSearchTrigger = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const keyword = searchQuery.trim();
+    if (!keyword) {
+      setSearchFeedback({type:'error', message:'Digite um produto ou palavra-chave antes de buscar.'});
+      return;
+    }
+    if (isSearchingLive) return;
     setIsSearchingLive(true);
+    setSearchFeedback({type:'loading', message: liveSearchMarketplace === 'MERCADOLIVRE' ? 'Iniciando busca automática no Mercado Livre…' : 'Iniciando busca automática na Shopee…'});
     try {
-      await onLiveSearch({
-        marketplace: liveSearchMarketplace,
-        keyword: searchQuery,
-      });
+      await onLiveSearch({ marketplace: liveSearchMarketplace, keyword });
+      setSearchFeedback({type:'success', message:'Busca concluída. As novas ofertas foram adicionadas ao pipeline.'});
     } catch (err) {
-      alert(`Falha na busca em tempo real: ${(err as Error).message}`);
+      setSearchFeedback({type:'error', message: err instanceof Error ? err.message : 'Não foi possível executar a busca.'});
     } finally {
       setIsSearchingLive(false);
     }
@@ -142,7 +146,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
                 type="text"
                 placeholder="Buscar produto (ex: Pokémon, SSD)..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => { setSearchQuery(e.target.value); if (searchFeedback.type === 'error') setSearchFeedback({type:'idle', message:''}); }}
                 className="bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 w-full sm:w-64"
               />
               <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
@@ -150,14 +154,25 @@ export const OffersTab: React.FC<OffersTabProps> = ({
 
             <button
               id="btn-trigger-live-search"
-              type="submit"
+              type="button"
+              onClick={() => void handleLiveSearchTrigger()}
               disabled={isSearchingLive}
               className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl transition cursor-pointer disabled:opacity-50"
             >
-              {isSearchingLive ? 'Buscando API...' : 'Buscar automaticamente'}
+              {isSearchingLive ? 'Buscando…' : 'Buscar automaticamente'}
             </button>
           </form>
         </div>
+
+        {searchFeedback.type !== 'idle' && (
+          <div role="status" aria-live="polite" className={
+            searchFeedback.type === 'loading'
+              ? 'rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs text-blue-200'
+              : searchFeedback.type === 'success'
+                ? 'rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200'
+                : 'rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-200'
+          }>{searchFeedback.message}</div>
+        )}
 
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-slate-800 text-xs">
