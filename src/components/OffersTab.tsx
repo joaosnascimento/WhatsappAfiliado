@@ -15,11 +15,10 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
-import type { Offer, Destination, MarketplaceType } from '../types/affiliate.ts';
+import type { Offer, MarketplaceType } from '../types/affiliate.ts';
 
 interface OffersTabProps {
   offers: Offer[];
-  destinations: Destination[];
   onLiveSearch: (params: {
     marketplace: MarketplaceType;
     keyword: string;
@@ -28,18 +27,15 @@ interface OffersTabProps {
   onManualAddMercadoLivre: (payload: { originalUrl: string; title?: string; price: number }) => Promise<void>;
   onOpenAssociateModal: (offer: Offer) => void;
   onOpenAiMessageModal: (offer: Offer) => void;
-  onQuickPublish: (offerId: string, destinationId: string) => Promise<void>;
   onDeleteOffer: (offerId: string) => Promise<void>;
 }
 
 export const OffersTab: React.FC<OffersTabProps> = ({
   offers,
-  destinations,
   onLiveSearch,
   onManualAddMercadoLivre,
   onOpenAssociateModal,
   onOpenAiMessageModal,
-  onQuickPublish,
   onDeleteOffer,
 }) => {
   const toast = useToast();
