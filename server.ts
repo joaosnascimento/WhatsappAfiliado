@@ -552,7 +552,7 @@ async function startServer() {
     const { enqueuePublication } = await import('./src/infrastructure/queue.ts');
     await query("UPDATE publications SET status='QUEUED', error=NULL WHERE id=$1", [rows[0].id]);
     try {
-      await enqueuePublication(rows[0].id, new Date(rows[0].scheduled_at || Date.now()), rows[0].workspace_id);
+      await enqueuePublication({ publicationId: rows[0].id, destinationId: rows[0].destination_id, offerId: rows[0].offer_id, scheduledAt: rows[0].scheduled_at });
     } catch (error) {
       await query("UPDATE publications SET status='FAILED', error=$2 WHERE id=$1", [rows[0].id, (error as Error).message]);
       return res.status(503).json({ error: 'Fila de publicação indisponível.' });
