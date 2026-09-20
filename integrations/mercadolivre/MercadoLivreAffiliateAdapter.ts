@@ -10,7 +10,6 @@ import { MercadoLivreApiClient } from './MercadoLivreApiClient.ts';
 import { MercadoLivreProductService } from './MercadoLivreProductService.ts';
 import { MercadoLivreOAuthService } from './MercadoLivreOAuthService.ts';
 import { MercadoLivreAffiliateService } from './MercadoLivreAffiliateService.ts';
-import { MercadoLivreAffiliateFallback } from './MercadoLivreAffiliateFallback.ts';
 
 export class MercadoLivreAffiliateAdapter implements AffiliateMarketplaceAdapter {
   public readonly marketplace: MarketplaceType = 'MERCADOLIVRE';
@@ -18,7 +17,6 @@ export class MercadoLivreAffiliateAdapter implements AffiliateMarketplaceAdapter
   private readonly productService: MercadoLivreProductService;
   private readonly oauthService?: MercadoLivreOAuthService;
   private readonly accountId: string;
-  private readonly affiliateFallback: MercadoLivreAffiliateFallback;
 
   constructor(params: {
     clientId?: string;
@@ -30,8 +28,6 @@ export class MercadoLivreAffiliateAdapter implements AffiliateMarketplaceAdapter
     onTokenRefreshed?: (newToken: string, newRefresh: string, expiresIn: number) => void;
   }) {
     this.accountId = params.accountId || 'default_ml';
-    this.affiliateFallback = new MercadoLivreAffiliateFallback({ apiKey: params.botDoAfiliadoApiKey });
-
     if (params.clientId && params.clientSecret && params.redirectUri) {
       this.oauthService = new MercadoLivreOAuthService({
         clientId: params.clientId,
@@ -89,23 +85,16 @@ export class MercadoLivreAffiliateAdapter implements AffiliateMarketplaceAdapter
     subIds?: string[];
     affiliateUrl?: string;
   }): Promise<AffiliateLink> {
-    let affiliateUrl = params.affiliateUrl?.trim();
-
-    if (!affiliateUrl && this.affiliateFallback.isConfigured()) {
-      const converted = await this.affiliateFallback.convertLink(params.originalUrl);
-      affiliateUrl = converted.affiliateUrl;
-    }
-
-    if (!affiliateUrl) {
+    if (!params.affiliateUrl) {
       throw new Error(
-        'Mercado Livre não conseguiu gerar o link automaticamente. Configure BOT_DO_AFILIADO_API_KEY ou associe manualmente um link oficial do programa de afiliados.'
+        'Mercado Livre não oferece geração automática de link de afiliado por esta API. Associe um link oficial gerado no Portal de Afiliados.'
       );
     }
 
     return MercadoLivreAffiliateService.associateAffiliateLink({
       productId: params.productId,
       originalUrl: params.originalUrl,
-      affiliateUrl,
+      affiliateUrl: params.affiliateUrl,
       affiliateAccountId: this.accountId,
       subIds: params.subIds,
     });
@@ -181,13 +170,7 @@ export class MercadoLivreAffiliateAdapter implements AffiliateMarketplaceAdapter
       message: 'Regra de bloqueio de links comuns ativada. O sistema só publica links afiliados validados.',
     });
 
-    steps.push({
-      step: 'Conversão automática de afiliado',
-      status: this.affiliateFallback.isConfigured() ? 'SUCCESS' : 'WARNING',
-      message: this.affiliateFallback.isConfigured()
-        ? 'Fallback automático do Bot do Afiliado configurado para gerar links do Mercado Livre.'
-        : 'BOT_DO_AFILIADO_API_KEY não configurada; a associação automática permanece desativada.',
-    });
+
 
     return {
       marketplace: 'MERCADOLIVRE',
