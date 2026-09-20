@@ -169,14 +169,18 @@ export class MercadoLivreOfficialSessionProvider {
       account.status = 'AWAITING_CONFIG';
       account.status_message = 'Faça login no navegador Mercado Livre aberto pelo WhatsappAfiliado.';
       account.updated_at = new Date().toISOString();
-      void waitForAuthentication(runtime.page).then(async (ok) => {
-        if (ok) {
-          await persistSession(account, runtime.context, 'CONNECTED');
-          try { await runtime.browser.close(); } catch {}
-          runtimes.delete(account.id);
-        }
-      });
-      return { connected: false, status: 'LOGIN_REQUIRED', message: 'Navegador aberto. Faça login no Mercado Livre; a sessão será capturada automaticamente.' };
+
+      // Keep the connect request alive until the first login is completed. This
+      // guarantees the captured storage state is persisted before the request
+      // finishes, so the Chromium window can be closed afterwards.
+      const authenticated = await waitForAuthentication(runtime.page);
+      if (!authenticated) {
+        return { connected: false, status: 'LOGIN_REQUIRED', message: 'Navegador aberto. Faça login no Mercado Livre; a sessão será capturada automaticamente.' };
+      }
+      await persistSession(account, runtime.context, 'CONNECTED');
+      try { await runtime.browser.close(); } catch {}
+      runtimes.delete(account.id);
+      return { connected: true, status: 'CONNECTED', message: 'Login capturado. A sessão foi salva e o navegador pode permanecer fechado.' };
     }
     await runtime.page.goto(PORTAL_URL, { waitUntil: 'domcontentloaded' });
     await persistSession(account, runtime.context, 'CONNECTED');
