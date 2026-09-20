@@ -422,7 +422,7 @@ async function startServer() {
             commission: p.commission,
             score: Math.min(100, Math.round((p.discount || 0) * 1.5)),
             status: affiliateUrl ? 'AFFILIATE_LINK_READY' : 'VALIDATED',
-            status_reason: affiliateUrl ? 'Link afiliado gerado automaticamente pelo Portal de Afiliados.' : (p.metadata?.affiliate_error || 'Não foi possível gerar o link automaticamente; sessão ou portal indisponível.'),
+            status_reason: affiliateUrl ? 'Link afiliado gerado automaticamente pelo Portal de Afiliados.' : (typeof p.metadata?.affiliate_error === 'string' ? p.metadata.affiliate_error : 'Não foi possível gerar o link automaticamente; sessão ou portal indisponível.'),
             affiliate_link_id: linkId,
             affiliate_url: affiliateUrl,
             first_seen_at: new Date().toISOString(),
