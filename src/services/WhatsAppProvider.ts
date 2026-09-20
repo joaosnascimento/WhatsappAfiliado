@@ -94,12 +94,13 @@ export class WhatsAppProvider {
       const safeBase = await assertSafeOutboundUrl(baseUrl);
       let imageUrl: string | undefined;
       if (publication.image_url) imageUrl = (await assertSafeOutboundUrl(publication.image_url)).toString();
-      const res = await fetch(`${safeBase.toString().replace(/\/$/, '')}/message/sendText/${encodeURIComponent(instance)}`, {
+      const endpoint = publication.image_url ? 'sendMedia' : 'sendText';
+      const res = await fetch(`${safeBase.toString().replace(/\/$/, '')}/message/${endpoint}/${encodeURIComponent(instance)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: apiKey },
         signal: controller.signal,
         body: publication.image_url
-          ? JSON.stringify({ number: destination.identifier, mediatype: 'image', media: imageUrl, caption: publication.message, fileName: 'oferta.jpg' })
+          ? JSON.stringify({ number: destination.identifier, mediatype: 'image', mimetype: 'image/jpeg', media: imageUrl, caption: publication.message, fileName: 'oferta.jpg' })
           : JSON.stringify({ number: destination.identifier, text: publication.message, linkPreview: true }),
       });
 
