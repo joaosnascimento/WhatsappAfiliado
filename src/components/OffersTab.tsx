@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useToast } from './ui/Toast.tsx';
 import {
   Search,
   Filter,
@@ -40,6 +41,8 @@ export const OffersTab: React.FC<OffersTabProps> = ({
   onQuickPublish,
   onDeleteOffer,
 }) => {
+  const toast = useToast();
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [selectedMarketplace, setSelectedMarketplace] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -97,22 +100,21 @@ export const OffersTab: React.FC<OffersTabProps> = ({
       if (!res.ok) throw new Error(data.error || 'Não foi possível adicionar a oferta.');
       setMlUrl(''); setMlTitle(''); setMlPrice('');
       window.location.reload();
-    } catch (err) { alert((err as Error).message); } finally { setMlBusy(false); }
+    } catch (err) { toast('error','Não foi possível adicionar a oferta',(err as Error).message); } finally { setMlBusy(false); }
   };
 
   const handleDeleteOffer = async (offer: Offer) => {
-    if (!window.confirm('Excluir esta oferta capturada? Esta ação também remove publicações relacionadas.')) return;
+    if (confirmDeleteId !== offer.id) { setConfirmDeleteId(offer.id); return; }
+    setConfirmDeleteId(null);
     setDeletingId(offer.id);
     try { await onDeleteOffer(offer.id); }
-    catch (err) { alert((err as Error).message); }
+    catch (err) { toast('error','Não foi possível excluir a oferta',(err as Error).message); }
     finally { setDeletingId(null); }
   };
 
   const handlePublishClick = async (offer: Offer) => {
     if (offer.status !== 'AFFILIATE_LINK_READY' && offer.status !== 'READY_TO_PUBLISH') {
-      alert(
-        `Bloqueio de Segurança: A oferta está no status '${offer.status}'. Conforme a Regra 17, apenas produtos com link de afiliado oficial validado podem ser publicados.`
-      );
+      toast('error','Publicação bloqueada',`A oferta está no status '${offer.status}'. Apenas produtos com link de afiliado oficial validado podem ser publicados.`);
       return;
     }
 
@@ -120,9 +122,9 @@ export const OffersTab: React.FC<OffersTabProps> = ({
     setPublishingId(offer.id);
     try {
       await onQuickPublish(offer.id, destId);
-      alert('Publicado com sucesso no WhatsApp!');
+      toast('success','Oferta publicada','A mensagem foi adicionada à fila do WhatsApp.');
     } catch (err) {
-      alert(`Erro no envio: ${(err as Error).message}`);
+      toast('error','Falha no envio',(err as Error).message);
     } finally {
       setPublishingId(null);
     }
