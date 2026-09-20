@@ -35,7 +35,7 @@ const worker=new Worker('affiliate-publications',async job=>{
     if(!destinations[0]) throw new Error('Destino inexistente, inativo ou fora do workspace.');
     const d=destinations[0];
     const destination:Destination={id:d.id,workspace_id:d.workspace_id,type:d.type,identifier:d.identifier,name:d.name,
-      categories:d.config.categories||[],marketplaces:d.config.marketplaces||[],keywords:d.config.keywords||[],
+      categories:d.config.categories||[],marketplaces:d.config.marketplaces||[],keywords:d.config.keywords||[],tags:d.config.tags||d.config.keywords||[],
       frequency_minutes:d.config.frequency_minutes||60,time_start:d.config.time_start||'08:00',time_end:d.config.time_end||'22:00',
       priority:d.config.priority||'NORMAL',is_active:d.is_active};
 
