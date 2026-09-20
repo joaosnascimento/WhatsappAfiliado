@@ -42,6 +42,18 @@ export class CouponService {
     );
   }
 
+  static async listAll(workspaceId:string, marketplace?:MarketplaceType) {
+    return query<any>('SELECT * FROM coupons WHERE workspace_id=$1 AND ($2::text IS NULL OR marketplace=$2) ORDER BY expires_at NULLS LAST, updated_at DESC',[workspaceId,marketplace||null]);
+  }
+  static async setActive(workspaceId:string,id:string,active:boolean) {
+    const rows=await query<any>('UPDATE coupons SET is_active=$3,updated_at=NOW() WHERE id=$1 AND workspace_id=$2 RETURNING *',[id,workspaceId,active]);
+    if(!rows[0]) throw new Error('Cupom não encontrado.'); return rows[0];
+  }
+  static async delete(workspaceId:string,id:string) {
+    const rows=await query<any>('UPDATE coupons SET is_active=false,updated_at=NOW() WHERE id=$1 AND workspace_id=$2 RETURNING id',[id,workspaceId]);
+    if(!rows[0]) throw new Error('Cupom não encontrado.'); return rows[0];
+  }
+
   static async extractFromOffer(workspaceId:string, offer:Offer) {
     const m=offer.product.metadata as any || {};
     const c=m.coupon || m.voucher || m.couponCode || m.coupon_code;
