@@ -243,7 +243,7 @@ export function App() {
   };
 
   if (authChecking) {
-    return <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center"><div className="text-sm text-slate-400">Verificando sessão...</div></div>;
+    return <div className="min-h-screen bg-bg text-text flex items-center justify-center"><div className="text-sm text-muted">Verificando sessão...</div></div>;
   }
 
   if (!token || !user) {
@@ -252,13 +252,13 @@ export function App() {
         <form onSubmit={handleAuth} className="w-full max-w-md bg-surface-1 border border-border rounded-xl p-8 shadow-card">
           <div className="text-center mb-7">
             <div className="mx-auto mb-4 w-12 h-12 rounded-xl bg-brand-500 flex items-center justify-center text-slate-950 font-bold">WA</div>
-            <h1 className="text-2xl font-bold text-white">Afiliados WhatsApp <span className="text-emerald-400">Pro</span></h1>
-            <p className="text-sm text-slate-400 mt-1">{authMode === 'login' ? 'Entre para acessar seu painel.' : 'Crie sua conta para começar.'}</p>
+            <h1 className="text-2xl font-bold text-text">Afiliados WhatsApp <span className="text-emerald-400">Pro</span></h1>
+            <p className="text-sm text-muted mt-1">{authMode === 'login' ? 'Entre para acessar seu painel.' : 'Crie sua conta para começar.'}</p>
           </div>
-          <label className="block text-xs font-medium text-slate-300 mb-2">E-mail</label>
-          <input value={authEmail} onChange={(e)=>setAuthEmail(e.target.value)} type="email" required autoComplete="email" className="w-full mb-4 px-3 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white outline-none focus:border-emerald-500" />
-          <label className="block text-xs font-medium text-slate-300 mb-2">Senha</label>
-          <input value={authPassword} onChange={(e)=>setAuthPassword(e.target.value)} type="password" required minLength={10} maxLength={128} autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} className="w-full mb-3 px-3 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white outline-none focus:border-emerald-500" />
+          <label className="block text-xs font-medium text-text mb-2">E-mail</label>
+          <input value={authEmail} onChange={(e)=>setAuthEmail(e.target.value)} type="email" required autoComplete="email" className="w-full mb-4 px-3 py-2.5 rounded-lg bg-surface-2 border border-border-strong text-text outline-none focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10" />
+          <label className="block text-xs font-medium text-text mb-2">Senha</label>
+          <input value={authPassword} onChange={(e)=>setAuthPassword(e.target.value)} type="password" required minLength={10} maxLength={128} autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} className="w-full mb-3 px-3 py-2.5 rounded-lg bg-surface-2 border border-border-strong text-text outline-none focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10" />
           {authError && <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{authError}</div>}
           <button disabled={authBusy} className="w-full min-h-11 rounded-md bg-brand-500 hover:bg-brand-400 disabled:opacity-50 text-bg font-semibold transition-colors focus-visible:ring-4 focus-visible:ring-brand-500/20 outline-none">{authBusy ? 'Aguarde...' : authMode === 'login' ? 'Entrar' : 'Criar conta'}</button>
           <button type="button" onClick={()=>{setAuthMode(authMode === 'login' ? 'register' : 'login');setAuthError('');}} className="w-full mt-3 text-sm text-emerald-400 hover:text-emerald-300">
@@ -270,7 +270,7 @@ export function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-slate-950">
+    <div className="min-h-screen bg-bg text-text flex flex-col font-sans selection:bg-brand-500 selection:text-bg">
       <Header activeTab={activeTab} setActiveTab={setActiveTab} accounts={accounts} onRunTests={handleRunTests} isTestingSuite={isTestingSuite} onLogout={logout} />
       <main className="flex-1 w-full px-4 py-6 sm:px-6 lg:px-10 lg:py-8"><div className="animate-page-in">
         {activeTab === 'setup' && <SetupTab apiFetch={apiFetch} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} onNavigate={setActiveTab} />}
