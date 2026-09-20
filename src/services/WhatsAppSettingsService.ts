@@ -2,7 +2,9 @@ import { query } from '../infrastructure/database.ts';
 import { encryptCredentials, decryptCredentials } from '../infrastructure/encryption.ts';
 import { assertSafeOutboundUrl } from '../security/outboundUrl.ts';
 
-export interface WhatsAppSettings { provider:'cloud'|'evolution'; apiToken?:string; phoneNumberId?:string; evolutionApiUrl?:string; evolutionApiKey?:string; evolutionInstance?:string; }
+export type WhatsAppRuntimeState = 'NOT_CONFIGURED'|'INSTANCE_NOT_FOUND'|'CREATING'|'QR_REQUIRED'|'CONNECTING'|'CONNECTED'|'DISCONNECTED'|'LOGGED_OUT'|'RECONNECTING'|'ERROR'|'UNKNOWN';
+
+export interface WhatsAppSettings { provider:'cloud'|'evolution'; apiToken?:string; phoneNumberId?:string; evolutionApiUrl?:string; evolutionApiKey?:string; evolutionInstance?:string; runtimeState?:WhatsAppRuntimeState; runtimeStateUpdatedAt?:string; runtimeError?:string; }
 
 export class WhatsAppSettingsService {
   static async get(workspaceId:string):Promise<WhatsAppSettings> {
@@ -10,6 +12,11 @@ export class WhatsAppSettingsService {
     if(!rows[0]) return {provider:(process.env.WHATSAPP_PROVIDER||'cloud') as any};
     return decryptCredentials<WhatsAppSettings & Record<string, unknown>>(rows[0].settings_encrypted) as WhatsAppSettings;
   }
+  static async updateRuntimeState(workspaceId:string,state:WhatsAppRuntimeState,error?:string) {
+    const current=await this.get(workspaceId);
+    await this.save(workspaceId,{...current,runtimeState:state,runtimeStateUpdatedAt:new Date().toISOString(),runtimeError:error || undefined});
+  }
+
   static async save(workspaceId:string,settings:WhatsAppSettings) {
     if (settings.provider !== 'cloud' && settings.provider !== 'evolution') throw new Error('Provedor WhatsApp inválido.');
     if (settings.provider === 'evolution') {
