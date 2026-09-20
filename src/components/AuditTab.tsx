@@ -25,14 +25,14 @@ export const AuditTab: React.FC<AuditTabProps> = ({ records }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="space-y-6">
         {/* Records list */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 px-2">
             Disparos Auditados ({records.length})
           </h3>
 
-          <div className="space-y-2 max-h-[600px] overflow-y-auto">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {records.map((rec) => (
               <button
                 key={rec.id}
@@ -73,7 +73,7 @@ export const AuditTab: React.FC<AuditTabProps> = ({ records }) => {
         </div>
 
         {/* Selected Record Full Trace */}
-        <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5">
           {selectedRecord ? (
             <>
               <div className="flex items-center justify-between border-b border-slate-800 pb-4">
