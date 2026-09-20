@@ -306,7 +306,7 @@ function AppContent() {
         {activeTab === 'dashboard' && <DashboardTab reports={reports} accounts={accounts} whatsappSettings={whatsappSettings} apiFetch={apiFetch} onNavigateToOffers={()=>setActiveTab('offers')} onNavigateToAffiliates={()=>setActiveTab('affiliates')} onNavigateToSetup={()=>setActiveTab('setup')} onNavigateToQueue={()=>setActiveTab('queue')} />}
         {activeTab === 'affiliates' && <AffiliatesTab apiFetch={apiFetch} accounts={accounts} onSaveAccount={handleSaveAccount} onTestIntegration={handleTestIntegration} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} />}
         {activeTab === 'offers' && <OffersTab offers={offers} destinations={destinations} onLiveSearch={handleLiveSearch} onManualAddMercadoLivre={handleManualMercadoLivre} onOpenAssociateModal={(offer)=>setAssociateModalOffer(offer)} onOpenAiMessageModal={(offer)=>setAiModalOffer(offer)} onQuickPublish={handlePublish} onDeleteOffer={handleDeleteOffer} />}
-        {activeTab === 'destinations' && <DestinationsTab destinations={destinations} onAddDestination={handleAddDestination} apiFetch={apiFetch} />}
+        {activeTab === 'destinations' && <DestinationsTab destinations={destinations} onAddDestination={handleAddDestination} apiFetch={apiFetch} onChanged={loadData} />}
         {activeTab === 'queue' && <PublicationsTab publications={publications} onTriggerSend={handleTriggerSend} onDelete={handleDeletePublication} onRetry={handleRetryPublication} />}
         {activeTab === 'audit' && <AuditTab records={auditRecords} />}
         {activeTab === 'docs' && <DocsTab onRunTests={handleRunTests} testResults={testResults} isRunningTests={isTestingSuite} />}
