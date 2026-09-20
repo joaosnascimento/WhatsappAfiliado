@@ -80,7 +80,7 @@ export class AutomationScheduler {
 
           const eligible = offers
             .filter((o: Offer) => (o.status === 'AFFILIATE_LINK_READY' || o.status === 'READY_TO_PUBLISH') && o.affiliate_url)
-            .filter(o => matchesDestination(o, destination))
+            .filter((o: Offer) => matchesDestination(o, destination))
             .sort((a: Offer, b: Offer) => b.score - a.score);
 
           if (!eligible.length) continue;
