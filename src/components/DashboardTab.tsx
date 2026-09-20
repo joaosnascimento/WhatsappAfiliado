@@ -28,10 +28,11 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ reports, accounts, w
   const [refreshing,setRefreshing]=useState(false);
   const [automationEnabled,setAutomationEnabled]=useState(true);
   const [automationBusy,setAutomationBusy]=useState(false);
+  const [automationQueue,setAutomationQueue]=useState<{queued:number;retrying:number;last_activity:string|null;next_retry_at:string|null}>({queued:0,retrying:0,last_activity:null,next_retry_at:null});
 
   const refreshIntegrations=async()=>{
     setRefreshing(true);
-    try { const a=await apiFetch('/api/automation/status'); const d=await a.json().catch(()=>({})); if(a.ok) setAutomationEnabled(Boolean(d.enabled)); } catch {}
+    try { const a=await apiFetch('/api/automation/status'); const d=await a.json().catch(()=>({})); if(a.ok) { setAutomationEnabled(Boolean(d.enabled)); setAutomationQueue(d.queue||{queued:0,retrying:0,last_activity:null,next_retry_at:null}); } } catch {}
     try {
       const [wa,ml]=await Promise.all([
         apiFetch('/api/whatsapp/status').then(async r=>({ok:r.ok,data:await r.json().catch(()=>({}))})),
@@ -78,6 +79,12 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ reports, accounts, w
 
   return (
     <div className="mx-auto max-w-7xl space-y-5">
+      <section className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border border-border bg-surface-1 p-4"><div className="text-xs text-subtle">Na fila</div><div className="mt-1 text-xl font-bold text-text">{automationQueue.queued}</div></div>
+        <div className="rounded-lg border border-border bg-surface-1 p-4"><div className="text-xs text-subtle">Em nova tentativa</div><div className="mt-1 text-xl font-bold text-amber-300">{automationQueue.retrying}</div></div>
+        <div className="rounded-lg border border-border bg-surface-1 p-4"><div className="text-xs text-subtle">Próxima tentativa</div><div className="mt-1 text-sm font-bold text-text">{automationQueue.next_retry_at?new Date(automationQueue.next_retry_at).toLocaleString('pt-BR'):'Nenhuma'}</div></div>
+      </section>
+
       <section className="rounded-xl border border-border bg-surface-1 p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-subtle">Automação global</p><div className="mt-1 flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-full ${automationEnabled?'bg-emerald-400':'bg-amber-400'}`}/><span className="text-sm font-bold text-text">{automationEnabled?'Ativa':'Pausada'}</span></div><p className="mt-1 text-xs text-muted">Pausar impede novas publicações automáticas; o histórico e os envios manuais continuam disponíveis.</p></div>
