@@ -440,7 +440,7 @@ async function startServer() {
   });
 
   // 7. Mercado Livre: cadastro manual pelo link do anúncio
-  app.post('/api/offers/manual-mercadolivre', (req, res) => {
+  app.post('/api/offers/manual-mercadolivre', async (req, res) => {
     const originalUrl = String(req.body?.originalUrl || '').trim();
     const title = String(req.body?.title || '').trim().slice(0, 200) || 'Oferta Mercado Livre';
     const price = Number(req.body?.price || 0);
