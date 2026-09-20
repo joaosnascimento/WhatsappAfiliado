@@ -406,6 +406,15 @@ export const OffersTab: React.FC<OffersTabProps> = ({
                       </button>
                     </>
                   )}
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteOffer(offer)}
+                  disabled={deletingId === offer.id}
+                  className="col-span-2 py-2 rounded-xl border border-rose-500/20 bg-rose-500/5 text-rose-300 text-xs font-semibold hover:bg-rose-500/10 disabled:opacity-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5 inline mr-1" />
+                  {deletingId === offer.id ? 'Excluindo...' : 'Excluir oferta capturada'}
+                </button>
                 </div>
               </div>
             </div>
