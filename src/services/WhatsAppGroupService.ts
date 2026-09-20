@@ -6,21 +6,24 @@ export class WhatsAppGroupService {
     const key=settings?.evolutionApiKey || process.env.EVOLUTION_API_KEY;
     const instance=settings?.evolutionInstance || process.env.EVOLUTION_INSTANCE;
     if(!base||!key||!instance) throw new Error('Evolution API não configurada.');
-    const candidates=[
-      `/group/fetchAllGroups/${encodeURIComponent(instance)}?getParticipants=true`,
-      `/group/fetchAllGroups/${encodeURIComponent(instance)}`
-    ];
-    let last='';
-    for(const endpoint of candidates){
-      const res=await fetch(base+endpoint,{headers:{apikey:key}});
-      const body=await res.text();
-      if(res.ok){
-        const data=JSON.parse(body);
-        const groups=Array.isArray(data)?data:(data?.groups||data?.response||[]);
-        return groups as WhatsAppGroup[];
-      }
-      last=`HTTP ${res.status}: ${body}`;
+
+    // Evolution v2 requires getParticipants to be explicitly present in the
+    // query string. Do not fall back to the same endpoint without the query:
+    // that fallback only hides the real API error and makes the UI misleading.
+    const url=new URL('/group/fetchAllGroups/' + encodeURIComponent(instance), base + '/');
+    url.searchParams.set('getParticipants','true');
+    const res=await fetch(url.toString(),{headers:{apikey:key}});
+    const body=await res.text();
+    let parsed:any={};
+    try { parsed=body ? JSON.parse(body) : {}; } catch {}
+    if(!res.ok) {
+      const apiMessage=Array.isArray(parsed?.response?.message)
+        ? parsed.response.message.join(', ')
+        : parsed?.message || parsed?.error || body;
+      throw new Error('Não foi possível listar grupos pela Evolution API: HTTP '+res.status+': '+String(apiMessage).slice(0,500));
     }
-    throw new Error('Não foi possível listar grupos pela Evolution API: '+last);
+    const groups=Array.isArray(parsed)?parsed:(parsed?.groups||parsed?.response||[]);
+    if(!Array.isArray(groups)) throw new Error('A Evolution API respondeu em formato inesperado ao listar grupos.');
+    return groups as WhatsAppGroup[];
   }
 }
