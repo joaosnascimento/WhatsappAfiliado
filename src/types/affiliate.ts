@@ -125,6 +125,7 @@ export interface Destination {
   time_end: string; // "22:00"
   priority: 'LOW' | 'NORMAL' | 'HIGH';
   is_active: boolean;
+  deleted_at?: string;
 }
 
 export interface TrackingSource {
