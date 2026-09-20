@@ -16,6 +16,7 @@ import { redisRateLimit } from './src/services/rateLimit.ts';
 import { ShopeeAffiliateAdapter } from './integrations/shopee/ShopeeAffiliateAdapter.ts';
 import { MercadoLivreAffiliateAdapter } from './integrations/mercadolivre/MercadoLivreAffiliateAdapter.ts';
 import { MercadoLivreAffiliateService } from './integrations/mercadolivre/MercadoLivreAffiliateService.ts';
+import { MercadoLivreOfficialSessionProvider } from './integrations/mercadolivre/MercadoLivreOfficialSessionProvider.ts';
 import { AiMessageService } from './src/services/AiMessageService.ts';
 import { WhatsAppProvider } from './src/services/WhatsAppProvider.ts';
 import { DeduplicationService } from './src/services/DeduplicationService.ts';
@@ -247,6 +248,54 @@ async function startServer() {
     }
   });
 
+  // Mercado Livre official browser automation
+  app.get('/api/mercadolivre/status', (req, res) => {
+    const account = findMarketplaceAccount('MERCADOLIVRE');
+    if (!account) return res.json({ connected: false, status: 'DISCONNECTED' });
+    void MercadoLivreOfficialSessionProvider.status(account)
+      .then(result => res.json(result))
+      .catch(error => res.status(500).json({ error: (error as Error).message }));
+  });
+
+  app.post('/api/mercadolivre/connect', async (req, res) => {
+    const account = findMarketplaceAccount('MERCADOLIVRE');
+    if (!account) return res.status(400).json({ error: 'Conta Mercado Livre indisponível neste workspace.' });
+    try {
+      const result = await MercadoLivreOfficialSessionProvider.connect(account);
+      res.json(result);
+    } catch (error) {
+      account.credentials_encrypted.ml_session_status = 'ERROR';
+      account.status = 'AUTH_ERROR';
+      account.status_message = (error as Error).message;
+      account.updated_at = new Date().toISOString();
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  app.post('/api/mercadolivre/disconnect', async (req, res) => {
+    const account = findMarketplaceAccount('MERCADOLIVRE');
+    if (!account) return res.status(400).json({ error: 'Conta Mercado Livre indisponível neste workspace.' });
+    try {
+      await MercadoLivreOfficialSessionProvider.disconnect(account);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  app.post('/api/mercadolivre/generate-link', async (req, res) => {
+    const account = findMarketplaceAccount('MERCADOLIVRE');
+    if (!account) return res.status(400).json({ error: 'Conta Mercado Livre indisponível neste workspace.' });
+    const originalUrl = String(req.body?.originalUrl || '').trim();
+    if (!originalUrl) return res.status(400).json({ error: 'originalUrl é obrigatória.' });
+    try {
+      const affiliateUrl = await MercadoLivreOfficialSessionProvider.generateLink(account, originalUrl, ['whatsapp', 'auto']);
+      res.json({ success: true, affiliateUrl });
+    } catch (error) {
+      res.status(409).json({ error: (error as Error).message });
+    }
+  });
+
   // 6. Offers API
   app.get('/api/offers', (req, res) => {
     const marketplace = req.query.marketplace as string;
@@ -333,7 +382,57 @@ async function startServer() {
 
         return res.json({ count: createdOffers.length, offers: createdOffers });
       } else {
-        return res.status(400).json({ error: 'A busca automática do catálogo do Mercado Livre foi desativada. Adicione a oferta e use o fluxo Gerar / Associar Link de Afiliado.' });
+        const account = findMarketplaceAccount('MERCADOLIVRE');
+        if (!account) return res.status(400).json({ error: 'Conta Mercado Livre indisponível neste workspace.' });
+        const products = await MercadoLivreOfficialSessionProvider.discover(account, String(keyword || 'ofertas'), 10);
+        const createdOffers: Offer[] = [];
+
+        for (const p of products) {
+          store.products.set(p.id, p);
+          let affiliateUrl: string | undefined;
+          let linkId: string | undefined;
+          try {
+            affiliateUrl = await MercadoLivreOfficialSessionProvider.generateLink(account, p.original_url, ['whatsapp', 'auto_search']);
+            const link = {
+              id: `link_ml_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+              marketplace: 'MERCADOLIVRE' as const,
+              affiliate_account_id: account.id,
+              product_id: p.id,
+              original_url: p.original_url,
+              affiliate_url: affiliateUrl,
+              short_url: affiliateUrl,
+              tracking_data: { sub_ids: ['whatsapp', 'auto_search'], source: 'mercadolivre_official_browser' },
+              created_at: new Date().toISOString(),
+            };
+            store.links.set(link.id, link);
+            linkId = link.id;
+            p.affiliate_url = affiliateUrl;
+          } catch (error) {
+            p.metadata = { ...(p.metadata || {}), affiliate_error: (error as Error).message };
+          }
+
+          const offer: Offer = {
+            id: `offer_ml_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            product_id: p.id,
+            product: p,
+            marketplace: 'MERCADOLIVRE',
+            price: p.price,
+            original_price: p.original_price,
+            discount: p.discount,
+            commission: p.commission,
+            score: Math.min(100, Math.round((p.discount || 0) * 1.5)),
+            status: affiliateUrl ? 'AFFILIATE_LINK_READY' : 'VALIDATED',
+            status_reason: affiliateUrl ? 'Link afiliado gerado automaticamente pelo Portal de Afiliados.' : 'Não foi possível gerar o link automaticamente; sessão ou portal indisponível.',
+            affiliate_link_id: linkId,
+            affiliate_url: affiliateUrl,
+            first_seen_at: new Date().toISOString(),
+            last_seen_at: new Date().toISOString(),
+          };
+          store.offers.set(offer.id, offer);
+          createdOffers.push(offer);
+        }
+
+        return res.json({ count: createdOffers.length, offers: createdOffers, automated: true });
       }
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
