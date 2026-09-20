@@ -35,3 +35,14 @@ AI message generation is downstream of verified product facts. Deterministic fal
 
 ## Security
 Authentication, rate limiting, outbound URL validation, encrypted credentials and workspace context are implemented in the existing security/infrastructure layers.
+
+
+## Lifecycle de integrações
+
+WhatsApp possui estado runtime persistido por workspace, reconciliado com a Evolution API e consumido pelo frontend através de runtimeState. A persistência aplica as transições válidas da máquina de estados, incluindo transições observadas externamente (por exemplo, QR_REQUIRED → CONNECTED).
+
+Mercado Livre mantém storageState persistido independentemente do processo Chromium. Fechar o navegador não apaga a sessão. O runtime headless é reconstruído quando necessário para validar ou usar a sessão persistida; conexão interativa registra CONNECTING antes do login.
+
+## Health operacional
+
+/api/health/integrations distingue integração não configurada de integração operacional e realiza verificação de conectividade da Evolution API com timeout curto. Banco e Redis são verificados diretamente; estados de conta do Mercado Livre são considerados no diagnóstico.
