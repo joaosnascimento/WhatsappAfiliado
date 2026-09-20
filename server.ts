@@ -481,7 +481,7 @@ async function startServer() {
           let affiliateUrl: string | undefined;
           let linkId: string | undefined;
           try {
-            affiliateUrl = await MercadoLivreOfficialSessionProvider.generateLink(account, p.original_url, ['whatsapp', 'auto_search']);
+            affiliateUrl = await MercadoLivreOfficialSessionProvider.generateLink(account, p.original_url);
             const link = {
               id: `link_ml_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
               marketplace: 'MERCADOLIVRE' as const,
@@ -490,7 +490,7 @@ async function startServer() {
               original_url: p.original_url,
               affiliate_url: affiliateUrl,
               short_url: affiliateUrl,
-              tracking_data: { sub_ids: ['whatsapp', 'auto_search'], source: 'mercadolivre_official_browser' },
+              tracking_data: { source: 'mercadolivre_official_browser' },
               created_at: new Date().toISOString(),
             };
             store.links.set(link.id, link);
@@ -762,14 +762,12 @@ async function startServer() {
         const affiliateUrl = await MercadoLivreOfficialSessionProvider.generateLink(
           account,
           offer.product.original_url,
-          ['whatsapp', 'auto_publish'],
         );
         const link = MercadoLivreAffiliateService.associateAffiliateLink({
           productId: offer.product.external_product_id,
           originalUrl: offer.product.original_url,
           affiliateUrl,
           affiliateAccountId: account.id,
-          subIds: ['whatsapp', 'auto_publish'],
         });
         store.links.set(link.id, link);
         offer.affiliate_link_id = link.id;
@@ -864,7 +862,9 @@ async function startServer() {
       message,
       status: requestedSchedule.getTime() > Date.now() ? 'SCHEDULED' : 'QUEUED',
       scheduled_at: requestedSchedule.toISOString(),
-      tracking_subids: ['whatsapp', destination.id, offer.marketplace.toLowerCase()],
+      // Marketplace Custom Id/SubId values are not injected here. Mercado Livre
+      // attribution is generated exclusively by the official browser portal.
+      tracking_subids: [],
     };
 
     // Persistent mode performs an atomic idempotency claim before queueing.
