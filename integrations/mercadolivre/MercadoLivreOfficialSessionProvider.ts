@@ -33,16 +33,18 @@ async function isLoggedIn(page: Page): Promise<boolean> {
   const url = page.url();
   if (/login|auth|signin/i.test(url)) return false;
   try {
-    const loginControls = page.getByRole('link', { name: /entrar|iniciar sessão/i });
-    if (await loginControls.count()) {
-      for (let i = 0; i < Math.min(3, await loginControls.count()); i++) {
-        if (await loginControls.nth(i).isVisible().catch(() => false)) return false;
-      }
-    }
-    const body = (await page.locator('body').innerText({ timeout: 5000 })).slice(0, 16000);
-    if (/criar conta/i.test(body) && /entrar/i.test(body) && !/sair/i.test(body)) return false;
-    return /sair|minha conta|afiliados|gerador de links|receitas|métricas/i.test(body);
-  } catch { return false; }
+    // Mercado Livre pages can contain "Entrar" in menus/footers even when the
+    // authenticated session is valid. Do not use generic body text as a
+    // negative signal; only an actual login form/redirect means the session is
+    // expired.
+    const password = page.locator('input[type="password"]').first();
+    if (await password.count() && await password.isVisible().catch(() => false)) return false;
+    const loginForm = page.locator('form').filter({ has: page.locator('input[type="password"]') }).first();
+    if (await loginForm.count() && await loginForm.isVisible().catch(() => false)) return false;
+    return true;
+  } catch {
+    return !/login|auth|signin/i.test(page.url());
+  }
 }
 
 async function waitForAuthentication(page: Page, timeoutMs = 5 * 60 * 1000): Promise<boolean> {
