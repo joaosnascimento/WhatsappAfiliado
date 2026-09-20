@@ -11,8 +11,15 @@ export const DestinationsTab:React.FC<Props>=({destinations,onAddDestination,api
  const load=async()=>{setLoading(true);try{const r=await apiFetch('/api/whatsapp/groups');const d=await r.json();if(!r.ok)throw new Error(d.error||'Não foi possível carregar os grupos.');setGroups(Array.isArray(d)?d:[]);}catch(e){toast('error','Não foi possível carregar os grupos',(e as Error).message);}finally{setLoading(false);}};
  const submit=async(e:React.FormEvent)=>{e.preventDefault();if(!name.trim()||!identifier.trim()){toast('error','Grupo não selecionado','Escolha um grupo do WhatsApp.');return;}setSaving(true);try{await onAddDestination({name,type,identifier,marketplaces,keywords:keywords.split(',').map(x=>x.trim()).filter(Boolean).slice(0,5),frequency_minutes:Number(frequency),time_start:start,time_end:end,priority:'HIGH',is_active:true});setShow(false);setName('');setIdentifier('');}catch(err){toast('error','Não foi possível adicionar o grupo',(err as Error).message);}finally{setSaving(false);}};
  const toggle=(m:MarketplaceType)=>setMarketplaces(v=>v.includes(m)?(v.length>1?v.filter(x=>x!==m):v):[...v,m]);
- if(initialLoading) return <div className="w-full space-y-6" aria-busy="true"><div className="h-24 rounded-lg bg-surface-1 animate-pulse"/><div className="grid gap-4 md:grid-cols-2">{Array.from({length:2}).map((_,i)=><div key={i} className="h-44 rounded-lg bg-surface-1 animate-pulse"/>)}</div></div>;
- return <div className="w-full space-y-6">
+ if (initialLoading) {
+    return (
+      <div className="w-full space-y-6" aria-busy="true">
+        <div className="h-24 rounded-lg bg-surface-1 animate-pulse"/>
+        <div className="grid gap-4 md:grid-cols-2">{Array.from({length:2}).map((_,i)=><div key={i} className="h-44 rounded-lg bg-surface-1 animate-pulse"/>)}</div>
+      </div>
+    );
+  }
+  return <div className="w-full space-y-6">
   <div className="flex items-end justify-between gap-4"><div><p className="text-sm font-semibold uppercase tracking-widest text-brand-300">Automação</p><h1 className="mt-1 text-3xl font-bold text-text">Onde suas ofertas serão enviadas?</h1><p className="mt-2 text-sm text-muted">Escolha os grupos. O sistema cuida do envio automaticamente.</p></div><button onClick={()=>setShow(v=>!v)} className="rounded-md bg-brand-500 px-4 py-3 text-sm font-bold text-bg hover:bg-brand-400"><Plus className="mr-1.5 inline h-4 w-4"/>{show?'Fechar':'Adicionar grupo'}</button></div>
   {show&&<form onSubmit={submit} className="rounded-lg border border-border bg-surface-1 p-6 sm:p-8">
    <div className="mb-6"><h2 className="font-semibold text-text">Novo grupo</h2><p className="mt-1 text-xs text-subtle">Poucas configurações. Você poderá ajustar depois.</p></div>
