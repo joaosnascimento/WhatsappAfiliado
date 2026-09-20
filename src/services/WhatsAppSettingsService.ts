@@ -1,6 +1,7 @@
 import { query } from '../infrastructure/database.ts';
 import { encryptCredentials, decryptCredentials } from '../infrastructure/encryption.ts';
 import { assertSafeOutboundUrl } from '../security/outboundUrl.ts';
+import { assertWhatsAppTransition, type WhatsAppConnectionState } from './IntegrationStateMachine.ts';
 
 export type WhatsAppRuntimeState = 'NOT_CONFIGURED'|'INSTANCE_NOT_FOUND'|'CREATING'|'QR_REQUIRED'|'CONNECTING'|'CONNECTED'|'DISCONNECTED'|'LOGGED_OUT'|'RECONNECTING'|'ERROR'|'UNKNOWN';
 
@@ -14,6 +15,8 @@ export class WhatsAppSettingsService {
   }
   static async updateRuntimeState(workspaceId:string,state:WhatsAppRuntimeState,error?:string) {
     const current=await this.get(workspaceId);
+    const from=(current.runtimeState || 'UNKNOWN') as WhatsAppConnectionState;
+    assertWhatsAppTransition(from,state as WhatsAppConnectionState);
     await this.save(workspaceId,{...current,runtimeState:state,runtimeStateUpdatedAt:new Date().toISOString(),runtimeError:error || undefined});
   }
 
