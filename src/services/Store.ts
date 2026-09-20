@@ -358,8 +358,11 @@ export async function getWorkspaceStore(workspaceId: string): Promise<MemoryStor
     const instance = createWorkspaceStore(workspaceId);
     if (process.env.DATABASE_URL && process.env.ALLOW_INMEMORY_STORE !== 'true') {
       await instance.loadPersistent(workspaceId);
-      ensureMarketplaceAccounts(instance, workspaceId);
     }
+    // Every workspace needs logical marketplace accounts even in local/in-memory mode.
+    // Without this, Mercado Livre browser automation cannot find its account and the
+    // UI reports "Conta Mercado Livre indisponível neste workspace".
+    ensureMarketplaceAccounts(instance, workspaceId);
     workspaceLoadPromises.delete(workspaceId);
     return instance;
   })().catch(error => {
