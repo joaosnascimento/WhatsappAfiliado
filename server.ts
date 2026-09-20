@@ -349,6 +349,7 @@ async function startServer() {
     if (!account) return res.status(400).json({ error: 'Conta Mercado Livre indisponível neste workspace.' });
     try {
       const result = await MercadoLivreOfficialSessionProvider.connect(account);
+      if (persistentStoreEnabled) await store.persist(req.user!.workspaceId);
       res.json(result);
     } catch (error) {
       account.credentials_encrypted.ml_session_status = 'ERROR';
@@ -478,11 +479,16 @@ async function startServer() {
         // The official browser generator can take up to 30s per product; doing that
         // synchronously made the HTTP request exceed browser/proxy timeouts and
         // surfaced as the unhelpful "Failed to fetch" in the dashboard.
-        const products = await MercadoLivreOfficialSessionProvider.discover(account, String(keyword || 'ofertas'), 10);
+        const requestedLimit = Math.min(50, Math.max(1, Number(req.body?.limit || 10)));
+        const products = await MercadoLivreOfficialSessionProvider.discover(account, String(keyword || 'ofertas'), requestedLimit);
         const createdOffers: Offer[] = [];
         const workspaceId = req.user!.workspaceId;
+        const minimumDiscount = minDiscount ? Number(minDiscount) : 0;
+        const filteredProducts = minimumDiscount > 0
+          ? products.filter(p => Number(p.discount || 0) >= minimumDiscount)
+          : products;
 
-        for (const p of products) {
+        for (const p of filteredProducts) {
           store.products.set(p.id, p);
           const offer: Offer = {
             id: `offer_ml_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -545,7 +551,7 @@ async function startServer() {
           console.error('Mercado Livre background affiliate generation failed:', error);
         });
 
-        return res.json({ count: createdOffers.length, offers: createdOffers, automated: true, affiliateGeneration: 'background' });
+        return res.json({ count: createdOffers.length, offers: createdOffers, automated: true, affiliateGeneration: 'background', discovered: products.length });
       }
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
