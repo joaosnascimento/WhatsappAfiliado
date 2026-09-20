@@ -1,7 +1,7 @@
 import { query } from '../infrastructure/database.ts';
 import { decryptCredentials } from '../infrastructure/encryption.ts';
 import { ShopeeAffiliateAdapter } from '../../integrations/shopee/ShopeeAffiliateAdapter.ts';
-import { MercadoLivreAffiliateAdapter } from '../../integrations/mercadolivre/MercadoLivreAffiliateAdapter.ts';
+import { MercadoLivreOfficialSessionProvider } from '../../integrations/mercadolivre/MercadoLivreOfficialSessionProvider.ts';
 
 export class AccountHealthService {
   private static running = false;
@@ -20,12 +20,21 @@ export class AccountHealthService {
             if (!appId || !secret) throw new Error('Credenciais Shopee ausentes.');
             result = await new ShopeeAffiliateAdapter(appId, secret, row.id).testConnection();
           } else {
-            result = await new MercadoLivreAffiliateAdapter({
-              clientId:c.ml_client_id || process.env.MERCADOLIVRE_CLIENT_ID,
-              clientSecret:c.ml_client_secret || process.env.MERCADOLIVRE_CLIENT_SECRET,
-              redirectUri:c.ml_redirect_uri || process.env.MERCADOLIVRE_REDIRECT_URI,
-              accessToken:c.ml_access_token, refreshToken:c.ml_refresh_token, accountId:row.id
-            }).testConnection();
+            const account = {
+              id: row.id,
+              workspace_id: row.workspace_id,
+              marketplace: 'MERCADOLIVRE' as const,
+              status: c.ml_session_status === 'CONNECTED' ? 'CONNECTED' as const : 'AWAITING_CONFIG' as const,
+              status_message: c.ml_session_status === 'CONNECTED' ? 'Sessão conectada.' : 'Conecte a conta pelo navegador.',
+              credentials_encrypted: c,
+              created_at: row.created_at,
+              updated_at: row.updated_at,
+            };
+            const health = await MercadoLivreOfficialSessionProvider.status(account);
+            result = {
+              overall_status: health.connected ? 'SUCCESS' : 'WARNING',
+              steps: [{ step: 'Sessão do navegador', status: health.connected ? 'SUCCESS' : 'WARNING', message: health.connected ? 'Sessão do Mercado Livre ativa.' : 'Sessão do Mercado Livre não está conectada.' }],
+            };
           }
           const status = result.overall_status === 'FAILED' ? 'AUTH_ERROR' : result.overall_status === 'WARNING' ? 'AWAITING_CONFIG' : 'CONNECTED';
           await query('UPDATE marketplace_accounts SET status=$2,status_message=$3,updated_at=NOW() WHERE id=$1',[row.id,status,result.steps.map((s:any)=>s.message).join(' | ').slice(0,1000)]);
