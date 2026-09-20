@@ -56,15 +56,15 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({
                 {/* Status badge */}
                 {isSent ? (
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                    <CheckCircle2 className="w-3 h-3" /> Enviada
+                    <CheckCircle2 aria-hidden="true" className="w-3 h-3" /> Enviada
                   </span>
                 ) : isFailed ? (
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full border border-rose-500/30">
-                    <XCircle className="w-3 h-3" /> Falha
+                    <XCircle aria-hidden="true" className="w-3 h-3" /> Falha
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-500/30">
-                    <Clock className="w-3 h-3" /> Na Fila
+                    <Clock aria-hidden="true" className="w-3 h-3" /> Na Fila
                   </span>
                 )}
               </div>
@@ -73,7 +73,7 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({
               <div className="bg-[#0b141a] rounded-2xl p-4 border border-[#202c33] shadow-inner space-y-2">
                 <div className="flex items-center justify-between border-b border-[#202c33] pb-2 text-[10px] text-slate-400">
                   <span className="font-semibold text-emerald-400 flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3" /> Oferta Verificada
+                    <ShieldCheck aria-hidden="true" className="w-3 h-3" /> Oferta Verificada
                   </span>
                   <span>
                     {pub.sent_at
@@ -97,7 +97,7 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({
                     rel="noopener noreferrer"
                     className="text-emerald-400 font-mono font-semibold hover:underline flex items-center gap-1 truncate max-w-[200px]"
                   >
-                    {pub.affiliate_url} <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                    {pub.affiliate_url} <ExternalLink aria-hidden="true" className="w-2.5 h-2.5 shrink-0" />
                   </a>
                 </div>
 
@@ -120,7 +120,7 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({
 
         {publications.length === 0 && (
           <div className="col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center text-slate-400 space-y-2">
-            <Send className="w-8 h-8 text-slate-600 mx-auto" />
+            <Send aria-hidden="true" className="w-8 h-8 text-slate-600 mx-auto" />
             <h3 className="text-base font-semibold text-white">Fila de Disparos Vazia</h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
               Acesse a aba <strong>Radar de Ofertas</strong>, selecione um produto com link validado e clique em <strong>Publicar</strong>.
