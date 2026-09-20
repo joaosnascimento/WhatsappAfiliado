@@ -149,7 +149,7 @@ export class MarketplaceDiscoveryScheduler {
             const minRealDiscount = Math.max(1, Number(process.env.REAL_DEAL_MIN_DISCOUNT_PERCENT || 10));
             const cutoff = Date.now() - historyDays * 24 * 60 * 60 * 1000;
             const previousHistory = (state.price_history[historyKey] || []).filter((item: PriceObservation) => Number.isFinite(item.price) && item.price > 0 && new Date(item.observed_at).getTime() >= cutoff);
-            const previousPrices = previousHistory.map(item => item.price).filter(price => price > 0);
+            const previousPrices = previousHistory.map((item: PriceObservation) => item.price).filter((price: number) => price > 0);
             const previousLowest = previousPrices.length ? Math.min(...previousPrices) : undefined;
             const displayedDiscount = Number(product.discount || 0);
             const historicalDeal = previousLowest !== undefined && product.price > 0 && product.price <= previousLowest && displayedDiscount >= minRealDiscount;
