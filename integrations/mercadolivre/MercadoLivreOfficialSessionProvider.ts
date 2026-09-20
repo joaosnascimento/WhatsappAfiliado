@@ -216,9 +216,17 @@ export class MercadoLivreOfficialSessionProvider {
       }
     }
 
-    await runtime.page.waitForTimeout(1200);
-    const affiliateUrl = await findAffiliateLink(runtime.page);
-    if (!affiliateUrl) throw new Error('O Mercado Livre não retornou um link meli.la. A sessão pode não ter permissão para o programa ou o gerador mudou a interface.');
+    // The portal can take several seconds to create the attribution link.
+    // Poll instead of using a fixed short delay so the publication pipeline does not
+    // get stuck in "link pending" while the portal is still processing.
+    let affiliateUrl: string | null = null;
+    const deadline = Date.now() + 30000;
+    while (Date.now() < deadline && !affiliateUrl) {
+      affiliateUrl = await findAffiliateLink(runtime.page);
+      if (affiliateUrl) break;
+      await runtime.page.waitForTimeout(750);
+    }
+    if (!affiliateUrl) throw new Error('O Portal de Afiliados do Mercado Livre não retornou o link em até 30 segundos. Verifique a sessão do programa de afiliados e tente novamente.');
     const validation = MercadoLivreAffiliateService.validateAffiliateUrl(affiliateUrl, originalUrl);
     if (!validation.isValidAffiliateLink) throw new Error(validation.reason || 'Link afiliado inválido.');
     await persistSession(account, runtime.context, 'CONNECTED');
