@@ -120,6 +120,7 @@ export interface Destination {
   categories: string[];
   marketplaces: MarketplaceType[];
   keywords: string[];
+  tags: string[];
   frequency_minutes: number;
   time_start: string; // "08:00"
   time_end: string; // "22:00"
