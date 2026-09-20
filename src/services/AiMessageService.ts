@@ -2,17 +2,18 @@ import { GoogleGenAI } from '@google/genai';
 import type { AffiliateProduct, MarketplaceType } from '../types/affiliate.ts';
 
 function sanitizeProductTitle(value: string): string {
-  let title = String(value || '').replace(/\\s+/g, ' ').trim();
+  let title = String(value || '').replace(/\s+/g, ' ').trim();
 
-  // Mercado Livre pages sometimes concatenate rating/sales metadata into the
-  // product title. Never expose that presentation metadata as part of the
-  // WhatsApp product name.
+  // Mercado Livre search cards can concatenate presentation metadata into the
+  // title. Strip that metadata before it reaches AI, persistence or WhatsApp.
+  const metadataStart = title.search(/\s+(?:Classificação\s+\d|Mais\s+de\s+[\d.,]+\s*(?:mil|k)?\s+produtos?|\d+(?:[.,]\d+)?\s*\|\s*\+[\d.,]+\s*(?:mil|k)?\s+vendidos)/i);
+  if (metadataStart >= 0) title = title.slice(0, metadataStart).trim();
+
   title = title
-    .replace(/\\s+Classificação\\s+[0-9]+(?:[.,][0-9]+)?\\s+de\\s+5\\s+estrelas?\\.?/gi, '')
-    .replace(/\\s+Mais\\s+de\\s+[0-9.]+(?:[.,][0-9]+)?\\s*(?:mil|k)?\\s+produtos?\\.?/gi, '')
-    .replace(/\\s+[0-9]+(?:[.,][0-9]+)?\\s*\\|\\s*\\+[0-9.]+(?:[.,][0-9]+)?\\s*(?:mil|k)?\\s+vendidos.*$/i, '')
-    .replace(/\\s+por\\s+[^|]+?(?=\\s+[0-9]+(?:[.,][0-9]+)?\\s*\\|\\s*\\+)/i, '')
-    .replace(/\\s{2,}/g, ' ')
+    .replace(/\s+por\s+Pok[eé]mon\s*$/i, '')
+    .replace(/\s+Classificação\b.*$/i, '')
+    .replace(/\s+Mais\s+de\s+[\d.,]+\s*(?:mil|k)?\s+produtos?\.?$/i, '')
+    .replace(/\s+/g, ' ')
     .trim();
 
   return title;
