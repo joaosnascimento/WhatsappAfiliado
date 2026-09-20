@@ -601,6 +601,8 @@ async function startServer() {
   app.delete('/api/publications/:id', async (req, res) => {
     const rows = await query<any>('SELECT id FROM publications WHERE id=$1 AND workspace_id=$2', [req.params.id, req.user!.workspaceId]);
     if (!rows[0]) return res.status(404).json({ error: 'Publicação não encontrada.' });
+    const current = await query<any>('SELECT status FROM publications WHERE id=$1 AND workspace_id=$2',[req.params.id,req.user!.workspaceId]);
+    if (current[0]?.status === 'PROCESSING') return res.status(409).json({error:'A publicação já está em processamento pelo worker e não pode ser cancelada com segurança neste momento.'});
     const result = await query("UPDATE publications SET status='CANCELLED',cancelled_at=NOW(),updated_at=NOW(),error='Cancelada pelo usuário.' WHERE id=$1 AND workspace_id=$2 AND status NOT IN ('SENT','CANCELLED') RETURNING id", [req.params.id, req.user!.workspaceId]);
     const cachedPub = store.publications.get(req.params.id);
     if (cachedPub) { cachedPub.status = 'CANCELLED'; cachedPub.error_message = 'Cancelada pelo usuário.'; }
@@ -910,9 +912,9 @@ async function startServer() {
     if (!destination || destination.workspace_id !== req.user!.workspaceId || destination.deleted_at) return res.status(404).json({error:'Destino não encontrado.'});
     destination.is_active = false;
     destination.deleted_at = new Date().toISOString();
-    if (persistentStoreEnabled) await query("UPDATE publications SET status='CANCELLED', error=COALESCE(error,'Destino removido pelo usuário.'), updated_at=NOW() WHERE workspace_id=$1 AND destination_id=$2 AND status IN ('DRAFT','QUEUED','PROCESSING','SCHEDULED','RETRYING')", [req.user!.workspaceId, destination.id]);
+    if (persistentStoreEnabled) await query("UPDATE publications SET status='CANCELLED', error=COALESCE(error,'Destino removido pelo usuário.'), updated_at=NOW() WHERE workspace_id=$1 AND destination_id=$2 AND status IN ('DRAFT','QUEUED','SCHEDULED','RETRYING')", [req.user!.workspaceId, destination.id]);
     for (const publication of store.publications.values() as Iterable<any>) {
-      if (publication.workspace_id === req.user!.workspaceId && publication.destination_id === destination.id && ['DRAFT','QUEUED','PROCESSING','SCHEDULED','RETRYING'].includes(publication.status)) {
+      if (publication.workspace_id === req.user!.workspaceId && publication.destination_id === destination.id && ['DRAFT','QUEUED','SCHEDULED','RETRYING'].includes(publication.status)) {
         publication.status='CANCELLED';
         publication.error_message='Destino removido pelo usuário.';
       }
