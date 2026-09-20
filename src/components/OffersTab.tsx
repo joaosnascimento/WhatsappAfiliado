@@ -12,6 +12,7 @@ import {
   ShieldAlert,
   ArrowRight,
   TrendingDown,
+  Plus,
 } from 'lucide-react';
 import type { Offer, Destination, MarketplaceType } from '../types/affiliate.ts';
 
@@ -42,6 +43,10 @@ export const OffersTab: React.FC<OffersTabProps> = ({
   const [isSearchingLive, setIsSearchingLive] = useState(false);
   const [liveSearchMarketplace, setLiveSearchMarketplace] = useState<MarketplaceType>('SHOPEE');
   const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [mlUrl, setMlUrl] = useState('');
+  const [mlTitle, setMlTitle] = useState('');
+  const [mlPrice, setMlPrice] = useState('');
+  const [mlBusy, setMlBusy] = useState(false);
 
   // Filter offers locally
   const filteredOffers = offers.filter((offer) => {
@@ -71,6 +76,20 @@ export const OffersTab: React.FC<OffersTabProps> = ({
     } finally {
       setIsSearchingLive(false);
     }
+  };
+
+
+  const handleAddMercadoLivre = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mlUrl.trim()) return;
+    setMlBusy(true);
+    try {
+      const res = await fetch('/api/offers/manual-mercadolivre', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ originalUrl:mlUrl.trim(), title:mlTitle.trim(), price:mlPrice ? Number(mlPrice) : 0 }) });
+      const data = await res.json().catch(()=>({}));
+      if (!res.ok) throw new Error(data.error || 'Não foi possível adicionar a oferta.');
+      setMlUrl(''); setMlTitle(''); setMlPrice('');
+      window.location.reload();
+    } catch (err) { alert((err as Error).message); } finally { setMlBusy(false); }
   };
 
   const handlePublishClick = async (offer: Offer) => {
@@ -113,7 +132,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
               className="bg-slate-800 border border-slate-700 text-xs font-semibold text-white rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"
             >
               <option value="SHOPEE">Shopee Open API</option>
-              <option value="MERCADOLIVRE">Mercado Livre (MLB)</option>
+              
             </select>
 
             <div className="relative">
@@ -193,6 +212,19 @@ export const OffersTab: React.FC<OffersTabProps> = ({
         </div>
       </div>
 
+
+      <div className="bg-slate-900 border border-emerald-500/20 rounded-2xl p-5 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-end gap-4">
+          <div className="flex-1"><h3 className="text-sm font-bold text-white">Mercado Livre — adicionar oferta</h3><p className="text-xs text-slate-400 mt-1">Cole o link do anúncio. Depois use <b className="text-emerald-400">Gerar / Associar Link de Afiliado</b> para vincular o link oficial.</p></div>
+          <form onSubmit={handleAddMercadoLivre} className="flex flex-wrap gap-2 lg:max-w-3xl lg:flex-1">
+            <input value={mlUrl} onChange={e=>setMlUrl(e.target.value)} placeholder="https://www.mercadolivre.com.br/..." className="flex-1 min-w-[280px] bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" required />
+            <input value={mlTitle} onChange={e=>setMlTitle(e.target.value)} placeholder="Nome (opcional)" className="w-44 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+            <input value={mlPrice} onChange={e=>setMlPrice(e.target.value)} placeholder="Preço" type="number" min="0" step="0.01" className="w-28 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+            <button disabled={mlBusy} className="px-4 py-2 bg-emerald-500 text-slate-950 font-bold text-xs rounded-xl disabled:opacity-50"><Plus className="w-3.5 h-3.5 inline mr-1"/>{mlBusy?'Adicionando...':'Adicionar oferta'}</button>
+          </form>
+        </div>
+      </div>
+
       {/* Offer Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filteredOffers.map((offer) => {
@@ -222,7 +254,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
                         : 'bg-yellow-500/15 text-yellow-300 border border-yellow-500/30'
                     }`}
                   >
-                    {isShopee ? '🟠 Shopee BR' : '🟡 Mercado Livre'}
+                    {isShopee ? 'Shopee BR' : 'Mercado Livre'}
                   </span>
 
                   {/* Status Badge */}
