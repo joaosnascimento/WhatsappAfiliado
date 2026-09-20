@@ -851,6 +851,7 @@ async function startServer() {
       ...(body.priority !== undefined ? {priority:body.priority} : {}),
       ...(body.is_active !== undefined ? {is_active:Boolean(body.is_active)} : {}),
     });
+    if (persistentStoreEnabled) await store.persist(req.user!.workspaceId);
     res.json(destination);
   });
 
@@ -858,6 +859,7 @@ async function startServer() {
     const destination = store.destinations.get(req.params.id);
     if (!destination || destination.workspace_id !== req.user!.workspaceId || destination.deleted_at) return res.status(404).json({error:'Destino não encontrado.'});
     destination.is_active = !destination.is_active;
+    if (persistentStoreEnabled) await store.persist(req.user!.workspaceId);
     res.json({success:true,destination});
   });
 
@@ -873,6 +875,7 @@ async function startServer() {
         publication.error_message='Destino removido pelo usuário.';
       }
     }
+    if (persistentStoreEnabled) await store.persist(req.user!.workspaceId);
     res.json({success:true,deleted:true,id:destination.id});
   });
 
@@ -906,6 +909,7 @@ async function startServer() {
     };
 
     store.destinations.set(destination.id, destination);
+    if (persistentStoreEnabled) await store.persist(req.user!.workspaceId);
     res.json(destination);
   });
 
@@ -996,6 +1000,7 @@ async function startServer() {
         if(!group) return res.status(404).json({error:'Grupo não encontrado na instância Evolution.'});
         d.identifier=remoteJid;
         d.name=d.name || group.subject || remoteJid;
+        if (persistentStoreEnabled) await store.persist(req.user!.workspaceId);
       }
       res.json({success:true,groups,destinations:Array.from(store.destinations.values())});
     } catch(err) { res.status(503).json({error:(err as Error).message}); }
