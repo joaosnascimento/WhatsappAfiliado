@@ -9,15 +9,28 @@ type WorkspaceState = { offers?: Offer[] };
 
 import { zonedMinutes, isInsideWindow } from './TimezoneService.ts';
 
+function normalizeTags(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String).map(v => v.trim().toLowerCase()).filter(Boolean);
+  if (typeof value === 'string') return value.split(/[,;|]/).map(v => v.trim().toLowerCase()).filter(Boolean);
+  return [];
+}
+
 function matchesDestination(offer: Offer, destination: Destination): boolean {
   if (destination.marketplaces.length && !destination.marketplaces.includes(offer.marketplace)) return false;
-  const haystack = [
-    offer.product.title,
-    offer.product.category || '',
-    ...(offer.product.metadata ? Object.values(offer.product.metadata).map(String) : []),
-  ].join(' ').toLowerCase();
-  if (destination.categories.length && !destination.categories.some(c => haystack.includes(c.toLowerCase()))) return false;
-  if (destination.keywords.length && !destination.keywords.some(k => haystack.includes(k.toLowerCase()))) return false;
+
+  const metadata = offer.product.metadata || {};
+  const offerTags = new Set([
+    ...normalizeTags(metadata.tags),
+    ...normalizeTags(metadata.tag),
+    ...normalizeTags(metadata.keywords),
+    ...normalizeTags(offer.product.category),
+  ]);
+  const configuredTags = [...(destination.tags || []), ...(destination.keywords || []), ...(destination.categories || [])]
+    .flatMap(normalizeTags);
+
+  // If a group has tags configured, at least one tag must match the offer.
+  // This is the routing rule that lets each WhatsApp group receive different content.
+  if (configuredTags.length && !configuredTags.some(tag => offerTags.has(tag))) return false;
   return true;
 }
 
@@ -56,6 +69,7 @@ export class AutomationScheduler {
             categories: config.categories || [],
             marketplaces: config.marketplaces || [],
             keywords: config.keywords || [],
+            tags: config.tags || config.keywords || [],
             frequency_minutes: Number(config.frequency_minutes || 60),
             time_start: config.time_start || '08:00',
             time_end: config.time_end || '22:00',
@@ -71,7 +85,6 @@ export class AutomationScheduler {
 
           const eligible = offers
             .filter((o: Offer) => (o.status === 'AFFILIATE_LINK_READY' || o.status === 'READY_TO_PUBLISH') && o.affiliate_url)
-            .filter((o: Offer) => o.product?.metadata?.historical_deal_verified === true)
             .filter((o: Offer) => matchesDestination(o, destination))
             .sort((a: Offer, b: Offer) => b.score - a.score);
 
