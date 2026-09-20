@@ -42,7 +42,7 @@ export const DocsTab: React.FC<DocsTabProps> = ({
             id="btn-run-unit-tests"
             onClick={onRunTests}
             disabled={isRunningTests}
-            className="px-5 py-2.5 bg-brand-500 hover:bg-brand-400 text-slate-950 font-bold text-sm rounded-md transition flex items-center gap-2 cursor-pointer shrink-0 disabled:opacity-50"
+            className="px-5 py-2.5 bg-brand-500 hover:bg-brand-400 text-bg font-bold text-sm rounded-md transition flex items-center gap-2 cursor-pointer shrink-0 disabled:opacity-50"
           >
             <Play className={`w-3.5 h-3.5 ${isRunningTests ? 'animate-spin' : ''}`} />
             {isRunningTests ? 'Executando Testes...' : 'Executar Suíte de Testes'}
@@ -76,7 +76,7 @@ export const DocsTab: React.FC<DocsTabProps> = ({
                     <XCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
                   )}
                   <div className="flex-1">
-                    <span className={res.success ? 'text-slate-200' : 'text-rose-300 font-semibold'}>
+                    <span className={res.success ? 'text-text' : 'text-rose-300 font-semibold'}>
                       {res.name}
                     </span>
                     {res.error && <p className="text-sm text-rose-400 mt-0.5 font-mono">{res.error}</p>}
@@ -113,7 +113,7 @@ export const DocsTab: React.FC<DocsTabProps> = ({
               onClick={() => setDocMarketplace('MERCADOLIVRE')}
               className={`px-3 py-1 text-sm font-semibold rounded-lg transition cursor-pointer ${
                 docMarketplace === 'MERCADOLIVRE'
-                  ? 'bg-yellow-500 text-slate-950 shadow'
+                  ? 'bg-yellow-500 text-bg shadow'
                   : 'text-muted hover:text-text'
               }`}
             >
@@ -148,11 +148,11 @@ export const DocsTab: React.FC<DocsTabProps> = ({
               A mutation <code className="text-text">generateShortLink</code> recebe a URL original e até 5 SubIds alfanuméricos:
             </p>
             <ul className="list-disc pl-5 space-y-1 text-muted">
-              <li><strong className="text-slate-200">subId[0]:</strong> Canal ('whatsapp')</li>
-              <li><strong className="text-slate-200">subId[1]:</strong> Identificador do grupo/destino</li>
-              <li><strong className="text-slate-200">subId[2]:</strong> Campanha ou tema</li>
-              <li><strong className="text-slate-200">subId[3]:</strong> Categoria do produto</li>
-              <li><strong className="text-slate-200">subId[4]:</strong> Identificador da execução</li>
+              <li><strong className="text-text">subId[0]:</strong> Canal ('whatsapp')</li>
+              <li><strong className="text-text">subId[1]:</strong> Identificador do grupo/destino</li>
+              <li><strong className="text-text">subId[2]:</strong> Campanha ou tema</li>
+              <li><strong className="text-text">subId[3]:</strong> Categoria do produto</li>
+              <li><strong className="text-text">subId[4]:</strong> Identificador da execução</li>
             </ul>
           </div>
         ) : (
