@@ -19,7 +19,7 @@ function zonedMinutes(now: Date, timezone: string): { minutes:number; dateKey:st
   return { minutes:Number(get('hour'))*60+Number(get('minute')), dateKey:`${get('year')}-${get('month')}-${get('day')}` };
 }
 
-function isInsideWindow(now: Date, start: string, end: string, timezone: string): boolean {
+export function isInsideWindow(now: Date, start: string, end: string, timezone: string): boolean {
   const current = zonedMinutes(now,timezone).minutes;
   const from = parseTime(start, 0);
   const to = parseTime(end, 23 * 60 + 59);
