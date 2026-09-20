@@ -17,15 +17,7 @@ const empty = { productsFound:0, affiliateLinksReady:0, publications:0, clicksTr
 export const DashboardTab: React.FC<DashboardTabProps> = ({ reports, onNavigateToOffers, onNavigateToAffiliates }) => {
   const [loading,setLoading]=useState(true);
   useEffect(()=>{const t=window.setTimeout(()=>setLoading(false),350);return()=>window.clearTimeout(t)},[]);
-  if (loading && reports===null) {
-    return (
-      <div className="mx-auto max-w-6xl space-y-6" aria-busy="true">
-        <div className="h-40 rounded-lg bg-surface-1 animate-pulse"/>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{Array.from({length:4}).map((_,i)=><div key={i} className="h-28 rounded-lg bg-surface-1 animate-pulse"/>)}</div>
-        <div className="h-64 rounded-lg bg-surface-1 animate-pulse"/>
-      </div>
-    );
-  }
+  if(loading && reports===null) return <div className="mx-auto max-w-6xl space-y-6" aria-busy="true"><div className="h-40 rounded-lg bg-surface-1 animate-pulse"/><div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{Array.from({length:4}).map((_,i)=><div key={i} className="h-28 rounded-lg bg-surface-1 animate-pulse"/></div><div className="h-64 rounded-lg bg-surface-1 animate-pulse"/></div>;
   const shopee = reports?.shopee || empty;
   const ml = reports?.mercadolivre || empty;
   const totalOffers = shopee.productsFound + ml.productsFound;
