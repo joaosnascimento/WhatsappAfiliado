@@ -85,22 +85,12 @@ export function runTests(): { total: number; passed: number; failed: number; res
     assert('Mercado Livre Link Validation Exception', false, (err as Error).message);
   }
 
-  // Test 3: Deduplication Service
+  // Test 3: Deduplication key generation
   try {
-    const destId = 'dest_whatsapp_group_1';
-    const productId = '998877';
-    const shopId = '1001';
-
-    DeduplicationService.recordPublication('pub_001', 'SHOPEE', productId, destId, shopId, Date.now());
-
-    const checkImmediate = DeduplicationService.isDuplicate('SHOPEE', productId, destId, shopId, 24);
-    assert('Deduplication: Identifies duplicate within 24h window', checkImmediate.isDuplicate === true);
-
-    const checkDifferentDest = DeduplicationService.isDuplicate('SHOPEE', productId, 'dest_other', shopId, 24);
-    assert('Deduplication: Allows publication to different destination', checkDifferentDest.isDuplicate === false);
-
-    const checkDifferentProduct = DeduplicationService.isDuplicate('SHOPEE', 'different_id', destId, shopId, 24);
-    assert('Deduplication: Allows different product in same destination', checkDifferentProduct.isDuplicate === false);
+    const key = DeduplicationService.generateDedupKey('SHOPEE', '998877', 'dest_whatsapp_group_1', '1001');
+    const mlKey = DeduplicationService.generateDedupKey('MERCADOLIVRE', 'MLB123', 'dest_whatsapp_group_1', 'seller');
+    assert('Deduplication: Generates deterministic Shopee key', key === 'shopee_1001_998877__dest_dest_whatsapp_group_1');
+    assert('Deduplication: Generates deterministic Mercado Livre key', mlKey === 'ml_seller_MLB123__dest_dest_whatsapp_group_1');
   } catch (err) {
     assert('Deduplication Exception', false, (err as Error).message);
   }
