@@ -152,7 +152,7 @@ export class MarketplaceDiscoveryScheduler {
             const previousPrices = previousHistory.map((item: PriceObservation) => item.price).filter((price: number) => price > 0);
             const previousLowest = previousPrices.length ? Math.min(...previousPrices) : undefined;
             const displayedDiscount = Number(product.discount || 0);
-            const historicalDeal = previousLowest !== undefined && product.price > 0 && product.price <= previousLowest && displayedDiscount >= minRealDiscount;
+            const historicalDeal = previousLowest !== undefined && product.price > 0 && product.price < previousLowest && displayedDiscount >= minRealDiscount;
             state.price_history[historyKey] = [...previousHistory, { price: product.price, observed_at: nowIso }].sort((a, b) => new Date(a.observed_at).getTime() - new Date(b.observed_at).getTime()).slice(-100);
             const dealMetadata = { ...(product.metadata || {}), historical_deal_verified: historicalDeal, historical_lowest_price: previousLowest, historical_price_days: historyDays, real_deal_min_discount: minRealDiscount, price_history_observations: previousPrices.length };
             product.metadata = dealMetadata;
