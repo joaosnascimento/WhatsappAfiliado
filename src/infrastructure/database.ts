@@ -1,4 +1,4 @@
-import { Pool, type PoolClient } from 'pg';
+import { Pool, type PoolClient, type QueryResultRow } from 'pg';
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -12,7 +12,7 @@ export const pool = new Pool({
   } : undefined,
 });
 
-export async function query<T = any>(text: string, values: unknown[] = []) {
+export async function query<T extends QueryResultRow = any>(text: string, values: unknown[] = []) {
   const result = await pool.query<T>(text, values);
   return result.rows;
 }
