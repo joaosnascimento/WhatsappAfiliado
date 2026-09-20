@@ -81,13 +81,21 @@ async function startServer() {
   app.use('/api', redisRateLimit({ windowSeconds: 60, max: Number(process.env.API_RATE_LIMIT_MAX || 120), prefix: 'api' }));
   const PORT = Number(process.env.PORT || 3000);
 
-  app.post('/api/auth/register', redisRateLimit({ windowSeconds: 900, max: 5, prefix: 'register' }), async (req, res) => {
+  // Authentication must be isolated from the normal API quota. Bulk actions such
+  // as deleting many offers can legitimately consume API requests and must never
+  // make the login endpoint unavailable for the same browser/IP.
+  const authRateLimitKey = (req: express.Request) => {
+    const email = String(req.body?.email || '').trim().toLowerCase().slice(0, 254);
+    return `${req.ip || 'unknown'}:${email || 'anonymous'}`;
+  };
+
+  app.post('/api/auth/register', redisRateLimit({ windowSeconds: 900, max: 5, prefix: 'register', key: authRateLimitKey }), async (req, res) => {
     if (!persistentStoreEnabled) return res.status(503).json({ error: 'Persistent storage is required for authentication.' });
     try { const user = await registerUser(String(req.body.email || ''), String(req.body.password || '')); res.status(201).json({ success:true, user }); }
     catch (error) { void recordSecurityEvent({eventType:'REGISTER_FAILURE',severity:'MEDIUM',ip:req.ip,userAgent:req.get('user-agent')||undefined,path:req.path}); res.status(400).json({ error:'Não foi possível criar a conta.' }); }
   });
 
-  app.post('/api/auth/login', redisRateLimit({ windowSeconds: 900, max: 10, prefix: 'login' }), async (req, res) => {
+  app.post('/api/auth/login', redisRateLimit({ windowSeconds: 900, max: 15, prefix: 'login', key: authRateLimitKey }), async (req, res) => {
     if (!persistentStoreEnabled) return res.status(503).json({ error: 'Persistent storage is required for authentication.' });
     const user = await authenticateUser(String(req.body.email || ''), String(req.body.password || ''));
     if (!user) { void recordSecurityEvent({eventType:'LOGIN_FAILURE',severity:'MEDIUM',ip:req.ip,userAgent:req.get('user-agent')||undefined,path:req.path}); return res.status(401).json({ error:'Credenciais inválidas.' }); }
