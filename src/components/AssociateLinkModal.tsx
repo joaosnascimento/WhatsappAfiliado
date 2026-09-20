@@ -71,7 +71,7 @@ export const AssociateLinkModal: React.FC<AssociateLinkModalProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-yellow-500/20 text-yellow-400 flex items-center justify-center font-bold">
-              🟡
+              ML
             </div>
             <div>
               <h3 className="font-bold text-white text-base">
