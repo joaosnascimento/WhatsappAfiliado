@@ -240,7 +240,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
           const isShopee = offer.marketplace === 'SHOPEE';
           const isReady = offer.status === 'AFFILIATE_LINK_READY' || offer.status === 'READY_TO_PUBLISH';
           const isPublished = offer.status === 'PUBLISHED';
-          const needsLinkAssociation = false;
+          const needsLinkAssociation = offer.marketplace === 'MERCADOLIVRE' && !offer.affiliate_url;
 
           return (
             <div
@@ -358,27 +358,32 @@ export const OffersTab: React.FC<OffersTabProps> = ({
               {/* Card Footer Actions */}
               <div className="p-4 pt-0 border-t border-border/80 mt-2 space-y-2">
                 <div className="grid grid-cols-2 gap-2 pt-2">
-                  {/* If ML needs link association */}
-                  {offer.marketplace === 'MERCADOLIVRE' && !isReady && (
-                    <div className="col-span-2 py-2 text-center text-sm text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-md">
-                      {offer.status_reason || 'A oferta está no pipeline automático e será publicada assim que o link de afiliado estiver pronto.'}
+                  {/* ML link recovery: automatic generation remains the default, but manual official-link input is always available as a contingency. */}
+                  {needsLinkAssociation && (
+                    <div className="col-span-2 space-y-2">
+                      <div className="py-2 text-center text-sm text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-md">
+                        {offer.status_reason || 'A geração automática do link está pendente. Você pode inserir um link oficial manualmente sem interromper o pipeline.'}
+                      </div>
+                      <button
+                        id={`btn-associate-ml-link-${offer.id}`}
+                        type="button"
+                        onClick={() => onOpenAssociateModal(offer)}
+                        className="w-full py-2 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/30 text-yellow-300 font-semibold text-sm rounded-md transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Link2 className="w-3.5 h-3.5" />
+                        Inserir link de afiliado
+                      </button>
                     </div>
                   )}
-                  {(
 
-                    <>
-                      <button
-                        id={`btn-open-ai-modal-${offer.id}`}
-                        onClick={() => onOpenAiMessageModal(offer)}
-                        className="py-2 bg-surface-2 hover:bg-surface-3 border-border-strong text-text font-medium text-sm rounded-md border border-border-strong transition flex items-center justify-center gap-1 cursor-pointer"
-                      >
-                        <Sparkles className="w-3.5 h-3.5 text-brand-300" />
-                        Mensagem IA
-                      </button>
-
-
-                    </>
-                  )}
+                  <button
+                    id={`btn-open-ai-modal-${offer.id}`}
+                    onClick={() => onOpenAiMessageModal(offer)}
+                    className="py-2 bg-surface-2 hover:bg-surface-3 border-border-strong text-text font-medium text-sm rounded-md border border-border-strong transition flex items-center justify-center gap-1 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-brand-300" />
+                    Mensagem IA
+                  </button>
                 <button
                   type="button"
                   onClick={() => void handleDeleteOffer(offer)}
