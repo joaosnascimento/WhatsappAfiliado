@@ -9,9 +9,12 @@ type WorkspaceState = { offers?: Offer[] };
 
 import { zonedMinutes, isInsideWindow } from './TimezoneService.ts';
 
+function normalizeTag(value: string): string {
+  return value.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim().toLowerCase();
+}
 function normalizeTags(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map(String).map(v => v.trim().toLowerCase()).filter(Boolean);
-  if (typeof value === 'string') return value.split(/[,;|]/).map(v => v.trim().toLowerCase()).filter(Boolean);
+  if (Array.isArray(value)) return value.map(String).map(normalizeTag).filter(Boolean);
+  if (typeof value === 'string') return value.split(/[,;|]/).map(normalizeTag).filter(Boolean);
   return [];
 }
 
@@ -19,18 +22,17 @@ function matchesDestination(offer: Offer, destination: Destination): boolean {
   if (destination.marketplaces.length && !destination.marketplaces.includes(offer.marketplace)) return false;
 
   const metadata = offer.product.metadata || {};
-  const offerTags = new Set([
-    ...normalizeTags(metadata.tags),
-    ...normalizeTags(metadata.tag),
-    ...normalizeTags(metadata.keywords),
-    ...normalizeTags(offer.product.category),
-  ]);
+  const searchableText = normalizeTag([
+    offer.product.title,
+    offer.product.category || '',
+    ...Object.values(metadata).map(String),
+  ].join(' '));
   const configuredTags = [...(destination.tags || []), ...(destination.keywords || []), ...(destination.categories || [])]
     .flatMap(normalizeTags);
 
   // If a group has tags configured, at least one tag must match the offer.
-  // This is the routing rule that lets each WhatsApp group receive different content.
-  if (configuredTags.length && !configuredTags.some(tag => offerTags.has(tag))) return false;
+  // Matching is accent-insensitive and works against product title/category/metadata.
+  if (configuredTags.length && !configuredTags.some(tag => searchableText.includes(tag))) return false;
   return true;
 }
 
