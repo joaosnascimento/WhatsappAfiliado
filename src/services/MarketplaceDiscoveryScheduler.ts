@@ -115,7 +115,7 @@ export class MarketplaceDiscoveryScheduler {
               products = await MercadoLivreOfficialSessionProvider.discover(mlAccount, job.keyword, 10);
               for (const product of products) {
                 try {
-                  const link = await MercadoLivreOfficialSessionProvider.generateLink(mlAccount, product.original_url, ['whatsapp', 'auto']);
+                  const link = await MercadoLivreOfficialSessionProvider.generateLink(mlAccount, product.original_url);
                   product.affiliate_url = link;
                   state.links.push({
                     id: `link_ml_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -125,7 +125,7 @@ export class MarketplaceDiscoveryScheduler {
                     original_url: product.original_url,
                     affiliate_url: link,
                     short_url: link,
-                    tracking_data: { sub_ids: ['whatsapp', 'auto'], source: 'mercadolivre_official_browser' },
+                    tracking_data: { source: 'mercadolivre_official_browser' },
                     created_at: new Date().toISOString(),
                   });
                 } catch (error) {
