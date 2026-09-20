@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
+import { createHash } from 'crypto';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -154,6 +155,30 @@ async function startServer() {
     } catch (err) { res.status(500).json({error:(err as Error).message}); }
   });
 
+  app.post('/webhooks/evolution/:workspaceId', redisRateLimit({windowSeconds:60,max:120,prefix:'evolution-webhook'}), async (req,res) => {
+    try {
+      const secret=process.env.EVOLUTION_WEBHOOK_SECRET || '';
+      const supplied=String(req.get('x-evolution-webhook-secret') || req.get('apikey') || '');
+      if (!secret || supplied !== secret) return res.status(401).json({error:'Webhook não autorizado.'});
+      const workspaceId=String(req.params.workspaceId || '');
+      if (!/^[A-Za-z0-9_-]{1,128}$/.test(workspaceId)) return res.status(400).json({error:'Workspace inválido.'});
+      const settings=await WhatsAppSettingsService.get(workspaceId);
+      const instance=String(req.body?.instance || req.body?.instanceName || req.body?.data?.instance || '');
+      if (!instance || instance !== settings.evolutionInstance) return res.status(404).json({received:true,matched:false});
+      const event=String(req.body?.event || req.body?.type || '').toUpperCase().replace(/\\./g,'_');
+      const state=String(req.body?.data?.state || req.body?.data?.status || req.body?.state || '').toLowerCase();
+      if (event === 'CONNECTION_UPDATE' || event === 'CONNECTIONUPDATE') {
+        const mapped = state === 'open' ? 'CONNECTED' : state === 'connecting' ? 'CONNECTING' : ['close','closed','disconnected'].includes(state) ? 'DISCONNECTED' : state === 'logout' ? 'LOGGED_OUT' : 'UNKNOWN';
+        await WhatsAppSettingsService.updateRuntimeState(workspaceId,mapped as any, mapped === 'UNKNOWN' ? 'Estado Evolution não reconhecido.' : undefined);
+      } else if (event === 'QRCODE_UPDATED' || event === 'QRCODEUPDATED') {
+        await WhatsAppSettingsService.updateRuntimeState(workspaceId,'QR_REQUIRED');
+      }
+      const eventId=String(req.body?.id || req.body?.eventId || req.body?.data?.id || createHash('sha256').update(JSON.stringify(req.body)).digest('hex'));
+      try { await query('INSERT INTO processed_webhooks(workspace_id,event_id,marketplace) VALUES($1,$2,\'EVOLUTION\') ON CONFLICT DO NOTHING',[workspaceId,eventId]); } catch {}
+      res.status(200).json({received:true,instance,event,state});
+    } catch (error) { res.status(500).json({error:(error as Error).message}); }
+  });
+
   app.get('/api/security/events', requireAuth, workspaceContext, redisRateLimit({windowSeconds:60,max:30,prefix:'security-events'}), async (req,res) => {
     try {
       const rows = await query<any>(
@@ -166,7 +191,7 @@ async function startServer() {
     }
   });
 
-  app.get('/api/automation/status', async (req,res) => {
+  app.get('/api/automation/status', requireAuth, workspaceContext, async (req,res) => {
     try {
       const rows=await query<any>('SELECT COALESCE(automation_enabled,true) AS automation_enabled FROM workspaces WHERE id=$1',[req.user!.workspaceId]);
       if(!rows[0]) return res.status(404).json({error:'Workspace não encontrado.'});
@@ -174,7 +199,7 @@ async function startServer() {
     } catch(error) { res.status(500).json({error:(error as Error).message}); }
   });
 
-  app.post('/api/automation/toggle', async (req,res) => {
+  app.post('/api/automation/toggle', requireAuth, workspaceContext, async (req,res) => {
     try {
       const enabled=Boolean(req.body?.enabled);
       const rows=await query<any>('UPDATE workspaces SET automation_enabled=$2 WHERE id=$1 RETURNING automation_enabled',[req.user!.workspaceId,enabled]);
