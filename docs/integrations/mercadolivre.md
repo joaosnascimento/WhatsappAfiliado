@@ -1,25 +1,36 @@
-# Mercado Livre Brasil
+# Mercado Livre — automação pelo navegador
 
-## Fluxo funcional
+O WhatsappAfiliado usa o Portal de Afiliados do Mercado Livre por meio de um navegador Chromium automatizado. O fluxo oficial documentado pelo Mercado Livre é abrir o Gerador de Links, informar a URL de um produto, gerar o link e divulgá-lo.
 
-O sistema não usa DevCenter OAuth nem depende da API de Catálogo MLB.
+## Fluxo automático
 
-O fluxo suportado é:
-
-1. Adicione uma oferta em **Ofertas → Mercado Livre — adicionar oferta** colando a URL do anúncio.
-2. Na oferta criada, clique em **Gerar / Associar Link de Afiliado**.
-3. Abra o gerador oficial do Mercado Livre.
-4. Gere o link de afiliado.
-5. Volte ao WhatsappAfiliado e cole o link.
-6. O backend valida o domínio e associa o link à oferta.
-7. Somente ofertas com status AFFILIATE_LINK_READY podem ser publicadas no WhatsApp.
-
-O sistema não armazena cookies, senhas ou sessões do Mercado Livre e não chama endpoints internos não documentados para gerar links.
+1. O usuário clica em **Conectar Mercado Livre**.
+2. O WhatsappAfiliado abre um Chromium isolado.
+3. O usuário faz login normalmente no Mercado Livre.
+4. A sessão autenticada é capturada e armazenada de forma protegida no registro da conta.
+5. O scheduler usa as palavras-chave configuradas nos destinos.
+6. O navegador pesquisa produtos no Mercado Livre.
+7. Para cada produto elegível, o navegador abre o Gerador de Links e informa a URL.
+8. O link afiliado retornado é validado e salvo.
+9. A oferta entra no pipeline: IA → deduplicação → fila → WhatsApp.
+10. Se a sessão expirar ou o portal mudar, a oferta não é publicada sem link afiliado válido e a conta passa para reconexão.
 
 ## Segurança
 
-Links comuns não são publicados como links de afiliado. O endpoint de associação aceita somente URLs HTTPS do Mercado Livre, com preferência por links meli.la.
+- Senha nunca é coletada pelo WhatsappAfiliado.
+- A sessão não é colocada em .env.
+- O estado da sessão fica dentro de credentials_encrypted, cifrado pelo repositório persistente.
+- O sistema salva o link afiliado, não a senha.
+- Não há dependência do OAuth DevCenter nem da API de catálogo para a geração do link.
 
-## Automação
+## Requisitos locais
 
-Depois que o link oficial é associado, a geração da mensagem por IA, deduplicação e fila de publicação continuam automáticas.
+O projeto usa Playwright para controlar Chromium. Depois de instalar as dependências:
+
+`npm run browser:install`
+
+Em servidor sem interface gráfica, o processo usa Chromium headless para manutenção e geração. A primeira autenticação precisa ocorrer em ambiente com navegador visível ou usando uma sessão previamente autenticada.
+
+## Resiliência
+
+O provider possui seletores alternativos para o campo de URL e o botão de geração. Se o Portal mudar, o sistema falha fechado: nenhuma oferta sem link afiliado confirmado segue para publicação.
