@@ -1,4 +1,5 @@
 import React,{useEffect,useState} from 'react';
+import { useToast } from './ui/Toast.tsx';
 import { Send, CheckCircle2, Clock, XCircle, Users, ExternalLink, ShieldCheck, Trash2, RefreshCw } from 'lucide-react';
 import type { Publication } from '../types/affiliate.ts';
 
@@ -15,8 +16,22 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({
   onDelete,
   onRetry,
 }) => {
+  const toast=useToast();
   const [initialLoading,setInitialLoading]=useState(true);
+  const [busyAction,setBusyAction]=useState<string | null>(null);
   useEffect(()=>{const t=window.setTimeout(()=>setInitialLoading(false),300);return()=>window.clearTimeout(t)},[]);
+  const runAction = async (key: string, action: () => Promise<void>, successTitle: string) => {
+    setBusyAction(key);
+    try {
+      await action();
+      toast('success', successTitle, 'A fila foi atualizada.');
+    } catch (error) {
+      toast('error', 'Ação não concluída', error instanceof Error ? error.message : 'Não foi possível concluir a ação.');
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
   if(initialLoading) return <div className="space-y-6" aria-busy="true"><div className="h-28 rounded-lg bg-surface-1 animate-pulse"/><div className="grid gap-5 md:grid-cols-2">{Array.from({length:4}).map((_,i)=><div key={i} className="h-64 rounded-lg bg-surface-1 animate-pulse"/>)}</div></div>;
   return (
     <div className="space-y-6">
@@ -94,12 +109,26 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({
                 </div>
               </div>
 
+              {isQueued && (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    disabled={busyAction !== null}
+                    onClick={() => void runAction(pub.id + ':send', () => onTriggerSend(pub.id), 'Envio solicitado')}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-2 text-sm font-semibold text-bg disabled:opacity-50"
+                  >
+                    <Send className={busyAction === pub.id + ':send' ? 'h-3.5 w-3.5 animate-pulse' : 'h-3.5 w-3.5'} />
+                    {busyAction === pub.id + ':send' ? 'Enviando...' : 'Enviar agora'}
+                  </button>
+                </div>
+              )}
+
               {isFailed && (
                 <div className="space-y-2">
                   <div className="text-sm text-rose-300">{pub.error_message || 'O envio falhou.'}</div>
                   <div className="flex justify-end gap-2">
-                    <button type="button" onClick={() => void onRetry(pub.id)} className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500/10 px-3 py-2 text-sm font-semibold text-brand-200 border border-brand-500/20"><RefreshCw className="h-3.5 w-3.5" /> Reenviar</button>
-                    <button type="button" onClick={() => void onDelete(pub.id)} className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/10 px-3 py-2 text-sm font-semibold text-rose-300 border border-rose-500/20"><Trash2 className="h-3.5 w-3.5" /> Excluir falha</button>
+                    <button type="button" disabled={busyAction !== null} onClick={() => void runAction(pub.id + ':retry', () => onRetry(pub.id), 'Reenvio solicitado')} className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500/10 px-3 py-2 text-sm font-semibold text-brand-200 border border-brand-500/20 disabled:opacity-50"><RefreshCw className={busyAction === pub.id + ':retry' ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} /> {busyAction === pub.id + ':retry' ? 'Reenviando...' : 'Reenviar'}</button>
+                    <button type="button" disabled={busyAction !== null} onClick={() => void runAction(pub.id + ':delete', () => onDelete(pub.id), 'Publicação excluída')} className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/10 px-3 py-2 text-sm font-semibold text-rose-300 border border-rose-500/20 disabled:opacity-50"><Trash2 className="h-3.5 w-3.5" /> {busyAction === pub.id + ':delete' ? 'Excluindo...' : 'Excluir falha'}</button>
                   </div>
                 </div>
               )}
