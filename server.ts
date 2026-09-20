@@ -573,7 +573,7 @@ async function startServer() {
   });
 
   // 7. Rule 4: Associate Mercado Livre Affiliate Link
-  app.post('/api/offers/:id/associate-ml-link', (req, res) => {
+  app.post('/api/offers/:id/associate-ml-link', async (req, res) => {
     const offer = store.offers.get(req.params.id);
     if (!offer) {
       return res.status(404).json({ error: 'Oferta não encontrada.' });
