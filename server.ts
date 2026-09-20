@@ -9,6 +9,7 @@ import { store, runWithWorkspace, findMarketplaceAccount } from './src/services/
 import { runMigrations } from './src/infrastructure/migrations.ts';
 import { ensureWorkspace } from './src/infrastructure/workspace.ts';
 import { closeDatabase, query } from './src/infrastructure/database.ts';
+import { publicationQueue, enqueuePublication } from './src/infrastructure/queue.ts';
 import { redis } from './src/infrastructure/redis.ts';
 import { registerUser, authenticateUser, createSession, revokeSession } from './src/services/auth.ts';
 import { requireAuth } from './src/services/authMiddleware.ts';
@@ -549,7 +550,6 @@ async function startServer() {
     const rows = await query<any>('SELECT * FROM publications WHERE id=$1 AND workspace_id=$2', [req.params.id, req.user!.workspaceId]);
     if (!rows[0]) return res.status(404).json({ error: 'Publicação não encontrada.' });
     if (rows[0].status !== 'FAILED') return res.status(409).json({ error: 'Somente publicações com falha podem ser reenviadas.' });
-    const { enqueuePublication } = await import('./src/infrastructure/queue.ts');
     await query("UPDATE publications SET status='QUEUED', error=NULL WHERE id=$1", [rows[0].id]);
     try {
       await enqueuePublication({ publicationId: rows[0].id, destinationId: rows[0].destination_id, offerId: rows[0].offer_id, scheduledAt: rows[0].scheduled_at });
@@ -558,6 +558,52 @@ async function startServer() {
       return res.status(503).json({ error: 'Fila de publicação indisponível.' });
     }
     res.json({ success: true, status: 'QUEUED' });
+  });
+
+  // Send a queued/scheduled publication immediately through the same BullMQ + worker pipeline used by automation.
+  // This intentionally does not send WhatsApp from the HTTP request: the worker remains the single sender.
+  app.post('/api/publications/:id/send', async (req, res) => {
+    const rows = await query<any>('SELECT * FROM publications WHERE id=$1 AND workspace_id=$2', [req.params.id, req.user!.workspaceId]);
+    if (!rows[0]) return res.status(404).json({ error: 'Publicação não encontrada.' });
+    if (!['QUEUED', 'SCHEDULED'].includes(rows[0].status)) {
+      return res.status(409).json({ error: 'Somente publicações na fila ou agendadas podem ser enviadas agora.' });
+    }
+
+    const scheduledAt = new Date().toISOString();
+    const jobId = `publication:${rows[0].id}`;
+    try {
+      const existingJob = await publicationQueue.getJob(jobId);
+      if (existingJob) {
+        const state = await existingJob.getState();
+        if (state === 'active') return res.status(409).json({ error: 'A publicação já está sendo processada pelo worker.' });
+        await existingJob.remove();
+      }
+
+      await query("UPDATE publications SET status='QUEUED', scheduled_at=$2, error=NULL WHERE id=$1 AND workspace_id=$3", [rows[0].id, scheduledAt, req.user!.workspaceId]);
+      const queued = await enqueuePublication({
+        publicationId: rows[0].id,
+        destinationId: rows[0].destination_id,
+        offerId: rows[0].offer_id,
+        scheduledAt,
+      });
+
+      const cached = store.publications.get(rows[0].id);
+      if (cached) {
+        cached.status = 'QUEUED';
+        cached.scheduled_at = scheduledAt;
+        cached.error_message = undefined;
+      }
+      if (persistentStoreEnabled) await store.persist(req.user!.workspaceId);
+      return res.status(202).json({ success: true, queued: true, immediate: true, jobId: queued.id, scheduledAt });
+    } catch (error) {
+      await query("UPDATE publications SET status='FAILED', error=$2 WHERE id=$1 AND workspace_id=$3", [rows[0].id, (error as Error).message, req.user!.workspaceId]);
+      const cached = store.publications.get(rows[0].id);
+      if (cached) {
+        cached.status = 'FAILED';
+        cached.error_message = (error as Error).message;
+      }
+      return res.status(503).json({ error: 'Não foi possível colocar a publicação na fila para envio imediato.' });
+    }
   });
 
   // 8. Generate AI Message
