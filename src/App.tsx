@@ -183,7 +183,7 @@ export function App() {
     await loadData();
   };
 
-  const handleTestIntegration = async (marketplace: 'SHOPEE' | 'MERCADOLIVRE'): Promise<IntegrationTestResult> => {
+  const handleTestIntegration = async (marketplace: 'SHOPEE'): Promise<IntegrationTestResult> => {
     const res = await apiFetch(`/api/test-integration/${marketplace}`, { method:'POST' });
     if (!res.ok) { const err=await readJson(res); throw new Error(err.error||'Erro no diagnóstico'); }
     return readJson(res);
