@@ -68,7 +68,7 @@ export const SetupTab: React.FC<SetupTabProps> = ({ apiFetch, whatsappSettings, 
   const stateLabel=connected?'Conectado':status==='connecting'?'Aguardando leitura':configured?'Pronto para conectar':'Configuração necessária';
   const stateClass=connected?'text-emerald-300 bg-emerald-500/10 border-emerald-500/20':status==='connecting'?'text-amber-300 bg-amber-500/10 border-amber-500/20':'text-slate-300 bg-slate-800 border-slate-700';
 
-  return <div className="mx-auto max-w-5xl space-y-6">
+  return <div className="w-full space-y-6">
     {notice&&<div className="fixed right-5 top-20 z-50 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white shadow-2xl">{notice}</div>}
 
     <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -78,7 +78,7 @@ export const SetupTab: React.FC<SetupTabProps> = ({ apiFetch, whatsappSettings, 
 
     <div className={card+" p-6 sm:p-8"}>
       <div className="mb-7 flex items-start gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400"><MessageCircle className="h-5 w-5"/></div><div><h2 className="font-semibold text-white">1. Conecte o WhatsApp</h2><p className="mt-1 text-xs text-slate-400">Você só precisa fazer isso na primeira vez.</p></div></div>
-      <div className="grid gap-5 lg:grid-cols-[1fr_280px]">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="space-y-4">
           <div><label className="mb-1.5 block text-xs font-medium text-slate-300">Endereço da Evolution API</label><input value={url} onChange={e=>setUrl(e.target.value)} className={input} placeholder="http://localhost:8080"/><p className="mt-1.5 text-[11px] text-slate-500">Se você está usando a configuração local, deixe como está.</p></div>
           <div><label className="mb-1.5 block text-xs font-medium text-slate-300">Chave da API</label><input value={key} onChange={e=>setKey(e.target.value)} type="password" className={input} placeholder={configured?'Chave já salva — não precisa preencher novamente':'Cole sua chave da Evolution API'}/></div>
