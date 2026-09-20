@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useToast } from './ui/Toast.tsx';
 import {
   ShieldCheck,
   Key,
@@ -40,13 +41,13 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
   };
   const connectMl = async () => {
     setMlBusy(true);
-    try { const r = await apiFetch('/api/mercadolivre/connect', { method: 'POST' }); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Não foi possível conectar.'); setMlStatus(d); alert(d.message || 'Conexão iniciada.'); }
-    catch (e) { alert((e as Error).message); } finally { setMlBusy(false); }
+    try { const r = await apiFetch('/api/mercadolivre/connect', { method: 'POST' }); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Não foi possível conectar.'); setMlStatus(d); toast('success','Conexão iniciada',d.message || 'A conexão foi iniciada.'); }
+    catch (e) { toast('error','Falha na conexão',(e as Error).message); } finally { setMlBusy(false); }
   };
   const disconnectMl = async () => {
     setMlBusy(true);
     try { const r = await apiFetch('/api/mercadolivre/disconnect', { method: 'POST' }); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Não foi possível desconectar.'); setMlStatus(d); }
-    catch (e) { alert((e as Error).message); } finally { setMlBusy(false); }
+    catch (e) { toast('error','Falha ao configurar WhatsApp',(e as Error).message); } finally { setMlBusy(false); }
   };
 
   // Form states
@@ -72,9 +73,9 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
         shopee_app_id: shopeeAppId,
         shopee_secret: shopeeSecret || shopeeAcc?.credentials_encrypted?.shopee_secret || '',
       });
-      alert('Credenciais da Shopee Open API salvas com sucesso.');
+      toast('success','Credenciais salvas','As credenciais da Shopee foram atualizadas.');
     } catch (err) {
-      alert(`Erro ao salvar: ${(err as Error).message}`);
+      toast('error','Erro ao salvar',(err as Error).message);
     } finally {
       setIsSavingShopee(false);
     }
@@ -86,7 +87,7 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
       const result = await onTestIntegration(marketplace);
       setDiagnosticResult(result);
     } catch (err) {
-      alert(`Erro ao executar diagnóstico: ${(err as Error).message}`);
+      toast('error','Diagnóstico falhou',(err as Error).message);
     } finally {
       setTestingMarketplace(null);
     }
@@ -122,7 +123,7 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
         </div>
         <div className="flex gap-3">
           <input type="password" value={waKey} onChange={e=>setWaKey(e.target.value)} placeholder={whatsappSettings?.evolutionApiKey==='configured'?'Chave já configurada':'Evolution API Key'} className="flex-1 bg-surface-2 border border-border-strong rounded-md px-3 py-2 text-sm text-text" />
-          <button disabled={waSaving} onClick={async()=>{setWaSaving(true);try{await onSaveWhatsApp({provider:waProvider,evolutionApiUrl:waUrl,evolutionApiKey:waKey,evolutionInstance:waInstance});alert('WhatsApp configurado.')}catch(e){alert((e as Error).message)}finally{setWaSaving(false)}}} className="px-4 py-2 bg-brand-500 text-slate-950 rounded-md text-sm font-bold">{waSaving?'Salvando...':'Salvar WhatsApp'}</button>
+          <button disabled={waSaving} onClick={async()=>{setWaSaving(true);try{await onSaveWhatsApp({provider:waProvider,evolutionApiUrl:waUrl,evolutionApiKey:waKey,evolutionInstance:waInstance});toast('success','WhatsApp configurado','A configuração foi salva.')}catch(e){alert((e as Error).message)}finally{setWaSaving(false)}}} className="px-4 py-2 bg-brand-500 text-slate-950 rounded-md text-sm font-bold">{waSaving?'Salvando...':'Salvar WhatsApp'}</button>
         </div>
       </div>
 
