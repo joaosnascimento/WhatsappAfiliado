@@ -27,10 +27,15 @@ const worker = new Worker('affiliate-publications', async job => {
     frequency_minutes:d.config.frequency_minutes || 60, time_start:d.config.time_start || '08:00',
     time_end:d.config.time_end || '22:00', priority:d.config.priority || 'NORMAL', is_active:d.is_active
   };
+  const stateRows = await query<{ state: any }>('SELECT state FROM workspace_state WHERE workspace_id=$1', [row.workspace_id]);
+  const workspaceState = stateRows[0]?.state;
+  const stateOffer = workspaceState?.offers?.find((item: any) => item.id === row.offer_id);
+  const imageUrl = stateOffer?.product?.image || undefined;
+
   const publication: Publication = {
     id:row.id, offer_id:row.offer_id, destination_id:row.destination_id,
     affiliate_link_id:row.affiliate_link_id || 'unknown', affiliate_url:row.affiliate_url,
-    message:row.message, status:'QUEUED', scheduled_at:new Date(row.scheduled_at || row.created_at).toISOString()
+    image_url:imageUrl, message:row.message, status:'QUEUED', scheduled_at:new Date(row.scheduled_at || row.created_at).toISOString()
   };
   const whatsappSettings = await WhatsAppSettingsService.get(row.workspace_id);
   const result = await new WhatsAppProvider(undefined, undefined, whatsappSettings).sendPublication(publication, destination);
