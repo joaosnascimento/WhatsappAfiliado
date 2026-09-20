@@ -138,32 +138,46 @@ async function findAffiliateLink(page: Page): Promise<string | null> {
   return match ? match[0] : null;
 }
 
+async function createAffiliateLinkViaOfficialApi(page: Page, originalUrl: string): Promise<string | null> {
+  const result = await page.evaluate(async ({ originalUrl, tag }) => {
+    const csrfCookie = document.cookie.split(';').map(v => v.trim()).find(v => v.startsWith('_csrf='));
+    const csrf = csrfCookie ? decodeURIComponent(csrfCookie.slice('_csrf='.length)) : '';
+    const response = await fetch('/affiliate-program/api/v2/affiliates/createLink', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        accept: 'application/json, text/plain, */*',
+        'content-type': 'application/json',
+        origin: location.origin,
+        referer: location.href,
+        ...(csrf ? { 'x-csrf-token': csrf } : {}),
+      },
+      body: JSON.stringify({ urls: [originalUrl], tag }),
+    });
+    const text = await response.text();
+    let data: any = null;
+    try { data = JSON.parse(text); } catch {}
+    if (!response.ok) throw new Error(\`HTTP \${response.status}: \${data?.message || data?.error || text.slice(0, 300)}\`);
+    const candidates = [data?.urls?.[0]?.short_url, data?.urls?.[0]?.url, data?.short_url, data?.url].filter(Boolean);
+    return candidates.find((value: string) => /^https:\/\/(?:www\.)?meli\.la\//i.test(value)) || candidates[0] || null;
+  }, { originalUrl, tag: process.env.ML_AFFILIATE_TAG || 'whatsappafiliado' });
+  if (!result) throw new Error('A API oficial do Mercado Livre não retornou um link afiliado.');
+  return result;
+}
+
 async function openAffiliateGenerator(page: Page) {
   for (const url of PORTAL_URLS) {
     try {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
       await page.waitForLoadState('networkidle').catch(() => undefined);
-      const hasGeneratorField = await page.locator(
-        'textarea[placeholder*="url" i], textarea[name*="url" i], input[type="url"], input[placeholder*="url" i], input[name*="url" i], input[aria-label*="url" i], [contenteditable="true"]'
-      ).count() > 0;
+      const hasGeneratorField = await page.locator('textarea[placeholder*="url" i], textarea[name*="url" i], input[type="url"], input[placeholder*="url" i], input[name*="url" i], input[aria-label*="url" i], [contenteditable="true"]').count() > 0;
       if (hasGeneratorField) return;
     } catch {}
   }
-
   const generatorLink = page.getByRole('link', { name: /gerador de links|criar link|gerar link/i }).first();
-  if (await generatorLink.count()) {
-    await generatorLink.click();
-    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
-    return;
-  }
-
+  if (await generatorLink.count()) { await generatorLink.click(); await page.waitForLoadState('domcontentloaded').catch(() => undefined); return; }
   const generatorButton = page.getByRole('button', { name: /gerador de links|criar link|gerar link/i }).first();
-  if (await generatorButton.count()) {
-    await generatorButton.click();
-    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
-    return;
-  }
-
+  if (await generatorButton.count()) { await generatorButton.click(); await page.waitForLoadState('domcontentloaded').catch(() => undefined); return; }
   throw new Error('Não foi possível localizar o Gerador de Links no Portal de Afiliados do Mercado Livre.');
 }
 
@@ -176,39 +190,21 @@ async function fillGenerator(page: Page, originalUrl: string) {
     page.locator('[contenteditable="true"]').first(),
     page.locator('textarea').first(),
   ];
-
   let filled = false;
   for (const locator of candidates) {
-    try {
-      if (await locator.count() && await locator.isVisible().catch(() => false)) {
-        await locator.fill(originalUrl);
-        filled = true;
-        break;
-      }
-    } catch {}
+    try { if (await locator.count() && await locator.isVisible().catch(() => false)) { await locator.fill(originalUrl); filled = true; break; } } catch {}
   }
-
-  if (!filled) {
-    throw new Error('O Gerador de Links do Mercado Livre mudou a interface e o campo de URL não foi localizado. Abra o gerador oficial ou use a opção de inserir o link manualmente.');
-  }
-
+  if (!filled) throw new Error('O Gerador de Links do Mercado Livre mudou a interface e o campo de URL não foi localizado.');
   const buttons = [
     page.getByRole('button', { name: /gerar link|gerar|criar link/i }).first(),
     page.getByRole('button', { name: /compartilhar/i }).first(),
     page.getByText(/gerar link/i).first(),
     page.locator('button[type="submit"]').first(),
   ];
-
   for (const button of buttons) {
-    try {
-      if (await button.count() && await button.isVisible().catch(() => false)) {
-        await button.click();
-        return;
-      }
-    } catch {}
+    try { if (await button.count() && await button.isVisible().catch(() => false)) { await button.click(); return; } } catch {}
   }
-
-  throw new Error('O botão para gerar o link não foi localizado no Portal de Afiliados. Use a opção de inserir o link manualmente.');
+  throw new Error('O botão para gerar o link não foi localizado no Portal de Afiliados.');
 }
 
 export class MercadoLivreOfficialSessionProvider {
@@ -317,27 +313,23 @@ export class MercadoLivreOfficialSessionProvider {
       throw new Error('Sessão do Mercado Livre expirada. Clique em Conectar Mercado Livre e faça login novamente.');
     }
 
-    await openAffiliateGenerator(runtime.page);
-    if (!(await isLoggedIn(runtime.page))) {
-      await persistSession(account, runtime.context, 'EXPIRED');
-      throw new Error('O Portal de Afiliados redirecionou para o login. Reconecte o Mercado Livre.');
-    }
-    await fillGenerator(runtime.page, originalUrl);
-
-    // The official browser portal is the only attribution flow used here.
-    // Do not inject custom IDs/subIds into the portal: its current UI can reject
-    // generated Custom Id values (for example when a value contains ':').
-    // The portal can take several seconds to create the attribution link.
-    // Poll instead of using a fixed short delay so the publication pipeline does not
-    // get stuck in "link pending" while the portal is still processing.
     let affiliateUrl: string | null = null;
-    const deadline = Date.now() + 30000;
-    while (Date.now() < deadline && !affiliateUrl) {
-      affiliateUrl = await findAffiliateLink(runtime.page);
-      if (affiliateUrl) break;
-      await runtime.page.waitForTimeout(750);
+    try {
+      affiliateUrl = await createAffiliateLinkViaOfficialApi(runtime.page, originalUrl);
+    } catch (apiError) {
+      try {
+        await openAffiliateGenerator(runtime.page);
+        await fillGenerator(runtime.page, originalUrl);
+        const deadline = Date.now() + 30000;
+        while (Date.now() < deadline && !affiliateUrl) {
+          affiliateUrl = await findAffiliateLink(runtime.page);
+          if (affiliateUrl) break;
+          await runtime.page.waitForTimeout(750);
+        }
+      } catch {}
+      if (!affiliateUrl) throw new Error(\`Falha ao gerar link afiliado pela API oficial: \${(apiError as Error).message}\`);
     }
-    if (!affiliateUrl) throw new Error('O Portal de Afiliados do Mercado Livre não retornou o link em até 30 segundos. Verifique a sessão do programa de afiliados e tente novamente.');
+
     const validation = MercadoLivreAffiliateService.validateAffiliateUrl(affiliateUrl, originalUrl);
     if (!validation.isValidAffiliateLink) throw new Error(validation.reason || 'Link afiliado inválido.');
     await persistSession(account, runtime.context, 'CONNECTED');
@@ -419,7 +411,7 @@ export class MercadoLivreOfficialSessionProvider {
       if (products.length >= limit) break;
       if (!row.href || !ML_HOST.test(new URL(row.href).hostname)) continue;
       if (!/\/MLB[-_]|\/p\/MLB/i.test(row.href)) continue;
-      if (seen.has(row.href)) continue;
+      const productIdMatch = row.href.match(/(?:\/p\/|\/)(MLB[-_][A-Za-z0-9_-]+)/i);\n      const dedupeKey = productIdMatch?.[1]?.toUpperCase() || row.href.split('?')[0].replace(/\/$/, '').toLowerCase();\n      if (seen.has(dedupeKey)) continue;
 
       const cardText = row.text;
       const discountMatch = cardText.match(/(\d{1,3})\s*%\s*(?:OFF|de\s*desconto|desconto)/i);
@@ -477,7 +469,7 @@ export class MercadoLivreOfficialSessionProvider {
           discount_calculated: calculatedDiscount,
         },
       });
-      seen.add(row.href);
+      seen.add(dedupeKey);
     }
 
       await persistSession(account, runtime.context, 'CONNECTED');
