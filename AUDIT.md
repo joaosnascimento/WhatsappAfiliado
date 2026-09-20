@@ -77,3 +77,23 @@ Audit of the existing production codebase, with priority on P0/P1 reliability, s
 - Publication destination selection is now explicit in the Offers UI instead of silently using the first destination.
 - Dashboard WhatsApp status now consumes persisted runtime lifecycle states.
 - Remaining external validation: run real Evolution API, Mercado Livre browser/session, Redis worker and PostgreSQL E2E against configured services; CI validates source-level regressions but cannot prove those external services.
+
+
+## 2026-09-20 — second-pass functional hardening
+
+### Fixed in this cycle
+- Destination create/edit/pause/resume/delete now explicitly persists the workspace state when PostgreSQL is enabled; mutations no longer depend on a later unrelated request to be saved.
+- Destination deleted_at is included in the persistent upsert path, preserving the soft-delete marker across reloads.
+- Group-to-destination synchronization now persists the selected group's identifier/name.
+- Publication history now exposes the real lifecycle states in the UI: QUEUED/SCHEDULED, PROCESSING, RETRYING, SENT, FAILED, CANCELLED and EXPIRED.
+- Users can cancel queued/scheduled publications and retrying publications from the queue screen.
+
+### Additional improvements identified for the next reliability pass
+- Evolution real-time lifecycle: add a secured CONNECTION_UPDATE webhook plus periodic reconciliation so a disconnected instance is reflected without the user opening the Setup screen. Evolution documents CONNECTION_UPDATE and QRCODE_UPDATED as webhook events.
+- Marketplace credentials UX: add explicit reset/clear actions for Shopee credentials and a unified connection-health timeline for Mercado Livre/Shopee.
+- Coupons: the backend has coupon registration/query support, but the main UI still lacks a dedicated coupon management surface (list, activate/deactivate, delete, expiration warnings and source verification).
+- Operational recovery: add a dashboard section for queue age, next retry, last worker heartbeat, failed jobs and a one-click reconciliation/requeue operation.
+- Publication safety: strengthen the cancellation contract around an already-PROCESSING job; cancellation currently prevents future queued/retry execution, while a message already in the external-send critical section can race with cancellation.
+- Data portability: add CSV/JSON export for offers, publications and analytics so users can audit their operation outside the application.
+- Automation controls: add a global workspace automation switch and a visible next-run / last-run / last-error status, complementing the per-destination pause/resume control.
+- User permissions: for multi-user workspaces, add owner/admin/operator roles and audit records for destructive actions.
