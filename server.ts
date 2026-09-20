@@ -1064,7 +1064,11 @@ async function startServer() {
         }
         const created=await create.json().catch(()=>({}));
         const qr=normalizeQrCode(created?.qrcode?.base64 || created?.qrcode?.code || null);
-        if(qr) return res.json({state:'connecting',qrcode:qr,instance:cfg.instance});
+        if(qr) {
+          await WhatsAppSettingsService.updateRuntimeState(req.user!.workspaceId,'QR_REQUIRED');
+          return res.json({state:'connecting',runtimeState:'QR_REQUIRED',qrcode:qr,instance:cfg.instance});
+        }
+        await WhatsAppSettingsService.updateRuntimeState(req.user!.workspaceId,'CREATING');
       }
       const connect = await fetch(cfg.base + '/instance/connect/' + encodeURIComponent(cfg.instance), {headers:{apikey:cfg.key}});
       const data=await connect.json().catch(()=>({}));
@@ -1120,7 +1124,9 @@ async function startServer() {
       const r=await fetch(cfg.base + '/instance/connect/' + encodeURIComponent(cfg.instance),{headers:{apikey:cfg.key}});
       const data=await r.json().catch(()=>({}));
       if(!r.ok) return res.status(r.status).json({error:'Não foi possível obter o QR Code.'});
-      res.json({qrcode:normalizeQrCode(data?.base64 || data?.qrcode?.base64 || data?.qrcode?.code || data?.code || null)});
+      const qrcode=normalizeQrCode(data?.base64 || data?.qrcode?.base64 || data?.qrcode?.code || data?.code || null);
+      await WhatsAppSettingsService.updateRuntimeState(req.user!.workspaceId,qrcode ? 'QR_REQUIRED' : 'CONNECTING');
+      res.json({qrcode,runtimeState:qrcode ? 'QR_REQUIRED' : 'CONNECTING'});
     } catch(err){res.status(400).json({error:(err as Error).message});}
   });
 
