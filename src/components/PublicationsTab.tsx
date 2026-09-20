@@ -88,6 +88,22 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({
                   <span className="inline-flex items-center gap-1 text-sm font-bold bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full border border-rose-500/30">
                     <XCircle aria-hidden="true" className="w-3 h-3" /> Falha
                   </span>
+                ) : isRetrying ? (
+                  <span className="inline-flex items-center gap-1 text-sm font-bold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/30">
+                    <RefreshCw aria-hidden="true" className="w-3 h-3 animate-spin" /> Tentando novamente
+                  </span>
+                ) : isProcessing ? (
+                  <span className="inline-flex items-center gap-1 text-sm font-bold bg-violet-500/20 text-violet-300 px-2 py-0.5 rounded-full border border-violet-500/30">
+                    <Send aria-hidden="true" className="w-3 h-3 animate-pulse" /> Processando
+                  </span>
+                ) : isCancelled ? (
+                  <span className="inline-flex items-center gap-1 text-sm font-bold bg-slate-500/20 text-slate-300 px-2 py-0.5 rounded-full border border-slate-500/30">
+                    <XCircle aria-hidden="true" className="w-3 h-3" /> Cancelada
+                  </span>
+                ) : isExpired ? (
+                  <span className="inline-flex items-center gap-1 text-sm font-bold bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded-full border border-orange-500/30">
+                    <Clock aria-hidden="true" className="w-3 h-3" /> Expirada
+                  </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 text-sm font-bold bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-500/30">
                     <Clock aria-hidden="true" className="w-3 h-3" /> Na Fila
@@ -114,7 +130,7 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({
               </div>
 
               {isQueued && (
-                <div className="flex justify-end">
+                <div className="flex justify-end gap-2">
                   <button
                     type="button"
                     disabled={busyAction !== null}
@@ -124,6 +140,28 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({
                     <Send className={busyAction === pub.id + ':send' ? 'h-3.5 w-3.5 animate-pulse' : 'h-3.5 w-3.5'} />
                     {busyAction === pub.id + ':send' ? 'Enviando...' : 'Enviar agora'}
                   </button>
+                  <button
+                    type="button"
+                    disabled={busyAction !== null}
+                    onClick={() => void runAction(pub.id + ':cancel', () => onDelete(pub.id), 'Publicação cancelada')}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/10 px-3 py-2 text-sm font-semibold text-rose-300 border border-rose-500/20 disabled:opacity-50"
+                  >
+                    <XCircle className="h-3.5 w-3.5" />
+                    {busyAction === pub.id + ':cancel' ? 'Cancelando...' : 'Cancelar'}
+                  </button>
+                </div>
+              )}
+
+              {isRetrying && (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    disabled={busyAction !== null}
+                    onClick={() => void runAction(pub.id + ':cancel-retry', () => onDelete(pub.id), 'Tentativa cancelada')}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/10 px-3 py-2 text-sm font-semibold text-rose-300 border border-rose-500/20 disabled:opacity-50"
+                  >
+                    <XCircle className="h-3.5 w-3.5" /> Cancelar tentativa
+                  </button>
                 </div>
               )}
 
@@ -132,7 +170,7 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({
                   <div className="text-sm text-rose-300">{pub.error_message || 'O envio falhou.'}</div>
                   <div className="flex justify-end gap-2">
                     <button type="button" disabled={busyAction !== null} onClick={() => void runAction(pub.id + ':retry', () => onRetry(pub.id), 'Reenvio solicitado')} className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500/10 px-3 py-2 text-sm font-semibold text-brand-200 border border-brand-500/20 disabled:opacity-50"><RefreshCw className={busyAction === pub.id + ':retry' ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} /> {busyAction === pub.id + ':retry' ? 'Reenviando...' : 'Reenviar'}</button>
-                    <button type="button" disabled={busyAction !== null} onClick={() => void runAction(pub.id + ':delete', () => onDelete(pub.id), 'Publicação excluída')} className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/10 px-3 py-2 text-sm font-semibold text-rose-300 border border-rose-500/20 disabled:opacity-50"><Trash2 className="h-3.5 w-3.5" /> {busyAction === pub.id + ':delete' ? 'Excluindo...' : 'Excluir falha'}</button>
+                    <button type="button" disabled={busyAction !== null} onClick={() => void runAction(pub.id + ':delete', () => onDelete(pub.id), 'Publicação excluída')} className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/10 px-3 py-2 text-sm font-semibold text-rose-300 border border-rose-500/20 disabled:opacity-50"><Trash2 className="h-3.5 w-3.5" /> {busyAction === pub.id + ':delete' ? 'Arquivando...' : 'Arquivar falha'}</button>
                   </div>
                 </div>
               )}
