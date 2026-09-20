@@ -8,7 +8,7 @@ export class WhatsAppSettingsService {
   static async get(workspaceId:string):Promise<WhatsAppSettings> {
     const rows=await query<any>('SELECT settings_encrypted FROM workspace_settings WHERE workspace_id=$1',[workspaceId]);
     if(!rows[0]) return {provider:(process.env.WHATSAPP_PROVIDER||'cloud') as any};
-    return decryptCredentials<WhatsAppSettings>(rows[0].settings_encrypted);
+    return decryptCredentials<WhatsAppSettings & Record<string, unknown>>(rows[0].settings_encrypted) as WhatsAppSettings;
   }
   static async save(workspaceId:string,settings:WhatsAppSettings) {
     if (settings.provider !== 'cloud' && settings.provider !== 'evolution') throw new Error('Provedor WhatsApp inválido.');
