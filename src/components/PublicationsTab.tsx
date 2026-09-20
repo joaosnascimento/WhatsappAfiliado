@@ -55,7 +55,7 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({
                   >
                     {isShopee ? 'Shopee' : 'Mercado Livre'}
                   </span>
-                  <span className="text-sm font-semibold text-slate-200">
+                  <span className="text-sm font-semibold text-text">
                     {pub.destination?.name || 'Grupo WhatsApp'}
                   </span>
                 </div>
