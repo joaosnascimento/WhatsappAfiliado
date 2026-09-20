@@ -36,8 +36,9 @@ Audit of the existing production codebase, with priority on P0/P1 reliability, s
 - Adds workspace timezone and publication retry/cancellation metadata without destructive changes.
 
 ## Validation
-- GitHub Actions CI was observed running after the changes.
-- Existing CI run for the queue retry-policy commit completed successfully.
+- GitHub Actions CI latest validation is green after the hardening changes.
+- Typecheck, regression tests and production build all passed in CI.
+- Regression suite verifies the canonical Evolution group request and workspace timezone windows.
 - External Evolution, Mercado Livre and WhatsApp end-to-end validation requires the configured production credentials/services; source-level regressions cannot prove live provider behavior.
 
 ## Known limitations
