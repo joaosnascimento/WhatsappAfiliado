@@ -827,7 +827,53 @@ async function startServer() {
   // 10. Destinations
   app.get('/api/destinations', async (req, res) => {
     await refreshPersistentWorkspace(req);
-    res.json(Array.from(store.destinations.values()));
+    res.json(Array.from(store.destinations.values()).filter((d:any) => !d.deleted_at));
+  });
+
+  app.patch('/api/destinations/:id', async (req, res) => {
+    const destination = store.destinations.get(req.params.id);
+    if (!destination || destination.workspace_id !== req.user!.workspaceId || destination.deleted_at) return res.status(404).json({error:'Destino não encontrado.'});
+    const body = req.body as Partial<Destination>;
+    if (body.identifier !== undefined && !String(body.identifier).trim()) return res.status(400).json({error:'identifier é obrigatório.'});
+    if (body.frequency_minutes !== undefined && (!Number.isInteger(Number(body.frequency_minutes)) || Number(body.frequency_minutes) < 5 || Number(body.frequency_minutes) > 1440)) return res.status(400).json({error:'Frequência deve estar entre 5 e 1440 minutos.'});
+    if (body.marketplaces && body.marketplaces.some((v:any)=>!['SHOPEE','MERCADOLIVRE'].includes(String(v).toUpperCase()))) return res.status(400).json({error:'Marketplace de destino inválido.'});
+    if (body.keywords && body.keywords.length > 5) return res.status(400).json({error:'No máximo 5 palavras-chave.'});
+    Object.assign(destination, {
+      ...(body.name !== undefined ? {name:String(body.name).trim() || destination.name} : {}),
+      ...(body.identifier !== undefined ? {identifier:String(body.identifier).trim()} : {}),
+      ...(body.description !== undefined ? {description:String(body.description)} : {}),
+      ...(body.keywords !== undefined ? {keywords:body.keywords.map((x:any)=>String(x).trim()).filter(Boolean).slice(0,5)} : {}),
+      ...(body.categories !== undefined ? {categories:body.categories.map((x:any)=>String(x).trim()).filter(Boolean).slice(0,5)} : {}),
+      ...(body.marketplaces !== undefined ? {marketplaces:body.marketplaces.map((x:any)=>String(x).toUpperCase())} : {}),
+      ...(body.frequency_minutes !== undefined ? {frequency_minutes:Number(body.frequency_minutes)} : {}),
+      ...(body.time_start !== undefined ? {time_start:String(body.time_start)} : {}),
+      ...(body.time_end !== undefined ? {time_end:String(body.time_end)} : {}),
+      ...(body.priority !== undefined ? {priority:body.priority} : {}),
+      ...(body.is_active !== undefined ? {is_active:Boolean(body.is_active)} : {}),
+    });
+    res.json(destination);
+  });
+
+  app.post('/api/destinations/:id/toggle', async (req, res) => {
+    const destination = store.destinations.get(req.params.id);
+    if (!destination || destination.workspace_id !== req.user!.workspaceId || destination.deleted_at) return res.status(404).json({error:'Destino não encontrado.'});
+    destination.is_active = !destination.is_active;
+    res.json({success:true,destination});
+  });
+
+  app.delete('/api/destinations/:id', async (req, res) => {
+    const destination = store.destinations.get(req.params.id);
+    if (!destination || destination.workspace_id !== req.user!.workspaceId || destination.deleted_at) return res.status(404).json({error:'Destino não encontrado.'});
+    destination.is_active = false;
+    destination.deleted_at = new Date().toISOString();
+    await query("UPDATE publications SET status='CANCELLED', error=COALESCE(error,'Destino removido pelo usuário.'), updated_at=NOW() WHERE workspace_id=$1 AND destination_id=$2 AND status IN ('DRAFT','QUEUED','PROCESSING','SCHEDULED','RETRYING')", [req.user!.workspaceId, destination.id]);
+    for (const publication of store.publications.values() as Iterable<any>) {
+      if (publication.workspace_id === req.user!.workspaceId && publication.destination_id === destination.id && ['DRAFT','QUEUED','PROCESSING','SCHEDULED','RETRYING'].includes(publication.status)) {
+        publication.status='CANCELLED';
+        publication.error_message='Destino removido pelo usuário.';
+      }
+    }
+    res.json({success:true,deleted:true,id:destination.id});
   });
 
   app.post('/api/destinations', (req, res) => {
