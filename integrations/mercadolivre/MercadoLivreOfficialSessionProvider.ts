@@ -1,4 +1,6 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import { mkdir, rm } from 'fs/promises';
+import path from 'path';
 import type { MarketplaceAccount, AffiliateProduct } from '../../src/types/affiliate.ts';
 import { MercadoLivreAffiliateService } from './MercadoLivreAffiliateService.ts';
 
@@ -11,7 +13,7 @@ const SEARCH_URL = 'https://lista.mercadolivre.com.br/';
 const ML_HOST = /(^|\.)mercadolivre\.com\.br$/i;
 const MeliShortLink = /^https:\/\/(?:www\.)?meli\.la\/[A-Za-z0-9_-]+/i;
 
-type Runtime = { browser: Browser; context: BrowserContext; page: Page };
+type Runtime = { browser?: Browser; context: BrowserContext; page: Page };
 const runtimes = new Map<string, Runtime>();
 
 function sessionFromAccount(account: MarketplaceAccount): any | undefined {
@@ -60,11 +62,18 @@ async function waitForAuthentication(page: Page, timeoutMs = 5 * 60 * 1000): Pro
   return false;
 }
 
+async function sessionProfileDir(account: MarketplaceAccount): Promise<string> {
+  const root = path.resolve(process.env.ML_SESSION_DIR || path.join('.data', 'mercadolivre-sessions'));
+  const dir = path.join(root, account.workspace_id, account.id);
+  await mkdir(dir, { recursive: true });
+  return dir;
+}
+
 async function launch(account: MarketplaceAccount, headed: boolean): Promise<Runtime> {
   const existing = runtimes.get(account.id);
   if (existing) {
     try {
-      if (!existing.browser.isConnected() || existing.context.pages().length === 0 || existing.page.isClosed()) {
+      if ((existing.browser && !existing.browser.isConnected()) || existing.context.pages().length === 0 || existing.page.isClosed()) {
         throw new Error('runtime closed');
       }
       // A runtime created for the interactive login must remain headed. Reuse it
@@ -73,22 +82,33 @@ async function launch(account: MarketplaceAccount, headed: boolean): Promise<Run
     } catch {
       runtimes.delete(account.id);
       try { await existing.context.close(); } catch {}
-      try { await existing.browser.close(); } catch {}
+      try { await existing.browser?.close(); } catch {}
     }
   }
 
-  const browser = await chromium.launch({
+  const profileDir = await sessionProfileDir(account);
+  const saved = sessionFromAccount(account);
+  // Keep a real persistent Chromium profile. Mercado Livre may store
+  // authentication state outside the cookie/localStorage subset represented by
+  // Playwright storageState, which previously made the session work only once.
+  const context = await chromium.launchPersistentContext(profileDir, {
     headless: !headed,
+    storageState: saved || undefined,
     args: ['--disable-blink-features=AutomationControlled'],
   });
-  const saved = sessionFromAccount(account);
-  const context = await browser.newContext(saved ? { storageState: saved } : {});
-  const page = await context.newPage();
+  const page = context.pages()[0] || await context.newPage();
   page.setDefaultTimeout(15000);
-  const runtime = { browser, context, page };
+  const runtime: Runtime = { context, page };
   runtimes.set(account.id, runtime);
 
-  browser.on('disconnected', () => {
+  const browser = context.browser();
+  if (browser) {
+    runtime.browser = browser;
+    browser.on('disconnected', () => {
+      runtimes.delete(account.id);
+    });
+  }
+  context.on('close', () => {
     runtimes.delete(account.id);
   });
   return runtime;
@@ -96,7 +116,7 @@ async function launch(account: MarketplaceAccount, headed: boolean): Promise<Run
 
 async function closeAndPersist(account: MarketplaceAccount, runtime: Runtime) {
   try { await persistSession(account, runtime.context, 'CONNECTED'); } catch {}
-  try { await runtime.browser.close(); } catch {}
+  try { await runtime.browser?.close(); } catch {}
   runtimes.delete(account.id);
 }
 
@@ -233,7 +253,7 @@ export class MercadoLivreOfficialSessionProvider {
       account.updated_at = new Date().toISOString();
       return { connected: false, status: 'ERROR', browserActive: false, error: account.status_message };
     } finally {
-      try { await runtimeCheck.browser.close(); } catch {}
+      try { await runtimeCheck.browser?.close(); } catch {}
       runtimes.delete(account.id);
     }
   }
@@ -465,12 +485,19 @@ export class MercadoLivreOfficialSessionProvider {
 
   static async disconnect(account: MarketplaceAccount) {
     const runtime = runtimes.get(account.id);
-    if (runtime) await closeAndPersist(account, runtime);
+    if (runtime) {
+      try { await runtime.context.close(); } catch {}
+      try { await runtime.browser?.close(); } catch {}
+      runtimes.delete(account.id);
+    }
     delete account.credentials_encrypted.ml_session_state;
     account.credentials_encrypted.ml_session_status = 'DISCONNECTED';
     account.credentials_encrypted.ml_session_updated_at = new Date().toISOString();
     account.status = 'AWAITING_CONFIG';
     account.status_message = 'Mercado Livre desconectado.';
     account.updated_at = new Date().toISOString();
+    // Explicit disconnect must also remove the local persistent Chromium profile,
+    // otherwise a later reconnect can silently reuse the old authenticated session.
+    try { await rm(await sessionProfileDir(account), { recursive: true, force: true }); } catch {}
   }
 }
