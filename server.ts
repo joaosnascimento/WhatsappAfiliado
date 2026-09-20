@@ -25,6 +25,7 @@ import { AnalyticsService } from './src/services/AnalyticsService.ts';
 import { WhatsAppGroupService } from './src/services/WhatsAppGroupService.ts';
 import { CouponService } from './src/services/CouponService.ts';
 import { WhatsAppSettingsService } from './src/services/WhatsAppSettingsService.ts';
+import { IntegrationHealthService } from './src/services/IntegrationHealthService.ts';
 import { requestSecurityMiddleware, securityHeaders, recordSecurityEvent } from './src/security/security.ts';
 import { assertSafeOutboundUrl } from './src/security/outboundUrl.ts';
 import { runTests } from './src/test/integrations.test.ts';
@@ -182,7 +183,7 @@ async function startServer() {
     });
   });
 
-  // 2. Integration Unit Tests Runner
+  app.get('/api/health/integrations', requireAuth, workspaceContext, async (req,res) => {\n    try { res.json(await IntegrationHealthService.check(req.user!.workspaceId)); }\n    catch(err){ res.status(503).json({status:'degraded',error:(err as Error).message}); }\n  });\n\n  // 2. Integration Unit Tests Runner
   app.get('/api/tests/run', requireAuth, workspaceContext, async (req, res) => {
     try {
       const results = runTests();
