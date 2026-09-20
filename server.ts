@@ -866,9 +866,13 @@ async function startServer() {
   });
 
   // 13. Audit records (Section 29)
-  app.get('/api/audit', (req, res) => {
-    const marketplace = req.query.marketplace as any;
-    res.json(AuditService.getAuditRecords(req.user!.workspaceId, marketplace));
+  app.get('/api/audit', async (req, res) => {
+    try {
+      const marketplace = req.query.marketplace as any;
+      res.json(await AuditService.getAuditRecords(req.user!.workspaceId, marketplace));
+    } catch (err) {
+      res.status(500).json({ error: 'Não foi possível carregar a auditoria.' });
+    }
   });
 
   // Analytics: real click/conversion counters persisted in PostgreSQL.
