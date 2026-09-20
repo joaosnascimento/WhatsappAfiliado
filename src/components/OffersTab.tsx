@@ -4,7 +4,6 @@ import {
   Search,
   Filter,
   Sparkles,
-  Send,
   Link2,
   ExternalLink,
   CheckCircle2,
@@ -53,13 +52,11 @@ export const OffersTab: React.FC<OffersTabProps> = ({
   const [isSearchingLive, setIsSearchingLive] = useState(false);
   const [searchFeedback, setSearchFeedback] = useState<{type:'idle'|'loading'|'success'|'error'; message:string}>({type:'idle', message:''});
   const [liveSearchMarketplace, setLiveSearchMarketplace] = useState<MarketplaceType>('SHOPEE');
-  const [publishingId, setPublishingId] = useState<string | null>(null);
   const [mlUrl, setMlUrl] = useState('');
   const [mlTitle, setMlTitle] = useState('');
   const [mlPrice, setMlPrice] = useState('');
   const [mlBusy, setMlBusy] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [publishDestinationId, setPublishDestinationId] = useState<string>('');
 
   // Filter offers locally
   const filteredOffers = offers.filter((offer) => {
@@ -115,24 +112,6 @@ export const OffersTab: React.FC<OffersTabProps> = ({
     finally { setDeletingId(null); }
   };
 
-  const handlePublishClick = async (offer: Offer) => {
-    if (offer.status !== 'AFFILIATE_LINK_READY' && offer.status !== 'READY_TO_PUBLISH') {
-      toast('error','Publicação bloqueada',`A oferta está no status '${offer.status}'. Apenas produtos com link de afiliado oficial validado podem ser publicados.`);
-      return;
-    }
-
-    const destId = publishDestinationId || destinations[0]?.id;
-    if (!destId) { toast('error','Nenhum destino configurado','Configure um grupo WhatsApp antes de publicar.'); return; }
-    setPublishingId(offer.id);
-    try {
-      await onQuickPublish(offer.id, destId);
-      toast('success','Oferta publicada','A mensagem foi adicionada à fila do WhatsApp.');
-    } catch (err) {
-      toast('error','Falha no envio',(err as Error).message);
-    } finally {
-      setPublishingId(null);
-    }
-  };
 
   if(initialLoading) return <div className="space-y-6" aria-busy="true"><div className="h-36 rounded-lg bg-surface-1 animate-pulse"/><div className="grid gap-4 md:grid-cols-2">{Array.from({length:4}).map((_,i)=><div key={i} className="h-56 rounded-lg bg-surface-1 animate-pulse"/>)}</div></div>;
 
@@ -249,7 +228,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
 
       <div className="bg-surface-1 border border-brand-500/20 rounded-lg p-5 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-end gap-4">
-          <div className="flex-1"><h3 className="text-sm font-bold text-text">Mercado Livre — fallback manual</h3><p className="text-sm text-muted mt-1">Use apenas se a automação do navegador estiver temporariamente indisponível. O fluxo normal gera e vincula o link automaticamente.</p></div>
+          <div className="flex-1"><h3 className="text-sm font-bold text-text">Mercado Livre — fallback manual</h3><p className="text-sm text-muted mt-1">As ofertas são processadas e publicadas automaticamente conforme as tags dos grupos. Este formulário é apenas uma entrada manual de contingência.</p></div>
           <form onSubmit={handleAddMercadoLivre} className="flex flex-wrap gap-2 lg:max-w-3xl lg:flex-1">
             <input value={mlUrl} onChange={e=>setMlUrl(e.target.value)} placeholder="https://www.mercadolivre.com.br/..." className="flex-1 min-w-[280px] bg-surface-2 border border-border-strong rounded-md px-3 py-2 text-sm text-text" required />
             <input value={mlTitle} onChange={e=>setMlTitle(e.target.value)} placeholder="Nome (opcional)" className="w-44 bg-surface-2 border border-border-strong rounded-md px-3 py-2 text-sm text-text" />
@@ -386,7 +365,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
                   {/* If ML needs link association */}
                   {offer.marketplace === 'MERCADOLIVRE' && !isReady && (
                     <div className="col-span-2 py-2 text-center text-sm text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-md">
-                      {offer.status_reason || 'Aguardando geração e validação do link oficial…'}
+                      {offer.status_reason || 'A oferta está no pipeline automático e será publicada assim que o link de afiliado estiver pronto.'}
                     </div>
                   )}
                   {(
@@ -401,15 +380,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
                         Mensagem IA
                       </button>
 
-                      <button
-                        id={`btn-quick-publish-${offer.id}`}
-                        onClick={() => handlePublishClick(offer)}
-                        disabled={!isReady || publishingId === offer.id}
-                        className="py-2 bg-brand-500 hover:bg-brand-400 text-bg font-bold text-sm rounded-md transition flex items-center justify-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        <Send className="w-3.5 h-3.5" />
-                        {publishingId === offer.id ? 'Enviando...' : isPublished ? 'Reenviar' : 'Publicar'}
-                      </button>
+
                     </>
                   )}
                 <button
