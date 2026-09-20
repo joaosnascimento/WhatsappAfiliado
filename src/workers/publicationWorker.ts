@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { Worker } from 'bullmq';
 import { query } from '../infrastructure/database.ts';
 import { requireRedis } from '../infrastructure/redis.ts';
+import { enqueuePublication } from '../infrastructure/queue.ts';
 import { WhatsAppProvider } from '../services/WhatsAppProvider.ts';
 import { DeduplicationService } from '../services/DeduplicationService.ts';
 import { AutomationScheduler } from '../services/AutomationScheduler.ts';
@@ -100,5 +101,32 @@ setInterval(()=>void AutomationScheduler.tick().then(created=>{if(created)consol
 
 async function shutdown(){ await worker.close(); try{await connection.quit();}catch{} process.exit(0); }
 process.once('SIGTERM',()=>void shutdown()); process.once('SIGINT',()=>void shutdown());
+async function recoverQueuedPublications() {
+  const rows = await query<any>(
+    "SELECT id,destination_id,offer_id,scheduled_at FROM publications WHERE status IN ('QUEUED','SCHEDULED','RETRYING') ORDER BY scheduled_at ASC LIMIT 500",
+  );
+  let recovered = 0;
+  for (const row of rows) {
+    try {
+      await enqueuePublication({
+        publicationId: row.id,
+        destinationId: row.destination_id,
+        offerId: row.offer_id,
+        scheduledAt: row.scheduled_at,
+      });
+      recovered++;
+    } catch (error) {
+      console.error(JSON.stringify({
+        event: 'publication_recovery_failed',
+        publicationId: row.id,
+        error: error instanceof Error ? error.message : String(error),
+      }));
+    }
+  }
+  if (recovered) console.log('Publication queue recovery re-enqueued', recovered, 'publication(s).');
+}
+
 await worker.waitUntilReady();
+await recoverQueuedPublications().catch(error => console.error('Initial publication queue recovery failed:', error));
+setInterval(() => void recoverQueuedPublications().catch(error => console.error('Publication queue recovery failed:', error)), 30000);
 console.log('Publication worker running and connected to Redis.');
