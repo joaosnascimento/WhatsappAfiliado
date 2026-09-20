@@ -53,7 +53,7 @@ export class AutomationScheduler {
           [workspace.id],
         );
         const workspaceState: any = stateRows[0]?.state || { products: [], links: [], offers: [], campaigns: [], destinations: [], publications: [], conversions: [] };
-        const offers = workspaceState.offers || [];
+        const offers: Offer[] = workspaceState.offers || [];
 
         for (const row of destinations) {
           const config = row.config || {};
@@ -79,13 +79,13 @@ export class AutomationScheduler {
           const dateKey = now.toISOString().slice(0, 10);
 
           const eligible = offers
-            .filter(o => (o.status === 'AFFILIATE_LINK_READY' || o.status === 'READY_TO_PUBLISH') && o.affiliate_url)
+            .filter((o: Offer) => (o.status === 'AFFILIATE_LINK_READY' || o.status === 'READY_TO_PUBLISH') && o.affiliate_url)
             .filter(o => matchesDestination(o, destination))
-            .sort((a, b) => b.score - a.score);
+            .sort((a: Offer, b: Offer) => b.score - a.score);
 
           if (!eligible.length) continue;
 
-          const rotatedEligible = eligible.length ? eligible.map((_, index) => eligible[(index + slot) % eligible.length]) : [];
+          const rotatedEligible = eligible.length ? eligible.map((_offer: Offer, index: number) => eligible[(index + slot) % eligible.length]) : [];
           const candidates: Offer[] = [];
           for (const offer of rotatedEligible) {
             if (candidates.length >= 3) break;
