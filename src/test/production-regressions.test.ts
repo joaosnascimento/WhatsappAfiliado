@@ -1,5 +1,5 @@
 import { buildEvolutionGroupsUrl } from '../services/WhatsAppGroupService.ts';
-import { isInsideWindow } from '../services/AutomationScheduler.ts';
+import { isInsideWindow } from '../services/TimezoneService.ts';
 
 function assert(condition:boolean,message:string){ if(!condition) throw new Error(message); }
 
