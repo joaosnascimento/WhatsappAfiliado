@@ -8,10 +8,9 @@ interface AuditTabProps {
 
 export const AuditTab: React.FC<AuditTabProps> = ({ records }) => {
   const [initialLoading,setInitialLoading]=useState(true);
+  const [selectedRecord, setSelectedRecord] = useState<AuditRecord | null>(records[0] || null);
   useEffect(()=>{const t=window.setTimeout(()=>setInitialLoading(false),300);return()=>window.clearTimeout(t)},[]);
   if(initialLoading) return <div className="space-y-6" aria-busy="true"><div className="h-24 rounded-lg bg-surface-1 animate-pulse"/><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{Array.from({length:6}).map((_,i)=><div key={i} className="h-24 rounded-lg bg-surface-1 animate-pulse"/>)}</div><div className="h-72 rounded-lg bg-surface-1 animate-pulse"/></div>;
-  const [selectedRecord, setSelectedRecord] = useState<AuditRecord | null>(records[0] || null);
-
   return (
     <div className="space-y-6">
       <div className="bg-surface-1 border border-border rounded-lg p-6">
