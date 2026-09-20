@@ -2,7 +2,13 @@ export interface WhatsAppGroup { id:string; subject?:string; size?:number; owner
 
 type EvolutionSettings = { evolutionApiUrl?:string; evolutionApiKey?:string; evolutionInstance?:string };
 
-export function buildEvolutionGroupsUrl(base:string, instance:string): string {\n  const url=new URL('/group/fetchAllGroups/' + encodeURIComponent(instance), base.replace(/\\/$/,'') + '/');\n  url.searchParams.set('getParticipants','true');\n  return url.toString();\n}\n\nexport class WhatsAppGroupService {
+export function buildEvolutionGroupsUrl(base:string, instance:string): string {
+  const url=new URL('/group/fetchAllGroups/' + encodeURIComponent(instance), base.replace(/\\/$/,'') + '/');
+  url.searchParams.set('getParticipants','true');
+  return url.toString();
+}
+
+export class WhatsAppGroupService {
   static async listGroups(settings?: EvolutionSettings) {
     const base=(settings?.evolutionApiUrl || process.env.EVOLUTION_API_URL||'').replace(/\/$/,'');
     const key=settings?.evolutionApiKey || process.env.EVOLUTION_API_KEY;
