@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header.tsx';
+import { ToastProvider, useToast } from './components/ui/Toast.tsx';
 import { DashboardTab } from './components/DashboardTab.tsx';
 import { AffiliatesTab } from './components/AffiliatesTab.tsx';
 import { OffersTab } from './components/OffersTab.tsx';
@@ -29,6 +30,7 @@ async function readJson<T = any>(response: Response): Promise<T> {
 }
 
 export function App() {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [firstRunRedirected, setFirstRunRedirected] = useState(false);
   const [accounts, setAccounts] = useState<MarketplaceAccount[]>([]);
@@ -167,7 +169,7 @@ export function App() {
       if (!res.ok) throw new Error(data.error || 'Falha ao executar testes');
       setTestResults(data);
     } catch (err) {
-      alert(`Falha ao executar suíte de testes: ${(err as Error).message}`);
+      toast('error', 'Falha ao executar testes', (err as Error).message);
     } finally { setIsTestingSuite(false); }
   };
 
@@ -286,4 +288,4 @@ export function App() {
   );
 }
 
-export default App;
+export default function AppWithProviders() { return <ToastProvider><App /></ToastProvider>; }
