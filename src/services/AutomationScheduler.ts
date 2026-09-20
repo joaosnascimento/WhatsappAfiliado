@@ -44,7 +44,7 @@ export class AutomationScheduler {
     this.running = true;
     let created = 0;
     try {
-      const workspaces = await query<{ id: string; timezone: string }>("SELECT id, COALESCE(timezone,'America/Maceio') AS timezone, COALESCE(automation_enabled,true) AS automation_enabled FROM workspaces");
+      const workspaces = await query<{ id: string; timezone: string; automation_enabled: boolean }>("SELECT id, COALESCE(timezone,'America/Maceio') AS timezone, COALESCE(automation_enabled,true) AS automation_enabled FROM workspaces");
       const now = new Date();
 
       for (const workspace of workspaces) {
