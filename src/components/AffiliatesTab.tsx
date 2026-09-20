@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   ShieldCheck,
   Key,
-  ExternalLink,
   CheckCircle2,
   AlertTriangle,
   XCircle,
@@ -17,7 +16,6 @@ interface AffiliatesTabProps {
   accounts: MarketplaceAccount[];
   onSaveAccount: (accountId: string, credentials: Record<string, string>) => Promise<void>;
   onTestIntegration: (marketplace: 'SHOPEE' | 'MERCADOLIVRE') => Promise<IntegrationTestResult>;
-  onConnectMercadoLivre: () => Promise<void>;
   whatsappSettings?: any;
   onSaveWhatsApp: (settings:any)=>Promise<void>;
 }
@@ -34,16 +32,9 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
   const shopeeAcc = accounts.find((a) => a.marketplace === 'SHOPEE');
 
   // Form states
-  const [mlClientId, setMlClientId] = useState(mlAcc?.credentials_encrypted?.ml_client_id || '');
-  const [mlClientSecret, setMlClientSecret] = useState('');
-  const [mlRedirectUri, setMlRedirectUri] = useState(
-    mlAcc?.credentials_encrypted?.ml_redirect_uri || `${window.location.origin}/api/auth/mercadolivre/callback`
-  );
-
   const [shopeeAppId, setShopeeAppId] = useState(shopeeAcc?.credentials_encrypted?.shopee_app_id || '');
   const [shopeeSecret, setShopeeSecret] = useState('');
 
-  const [isSavingML, setIsSavingML] = useState(false);
   const [isSavingShopee, setIsSavingShopee] = useState(false);
   const [testingMarketplace, setTestingMarketplace] = useState<'SHOPEE' | 'MERCADOLIVRE' | null>(null);
   const [diagnosticResult, setDiagnosticResult] = useState<IntegrationTestResult | null>(null);
@@ -52,23 +43,6 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
   const [waKey,setWaKey]=useState('');
   const [waInstance,setWaInstance]=useState(whatsappSettings?.evolutionInstance||'');
   const [waSaving,setWaSaving]=useState(false);
-
-  const handleSaveML = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSavingML(true);
-    try {
-      await onSaveAccount('acc_mercadolivre_br', {
-        ml_client_id: mlClientId,
-        ml_client_secret: mlClientSecret || mlAcc?.credentials_encrypted?.ml_client_secret || '',
-        ml_redirect_uri: mlRedirectUri,
-      });
-      alert('Configurações do Mercado Livre salvas com sucesso.');
-    } catch (err) {
-      alert(`Erro ao salvar: ${(err as Error).message}`);
-    } finally {
-      setIsSavingML(false);
-    }
-  };
 
   const handleSaveShopee = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,7 +60,7 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
     }
   };
 
-  const handleRunDiagnostic = async (marketplace: 'SHOPEE' | 'MERCADOLIVRE') => {
+  const handleRunDiagnostic = async (marketplace: 'SHOPEE' => {
     setTestingMarketplace(marketplace);
     try {
       const result = await onTestIntegration(marketplace);
@@ -134,120 +108,6 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
 
       {/* 2 Dedicated Marketplace Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* MERCADO LIVRE CARD */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 flex items-center justify-center font-bold text-2xl">
-                🟡
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-white text-lg">Mercado Livre Brasil</h3>
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
-                    DevCenter OAuth
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400">Autenticação OAuth 2.0 e API de Catálogo MLB</p>
-              </div>
-            </div>
-
-            {/* Status badge */}
-            <div className="text-right">
-              {mlAcc?.status === 'CONNECTED' ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Conectado
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                  <AlertTriangle className="w-3.5 h-3.5" /> Aguardando Configuração
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-800 text-xs text-slate-300 leading-relaxed">
-            <strong className="text-white block mb-1">Mecanismo Oficial:</strong>
-            O Mercado Livre utiliza OAuth 2.0 para acesso à API de catálogo e dados de anúncios. O Programa de Afiliados exige validação de domínios oficiais (<code className="text-amber-300">meli.la</code> ou tags <code className="text-amber-300">matt_tool</code>) para atribuição segura de comissões.
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSaveML} className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">
-                Client ID (DevCenter App ID)
-              </label>
-              <input
-                id="ml-input-client-id"
-                type="text"
-                placeholder="Ex: 582910481920491"
-                value={mlClientId}
-                onChange={(e) => setMlClientId(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">
-                Client Secret
-              </label>
-              <input
-                id="ml-input-client-secret"
-                type="password"
-                placeholder={mlAcc?.credentials_encrypted?.ml_client_secret ? '••••••••••••••••' : 'Chave secreta da aplicação'}
-                value={mlClientSecret}
-                onChange={(e) => setMlClientSecret(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">
-                Redirect URI (Cadastrada no DevCenter)
-              </label>
-              <input
-                id="ml-input-redirect-uri"
-                type="text"
-                value={mlRedirectUri}
-                onChange={(e) => setMlRedirectUri(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500 font-mono"
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <button
-                id="btn-save-ml-config"
-                type="submit"
-                disabled={isSavingML}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-white rounded-xl transition cursor-pointer disabled:opacity-50"
-              >
-                {isSavingML ? 'Salvando...' : 'Salvar Credenciais'}
-              </button>
-
-              <button
-                id="btn-connect-mercadolivre"
-                type="button"
-                onClick={onConnectMercadoLivre}
-                className="px-4 py-2 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                Conectar Mercado Livre (OAuth)
-              </button>
-
-              <button
-                id="btn-test-ml-integration"
-                type="button"
-                onClick={() => handleRunDiagnostic('MERCADOLIVRE')}
-                disabled={testingMarketplace === 'MERCADOLIVRE'}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${testingMarketplace === 'MERCADOLIVRE' ? 'animate-spin' : ''}`} />
-                Testar Integração
-              </button>
-            </div>
-          </form>
-        </div>
-
         {/* SHOPEE CARD */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
           <div className="flex items-start justify-between">
