@@ -54,7 +54,6 @@ const worker = new Worker('affiliate-publications', async job => {
   }
   await query("UPDATE publications SET status='SENT', provider_message_id=$2, published_at=NOW(), error=NULL WHERE id=$1", [row.id, result.messageId || null]);
 
-  const stateRows = await query<{ state: any }>('SELECT state FROM workspace_state WHERE workspace_id=$1', [row.workspace_id]);
   const state = stateRows[0]?.state;
   const statePub = state?.publications?.find((item: any) => item.id === row.id);
   if (statePub) {
