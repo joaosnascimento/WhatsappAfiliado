@@ -3,6 +3,8 @@ const assert=(v:boolean,m:string)=>{if(!v)throw new Error(m);};
 assert(canTransitionWhatsApp('CONNECTED','DISCONNECTED'),'WhatsApp must allow disconnect');
 assert(canTransitionWhatsApp('DISCONNECTED','RECONNECTING'),'WhatsApp must allow reconnect');
 assert(canTransitionWhatsApp('RECONNECTING','CONNECTED'),'WhatsApp must allow successful reconnect');
+assert(canTransitionWhatsApp('DISCONNECTED','CONNECTED'),'WhatsApp must allow externally observed reconnection');
+assert(canTransitionWhatsApp('QR_REQUIRED','CONNECTED'),'WhatsApp must allow QR authentication completion');
 assert(!canTransitionWhatsApp('NOT_CONFIGURED','SENT' as any),'WhatsApp must reject unrelated states');
 assert(canTransitionMercadoLivre('CONNECTED','EXPIRED'),'Mercado Livre must allow expiration');
 assert(canTransitionMercadoLivre('EXPIRED','RECONNECTING'),'Mercado Livre must allow reconnect');
