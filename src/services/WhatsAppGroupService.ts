@@ -3,7 +3,7 @@ export interface WhatsAppGroup { id:string; subject?:string; size?:number; owner
 type EvolutionSettings = { evolutionApiUrl?:string; evolutionApiKey?:string; evolutionInstance?:string };
 
 export function buildEvolutionGroupsUrl(base:string, instance:string): string {
-  const url=new URL('/group/fetchAllGroups/' + encodeURIComponent(instance), base.replace(/\\/$/,'') + '/');
+  const url=new URL('/group/fetchAllGroups/' + encodeURIComponent(instance), base.replace(/\/$/,'') + '/');
   url.searchParams.set('getParticipants','true');
   return url.toString();
 }
@@ -14,13 +14,11 @@ export class WhatsAppGroupService {
     const key=settings?.evolutionApiKey || process.env.EVOLUTION_API_KEY;
     const instance=settings?.evolutionInstance || process.env.EVOLUTION_INSTANCE;
     if(!base||!key||!instance) throw new Error('Evolution API não configurada.');
-
-    const url=new URL('/group/fetchAllGroups/' + encodeURIComponent(instance), base + '/');
-    url.searchParams.set('getParticipants','true');
+    const url=buildEvolutionGroupsUrl(base,instance);
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),Number(process.env.OUTBOUND_REQUEST_TIMEOUT_MS||15000));
     try {
-      const res=await fetch(url.toString(),{headers:{apikey:key},signal:controller.signal});
+      const res=await fetch(url,{headers:{apikey:key},signal:controller.signal});
       const body=await res.text();
       let parsed:any={}; try { parsed=body ? JSON.parse(body) : {}; } catch {}
       if(!res.ok) {
@@ -33,7 +31,7 @@ export class WhatsAppGroupService {
       const groups=Array.isArray(parsed)?parsed:(parsed?.groups||parsed?.response||[]);
       if(!Array.isArray(groups)) throw new Error('A Evolution API respondeu em formato inesperado ao listar grupos.');
       return groups as WhatsAppGroup[];
-    } catch (error) {
+    } catch(error) {
       if(error instanceof Error && error.name==='AbortError') {
         const e=new Error('Timeout ao consultar os grupos da Evolution API.'); (e as any).retryable=true; throw e;
       }
