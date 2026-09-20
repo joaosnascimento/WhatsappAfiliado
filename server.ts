@@ -194,8 +194,8 @@ async function startServer() {
   });
 
   // 3. Accounts management
-  app.get('/api/accounts',
-    await refreshPersistentWorkspace(req); (req, res) => {
+  app.get('/api/accounts', async (req, res) => {
+    await refreshPersistentWorkspace(req);
     const list = Array.from(store.accounts.values()).map((acc) => ({
       id: acc.id,
       workspace_id: acc.workspace_id,
@@ -303,8 +303,8 @@ async function startServer() {
   });
 
   // 6. Offers API
-  app.get('/api/offers',
-    await refreshPersistentWorkspace(req); (req, res) => {
+  app.get('/api/offers', async (req, res) => {
+    await refreshPersistentWorkspace(req);
     const marketplace = req.query.marketplace as string;
     const status = req.query.status as string;
 
@@ -800,8 +800,8 @@ async function startServer() {
   });
 
   // 10. Destinations
-  app.get('/api/destinations',
-    await refreshPersistentWorkspace(req); (req, res) => {
+  app.get('/api/destinations', async (req, res) => {
+    await refreshPersistentWorkspace(req);
     res.json(Array.from(store.destinations.values()));
   });
 
@@ -839,14 +839,14 @@ async function startServer() {
   });
 
   // 11. Publications Queue & History
-  app.get('/api/publications',
-    await refreshPersistentWorkspace(req); (req, res) => {
+  app.get('/api/publications', async (req, res) => {
+    await refreshPersistentWorkspace(req);
     res.json(Array.from(store.publications.values()).reverse());
   });
 
   // 12. Reports / Dashboard with persisted publication and real analytics data.
-  app.get('/api/reports',
-    await refreshPersistentWorkspace(req); async (req, res) => {
+  app.get('/api/reports', async (req, res) => {
+    await refreshPersistentWorkspace(req);
     try {
       const allOffers = Array.from(store.offers.values());
       const allPubs = Array.from(store.publications.values());
