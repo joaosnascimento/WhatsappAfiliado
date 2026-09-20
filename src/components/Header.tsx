@@ -1,9 +1,8 @@
 import React from 'react';
 import { LayoutDashboard, Search, Users, Send, MoreHorizontal, LogOut, Share2, Settings2, Store, ClipboardCheck, BookOpen } from 'lucide-react';
-import type { MarketplaceAccount } from '../types/affiliate.ts';
 import { Dropdown } from './ui/Dropdown.tsx';
-interface HeaderProps { activeTab:string; setActiveTab:(tab:string)=>void; accounts:MarketplaceAccount[]; onRunTests:()=>void; isTestingSuite:boolean; onLogout:()=>void; }
-export const Header:React.FC<HeaderProps>=({activeTab,setActiveTab,accounts,onRunTests,isTestingSuite,onLogout})=>{
+interface HeaderProps { activeTab:string; setActiveTab:(tab:string)=>void; onRunTests:()=>void; isTestingSuite:boolean; onLogout:()=>void; }
+export const Header:React.FC<HeaderProps>=({activeTab,setActiveTab,onRunTests,isTestingSuite,onLogout})=>{
  const items=[{id:'dashboard',label:'Início',icon:LayoutDashboard},{id:'offers',label:'Ofertas',icon:Search},{id:'destinations',label:'WhatsApp',icon:Users},{id:'queue',label:'Envios',icon:Send}];
  return <header className="sticky top-0 z-40 border-b border-border/80 bg-bg/95 backdrop-blur"><div className="mx-auto max-w-7xl px-4 sm:px-6"><div className="flex min-h-16 items-center gap-4">
  <button onClick={()=>setActiveTab('dashboard')} className="flex min-w-0 shrink-0 items-center gap-3 rounded-md text-left outline-none focus-visible:ring-4 focus-visible:ring-brand-500/15"><div className="flex h-9 w-9 items-center justify-center rounded-md bg-brand-500 text-bg"><Share2 className="h-4 w-4"/></div><div className="hidden md:block"><div className="font-bold tracking-tight text-text">WhatsappAfiliado</div><div className="text-xs text-subtle">Automação de ofertas</div></div></button>
