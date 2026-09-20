@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useToast } from './ui/Toast.tsx';
 import { X, Sparkles, Send, Copy, Check, ShieldCheck } from 'lucide-react';
 import type { Offer, Destination } from '../types/affiliate.ts';
 
@@ -17,6 +18,7 @@ export const AiMessageModal: React.FC<AiMessageModalProps> = ({
   onGenerateMessage,
   onPublish,
 }) => {
+  const toast=useToast();
   if (!offer) return null;
 
   const [message, setMessage] = useState(offer.ai_generated_message || '');
@@ -31,7 +33,7 @@ export const AiMessageModal: React.FC<AiMessageModalProps> = ({
       const generated = await onGenerateMessage(offer.id, selectedDestId);
       setMessage(generated);
     } catch (err) {
-      alert(`Erro na geração da IA: ${(err as Error).message}`);
+      toast('error','A IA não conseguiu gerar a mensagem',(err as Error).message);
     } finally {
       setIsGenerating(false);
     }
@@ -45,17 +47,17 @@ export const AiMessageModal: React.FC<AiMessageModalProps> = ({
 
   const handleSendToWhatsApp = async () => {
     if (!offer.affiliate_url && offer.status !== 'AFFILIATE_LINK_READY') {
-      alert('Bloqueio de Segurança: Não é permitido publicar sem link de afiliado validado.');
+      toast('error','Publicação bloqueada','É necessário um link de afiliado validado.');
       return;
     }
 
     setIsPublishing(true);
     try {
       await onPublish(offer.id, selectedDestId);
-      alert('Mensagem enviada com sucesso para a fila do WhatsApp!');
+      toast('success','Mensagem enviada','A oferta foi adicionada à fila do WhatsApp.');
       onClose();
     } catch (err) {
-      alert(`Falha no envio: ${(err as Error).message}`);
+      toast('error','Falha no envio',(err as Error).message);
     } finally {
       setIsPublishing(false);
     }
