@@ -10,7 +10,7 @@ type WorkspaceState = { offers?: Offer[] };
 import { zonedMinutes, isInsideWindow } from './TimezoneService.ts';
 
 function normalizeTag(value: string): string {
-  return value.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim().toLowerCase();
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 }
 function normalizeTags(value: unknown): string[] {
   if (Array.isArray(value)) return value.map(String).map(normalizeTag).filter(Boolean);
