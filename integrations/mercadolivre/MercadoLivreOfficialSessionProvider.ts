@@ -232,45 +232,90 @@ export class MercadoLivreOfficialSessionProvider {
     await runtime.page.goto(SEARCH_URL + encodeURIComponent(q), { waitUntil: 'domcontentloaded' });
     await runtime.page.waitForLoadState('networkidle').catch(() => undefined);
 
-    const rows = await runtime.page.locator('a[href*="mercadolivre.com.br/"]').evaluateAll((els) =>
+    // Only accept listings that visibly advertise a discount. A lower price alone
+    // is not enough: the card must expose an original price higher than the current
+    // price and an explicit discount percentage.
+    const rows = await runtime.page.locator('li, article').evaluateAll((els) =>
       els.map((el) => {
-        const href = (el as HTMLAnchorElement).href;
-        const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
-        const card = el.closest('li, article, div');
-        const cardText = (card?.textContent || '').replace(/\s+/g, ' ').trim();
-        return { href, text, cardText };
+        const node = el as HTMLElement;
+        const anchors = Array.from(node.querySelectorAll<HTMLAnchorElement>('a[href]'));
+        const productAnchor = anchors.find(a => /mercadolivre\.com\.br/i.test(a.href) && /\/MLB[-_]|\/p\/MLB/i.test(a.href));
+        const image = node.querySelector<HTMLImageElement>('img');
+        return {
+          href: productAnchor?.href || '',
+          text: (node.textContent || '').replace(/\s+/g, ' ').trim(),
+          image: image?.currentSrc || image?.src || '',
+        };
       })
-    ).catch(() => [] as Array<{href:string;text:string;cardText:string}>);
+    ).catch(() => [] as Array<{href:string;text:string;image:string}>);
 
     const seen = new Set<string>();
     const products: AffiliateProduct[] = [];
+
     for (const row of rows) {
       if (products.length >= limit) break;
-      if (!ML_HOST.test(new URL(row.href).hostname)) continue;
+      if (!row.href || !ML_HOST.test(new URL(row.href).hostname)) continue;
       if (!/\/MLB[-_]|\/p\/MLB/i.test(row.href)) continue;
       if (seen.has(row.href)) continue;
-      seen.add(row.href);
-      const title = row.text || row.cardText.slice(0, 180) || 'Produto Mercado Livre';
-      const priceMatch = row.cardText.match(/R\$\s*([0-9.]+(?:,[0-9]{2})?)/);
-      const price = priceMatch ? Number(priceMatch[1].replace(/\./g, '').replace(',', '.')) : 0;
+
+      const cardText = row.text;
+      const discountMatch = cardText.match(/(\d{1,3})\s*%\s*(?:OFF|de\s*desconto|desconto)/i);
+      if (!discountMatch) continue;
+
+      // Prefer an explicit "De R$ X por R$ Y" / "R$ X R$ Y" pair.
+      // We require the original price to be strictly greater than the current price.
+      const prices = [...cardText.matchAll(/R\$\s*([0-9.]+(?:,[0-9]{2})?)/gi)]
+        .map(m => Number(m[1].replace(/\./g, '').replace(',', '.')))
+        .filter(Number.isFinite);
+
+      if (prices.length < 2) continue;
+
+      const currentPrice = Math.min(...prices);
+      const originalCandidates = prices.filter(price => price > currentPrice);
+      if (!originalCandidates.length) continue;
+
+      const originalPrice = Math.max(...originalCandidates);
+      const discount = Number(discountMatch[1]);
+      const calculatedDiscount = Math.round((1 - currentPrice / originalPrice) * 100);
+
+      // Reject inconsistent/stale card data instead of inventing a discount.
+      if (currentPrice <= 0 || originalPrice <= currentPrice || discount <= 0) continue;
+      if (Math.abs(calculatedDiscount - discount) > 3) continue;
+
+      const title = cardText
+        .replace(/R\$\s*[0-9.]+(?:,[0-9]{2})?/gi, '')
+        .replace(/\d{1,3}\s*%\s*(?:OFF|de\s*desconto|desconto)/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 180) || 'Produto Mercado Livre';
+
       const productIdMatch = row.href.match(/(?:\/p\/|\/)(MLB[-_][A-Za-z0-9_-]+)/i);
       const externalId = productIdMatch?.[1] || Buffer.from(row.href).toString('base64url').slice(0, 32);
+
       products.push({
         id: 'ml_auto_' + Buffer.from(row.href).toString('base64url').slice(0, 36),
         marketplace: 'MERCADOLIVRE',
         external_product_id: externalId,
         title,
-        image: '',
+        image: row.image,
         original_url: row.href,
-        price,
-        metadata: { source: 'mercadolivre_browser_search', keyword: q },
+        price: currentPrice,
+        original_price: originalPrice,
+        discount,
+        metadata: {
+          source: 'mercadolivre_browser_search',
+          keyword: q,
+          discount_verified: true,
+          discount_calculated: calculatedDiscount,
+        },
       });
+      seen.add(row.href);
     }
+
     const priorStatus = account.credentials_encrypted.ml_session_status;
     if (priorStatus === 'CONNECTED') await persistSession(account, runtime.context, 'CONNECTED');
     return products;
   }
-
   static async disconnect(account: MarketplaceAccount) {
     const runtime = runtimes.get(account.id);
     if (runtime) await closeAndPersist(account, runtime);
