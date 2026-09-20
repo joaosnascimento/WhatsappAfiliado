@@ -195,7 +195,8 @@ async function startServer() {
     try {
       const rows=await query<any>('SELECT COALESCE(automation_enabled,true) AS automation_enabled FROM workspaces WHERE id=$1',[req.user!.workspaceId]);
       if(!rows[0]) return res.status(404).json({error:'Workspace não encontrado.'});
-      res.json({enabled:Boolean(rows[0].automation_enabled)});
+      const queue=await query<any>(`SELECT COUNT(*) FILTER (WHERE status IN ('QUEUED','SCHEDULED','PROCESSING'))::int AS queued, COUNT(*) FILTER (WHERE status='RETRYING')::int AS retrying, MAX(updated_at) AS last_activity, MIN(next_retry_at) FILTER (WHERE status='RETRYING') AS next_retry_at FROM publications WHERE workspace_id=$1`,[req.user!.workspaceId]);
+      res.json({enabled:Boolean(rows[0].automation_enabled),queue:queue[0]||{queued:0,retrying:0,last_activity:null,next_retry_at:null}});
     } catch(error) { res.status(500).json({error:(error as Error).message}); }
   });
 
