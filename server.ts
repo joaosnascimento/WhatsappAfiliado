@@ -228,7 +228,7 @@ async function startServer() {
   });
 
   // 4. Test Integration Diagnostic (Mercado Livre & Shopee)
-  app.post('/api/test-integration/:marketplace', requireAuth, redisRateLimit({windowSeconds:60,max:5,prefix:'integration-test'}), async (req, res) => {
+  app.post('/api/test-integration/:marketplace', requireAuth, workspaceContext, redisRateLimit({windowSeconds:60,max:5,prefix:'integration-test'}), async (req, res) => {
     const marketplace = req.params.marketplace.toUpperCase();
 
     if (marketplace === 'SHOPEE') {
