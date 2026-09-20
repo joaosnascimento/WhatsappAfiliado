@@ -241,9 +241,27 @@ export class MercadoLivreOfficialSessionProvider {
   static async discover(account: MarketplaceAccount, keyword: string, limit = 10): Promise<AffiliateProduct[]> {
     const q = keyword.trim();
     if (!q) return [];
+    const saved = sessionFromAccount(account);
+    if (!saved || account.credentials_encrypted.ml_session_status !== 'CONNECTED') {
+      throw new Error('Mercado Livre não está conectado. Faça o primeiro login em Conectar Mercado Livre.');
+    }
+
     const runtime = await launch(account, false);
-    await runtime.page.goto(SEARCH_URL + encodeURIComponent(q), { waitUntil: 'domcontentloaded' });
-    await runtime.page.waitForLoadState('networkidle').catch(() => undefined);
+    try {
+      // Validate the persisted session before scraping. If Mercado Livre redirected
+      // the restored context to authentication, never silently scrape the login page.
+      await runtime.page.goto('https://www.mercadolivre.com.br/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+      if (!(await isLoggedIn(runtime.page))) {
+        await persistSession(account, runtime.context, 'EXPIRED');
+        throw new Error('A sessão salva do Mercado Livre expirou. Reconecte pelo botão Conectar Mercado Livre.');
+      }
+
+      await runtime.page.goto(SEARCH_URL + encodeURIComponent(q), { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await runtime.page.waitForLoadState('networkidle').catch(() => undefined);
+      if (!(await isLoggedIn(runtime.page))) {
+        await persistSession(account, runtime.context, 'EXPIRED');
+        throw new Error('O Mercado Livre perdeu a sessão durante a busca. Reconecte pelo botão Conectar Mercado Livre.');
+      }
 
     // Only accept listings that visibly advertise a discount. A lower price alone
     // is not enough: the card must expose an original price higher than the current
@@ -325,8 +343,7 @@ export class MercadoLivreOfficialSessionProvider {
       seen.add(row.href);
     }
 
-    const priorStatus = account.credentials_encrypted.ml_session_status;
-    if (priorStatus === 'CONNECTED') await persistSession(account, runtime.context, 'CONNECTED');
+    await persistSession(account, runtime.context, 'CONNECTED');
     return products;
   }
   static async disconnect(account: MarketplaceAccount) {
