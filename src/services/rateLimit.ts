@@ -2,7 +2,12 @@ import type { Request, Response, NextFunction } from 'express';
 import { redis } from '../infrastructure/redis.ts';
 import { recordSecurityEvent } from '../security/security.ts';
 
-export function redisRateLimit(options: { windowSeconds: number; max: number; prefix: string }) {
+export function redisRateLimit(options: {
+  windowSeconds: number;
+  max: number;
+  prefix: string;
+  key?: (req: Request) => string;
+}) {
   return async (req: Request, res: Response, next: NextFunction) => {
     if (!redis) {
       if (process.env.NODE_ENV === 'production') {
@@ -11,7 +16,7 @@ export function redisRateLimit(options: { windowSeconds: number; max: number; pr
       return next();
     }
 
-    const identity = req.user?.userId || req.ip || 'unknown';
+    const identity = options.key?.(req) || req.user?.userId || req.ip || 'unknown';
     const key = `ratelimit:${options.prefix}:${identity}`;
     try {
       const count = await redis.incr(key);
