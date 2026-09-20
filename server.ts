@@ -608,6 +608,7 @@ async function startServer() {
       offer.status = 'AFFILIATE_LINK_READY';
       offer.status_reason = 'Link oficial meli.la validado e associado com sucesso.';
 
+      if (persistentStoreEnabled) await store.persist(req.user!.workspaceId);
       res.json({ success: true, offer, link });
     } catch (err) {
       res.status(400).json({ error: (err as Error).message });
