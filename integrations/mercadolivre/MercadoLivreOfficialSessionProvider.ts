@@ -138,10 +138,10 @@ async function findAffiliateLink(page: Page): Promise<string | null> {
   return match ? match[0] : null;
 }
 
-async function createAffiliateLinkViaOfficialApi(page: Page, originalUrl: string): Promise<string | null> {
-  const result = await page.evaluate(async ({ originalUrl, tag }) => {
-    const csrfCookie = document.cookie.split(';').map(v => v.trim()).find(v => v.startsWith('_csrf='));
-    const csrf = csrfCookie ? decodeURIComponent(csrfCookie.slice('_csrf='.length)) : '';
+async function createAffiliateLinkViaOfficialApi(page: Page, originalUrl: string, context: BrowserContext): Promise<string | null> {
+  const cookies = await context.cookies('https://www.mercadolivre.com.br');
+  const csrf = cookies.find(cookie => cookie.name === '_csrf')?.value || '';
+  const result = await page.evaluate(async ({ originalUrl, tag, csrf }) => {
     const response = await fetch('/affiliate-program/api/v2/affiliates/createLink', {
       method: 'POST',
       credentials: 'include',
@@ -160,7 +160,7 @@ async function createAffiliateLinkViaOfficialApi(page: Page, originalUrl: string
     if (!response.ok) throw new Error(\`HTTP \${response.status}: \${data?.message || data?.error || text.slice(0, 300)}\`);
     const candidates = [data?.urls?.[0]?.short_url, data?.urls?.[0]?.url, data?.short_url, data?.url].filter(Boolean);
     return candidates.find((value: string) => /^https:\/\/(?:www\.)?meli\.la\//i.test(value)) || candidates[0] || null;
-  }, { originalUrl, tag: process.env.ML_AFFILIATE_TAG || 'whatsappafiliado' });
+  }, { originalUrl, tag: process.env.ML_AFFILIATE_TAG || 'whatsappafiliado', csrf });
   if (!result) throw new Error('A API oficial do Mercado Livre não retornou um link afiliado.');
   return result;
 }
@@ -315,7 +315,7 @@ export class MercadoLivreOfficialSessionProvider {
 
     let affiliateUrl: string | null = null;
     try {
-      affiliateUrl = await createAffiliateLinkViaOfficialApi(runtime.page, originalUrl);
+      affiliateUrl = await createAffiliateLinkViaOfficialApi(runtime.page, originalUrl, runtime.context);
     } catch (apiError) {
       try {
         await openAffiliateGenerator(runtime.page);
