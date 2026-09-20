@@ -15,7 +15,6 @@ import { requireAuth } from './src/services/authMiddleware.ts';
 import { redisRateLimit } from './src/services/rateLimit.ts';
 import { ShopeeAffiliateAdapter } from './integrations/shopee/ShopeeAffiliateAdapter.ts';
 import { MercadoLivreAffiliateAdapter } from './integrations/mercadolivre/MercadoLivreAffiliateAdapter.ts';
-import { MercadoLivreOAuthService } from './integrations/mercadolivre/MercadoLivreOAuthService.ts';
 import { MercadoLivreAffiliateService } from './integrations/mercadolivre/MercadoLivreAffiliateService.ts';
 import { AiMessageService } from './src/services/AiMessageService.ts';
 import { WhatsAppProvider } from './src/services/WhatsAppProvider.ts';
@@ -32,31 +31,6 @@ import type { Offer, Publication, Destination } from './src/types/affiliate.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-const mlOAuthTransactions = new Map<string, { codeVerifier: string; createdAt: number; accountId: string; workspaceId: string }>();
-const ML_OAUTH_REDIS_PREFIX = 'oauth:mercadolivre:';
-
-type MlOAuthTransaction = { codeVerifier: string; createdAt: number; accountId: string; workspaceId: string };
-async function saveMlOAuthTransaction(state: string, transaction: MlOAuthTransaction) {
-  if (redis) await redis.set(`${ML_OAUTH_REDIS_PREFIX}${state}`, JSON.stringify(transaction), 'EX', Math.ceil(ML_OAUTH_STATE_TTL_MS / 1000));
-  else mlOAuthTransactions.set(state, transaction);
-}
-async function getMlOAuthTransaction(state: string): Promise<MlOAuthTransaction | null> {
-  if (redis) {
-    const raw = await redis.get(`${ML_OAUTH_REDIS_PREFIX}${state}`);
-    return raw ? JSON.parse(raw) as MlOAuthTransaction : null;
-  }
-  return mlOAuthTransactions.get(state) || null;
-}
-async function deleteMlOAuthTransaction(state: string) {
-  if (redis) await redis.del(`${ML_OAUTH_REDIS_PREFIX}${state}`);
-  else mlOAuthTransactions.delete(state);
-}
-const ML_OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
-function cleanupExpiredMlOAuthTransactions() {
-  const now = Date.now();
-  for (const [state, tx] of mlOAuthTransactions) if (now - tx.createdAt > ML_OAUTH_STATE_TTL_MS) mlOAuthTransactions.delete(state);
-}
 
 async function startServer() {
   const persistentStoreEnabled = Boolean(process.env.DATABASE_URL) && process.env.ALLOW_INMEMORY_STORE !== 'true';
@@ -191,7 +165,7 @@ async function startServer() {
       status: 'ok',
       service: 'Automacao Afiliados WhatsApp SaaS',
       geminiConfigured: !!process.env.GEMINI_API_KEY,
-      mercadolivreConfigured: !!process.env.MERCADOLIVRE_CLIENT_ID,
+      mercadolivreConfigured: true,
       shopeeConfigured: !!process.env.SHOPEE_AFFILIATE_APP_ID,
       whatsappProvider: process.env.WHATSAPP_PROVIDER || 'cloud',
       evolutionConfigured: !!(process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY && process.env.EVOLUTION_INSTANCE),
@@ -236,17 +210,13 @@ async function startServer() {
 
     const { credentials } = req.body || {};
     if (credentials && typeof credentials === 'object' && !Array.isArray(credentials)) {
-      const allowed = account.marketplace === 'SHOPEE'
-        ? ['shopee_app_id','shopee_secret']
-        : ['ml_client_id','ml_client_secret','ml_redirect_uri'];
+      const allowed = account.marketplace === 'SHOPEE' ? ['shopee_app_id','shopee_secret'] : [];
       for (const key of Object.keys(credentials)) {
         if (!allowed.includes(key)) return res.status(400).json({error:'Campo de credencial não permitido.'});
         if (typeof credentials[key] !== 'string' || credentials[key].length > 512) return res.status(400).json({error:'Credencial inválida.'});
       }
       for (const key of allowed) if (key in credentials) (account.credentials_encrypted as any)[key] = credentials[key];
-      const configured = account.marketplace === 'SHOPEE'
-        ? Boolean(account.credentials_encrypted.shopee_app_id && account.credentials_encrypted.shopee_secret)
-        : Boolean(account.credentials_encrypted.ml_client_id && account.credentials_encrypted.ml_client_secret && account.credentials_encrypted.ml_redirect_uri);
+      const configured = account.marketplace === 'SHOPEE' ? Boolean(account.credentials_encrypted.shopee_app_id && account.credentials_encrypted.shopee_secret) : true;
       account.status = configured ? 'AWAITING_CONFIG' : 'AWAITING_CONFIG';
       account.status_message = configured ? 'Credenciais configuradas; conclua o fluxo de autenticação.' : 'Aguardando credenciais obrigatórias.';
       account.updated_at = new Date().toISOString();
@@ -255,85 +225,7 @@ async function startServer() {
     res.json({ success: true, account: safeAccount });
   });
 
-  // 4. Mercado Livre OAuth Flow
-  app.get('/api/auth/mercadolivre/url', requireAuth, workspaceContext, async (req, res) => {
-    const mlAccount = findMarketplaceAccount('MERCADOLIVRE');
-    const clientId = mlAccount?.credentials_encrypted.ml_client_id || process.env.MERCADOLIVRE_CLIENT_ID || '';
-    const redirectUri = mlAccount?.credentials_encrypted.ml_redirect_uri || process.env.MERCADOLIVRE_REDIRECT_URI || '';
-
-    const oauth = new MercadoLivreOAuthService({
-      clientId,
-      clientSecret: mlAccount?.credentials_encrypted.ml_client_secret || process.env.MERCADOLIVRE_CLIENT_SECRET || '',
-      redirectUri,
-    });
-
-    try {
-      const authorization = oauth.createAuthorization();
-      if (!mlAccount) return res.status(400).json({ error: 'Nenhuma conta do Mercado Livre foi criada neste workspace.' });
-      await saveMlOAuthTransaction(authorization.state, { codeVerifier: authorization.codeVerifier, createdAt: Date.now(), accountId: mlAccount.id, workspaceId: req.user!.workspaceId });
-      cleanupExpiredMlOAuthTransactions();
-      res.json({ url: authorization.url });
-    } catch (err) {
-      res.status(400).json({ error: (err as Error).message });
-    }
-  });
-
-  app.get('/api/auth/mercadolivre/callback', async (req, res) => {
-    const code = req.query.code as string;
-    const state = req.query.state as string;
-    cleanupExpiredMlOAuthTransactions();
-    if (!code) return res.status(400).send('Código de autorização não recebido do Mercado Livre.');
-    if (!state) return res.status(400).send('State OAuth ausente.');
-
-    const transaction = await getMlOAuthTransaction(state);
-    if (!transaction || Date.now() - transaction.createdAt > ML_OAUTH_STATE_TTL_MS) {
-      return res.status(400).send('State OAuth inválido ou expirado.');
-    }
-    await deleteMlOAuthTransaction(state);
-
-    try {
-      await runWithWorkspace(transaction.workspaceId, async () => {
-        const mlAccount = store.accounts.get(transaction.accountId);
-        const clientId = mlAccount?.credentials_encrypted.ml_client_id || process.env.MERCADOLIVRE_CLIENT_ID || '';
-        const clientSecret = mlAccount?.credentials_encrypted.ml_client_secret || process.env.MERCADOLIVRE_CLIENT_SECRET || '';
-        const redirectUri = mlAccount?.credentials_encrypted.ml_redirect_uri || process.env.MERCADOLIVRE_REDIRECT_URI || '';
-
-        const oauth = new MercadoLivreOAuthService({ clientId, clientSecret, redirectUri });
-        const tokenData = await oauth.exchangeCodeForToken(code, transaction.codeVerifier);
-
-        if (!mlAccount) throw new Error('Conta do Mercado Livre não encontrada no workspace.');
-
-        mlAccount.credentials_encrypted.ml_access_token = tokenData.access_token;
-        mlAccount.credentials_encrypted.ml_refresh_token = tokenData.refresh_token;
-        mlAccount.credentials_encrypted.ml_user_id = String(tokenData.user_id);
-        await query('UPDATE marketplace_accounts SET provider_account_id=$2, provider_application_id=$3 WHERE id=$1',[mlAccount.id,String(tokenData.user_id),clientId]);
-        mlAccount.credentials_encrypted.ml_expires_at = Date.now() + tokenData.expires_in * 1000;
-        mlAccount.status = 'CONNECTED';
-        mlAccount.status_message = `Conectado com sucesso (User ID: ${tokenData.user_id})`;
-
-        await store.persist(transaction.workspaceId);
-      });
-
-      res.send(`
-        <html>
-          <body style="font-family: sans-serif; text-align: center; padding: 40px; background: #f8fafc;">
-            <h2 style="color: #16a34a;">Mercado Livre Conectado com Sucesso!</h2>
-            <p>Seu token de acesso foi armazenado de forma segura.</p>
-            <script>
-              setTimeout(function() {
-                window.close();
-                if (window.opener) { window.opener.location.reload(); }
-              }, 2000);
-            </script>
-          </body>
-        </html>
-      `);
-    } catch (err) {
-      res.status(500).json({ error: `Erro ao trocar código por token: ${(err as Error).message}` });
-    }
-  });
-
-  // 5. Test Integration Diagnostic (Mercado Livre & Shopee)
+  // 4. Test Integration Diagnostic (Mercado Livre & Shopee)
   app.post('/api/test-integration/:marketplace', requireAuth, redisRateLimit({windowSeconds:60,max:5,prefix:'integration-test'}), async (req, res) => {
     const marketplace = req.params.marketplace.toUpperCase();
 
@@ -347,12 +239,7 @@ async function startServer() {
       return res.json(testResult);
     } else if (marketplace === 'MERCADOLIVRE') {
       const account = findMarketplaceAccount('MERCADOLIVRE');
-      const adapter = new MercadoLivreAffiliateAdapter({
-        clientId: account?.credentials_encrypted.ml_client_id,
-        clientSecret: account?.credentials_encrypted.ml_client_secret,
-        redirectUri: account?.credentials_encrypted.ml_redirect_uri,
-        accessToken: account?.credentials_encrypted.ml_access_token,
-      });
+      const adapter = new MercadoLivreAffiliateAdapter({ accountId: account?.id });
       const testResult = await adapter.testConnection();
       return res.json(testResult);
     } else {
@@ -446,66 +333,7 @@ async function startServer() {
 
         return res.json({ count: createdOffers.length, offers: createdOffers });
       } else {
-        // Mercado Livre live search
-        const mlAccount = findMarketplaceAccount('MERCADOLIVRE');
-        const adapter = new MercadoLivreAffiliateAdapter({
-          clientId: mlAccount?.credentials_encrypted.ml_client_id,
-          accessToken: mlAccount?.credentials_encrypted.ml_access_token,
-        });
-
-        const products = await adapter.searchOffers({
-          keyword: keyword || 'smartphone',
-          category,
-          limit: 10,
-        });
-
-        const createdOffers: Offer[] = [];
-        for (const p of products) {
-          store.products.set(p.id, p);
-
-          let affiliateUrl: string | undefined;
-          let linkId: string | undefined;
-          let status: Offer['status'] = 'VALIDATED';
-          let statusReason = 'Link de afiliado do Mercado Livre pendente de associação.';
-
-          try {
-            const link = await adapter.createAffiliateLink({
-              originalUrl: p.original_url,
-              productId: p.external_product_id,
-              subIds: ['whatsapp', 'auto_search'],
-            });
-            store.links.set(link.id, link);
-            affiliateUrl = link.affiliate_url;
-            linkId = link.id;
-            status = 'AFFILIATE_LINK_READY';
-            statusReason = 'Link de afiliado Mercado Livre gerado e validado automaticamente.';
-          } catch (error) {
-            statusReason = (error as Error).message || statusReason;
-          }
-
-          const offer: Offer = {
-            id: `offer_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-            product_id: p.id,
-            product: p,
-            marketplace: 'MERCADOLIVRE',
-            price: p.price,
-            original_price: p.original_price,
-            discount: p.discount,
-            commission: p.commission,
-            score: Math.min(100, Math.round((p.discount || 10) * 1.5 + 40)),
-            status,
-            status_reason: statusReason,
-            affiliate_link_id: linkId,
-            affiliate_url: affiliateUrl,
-            first_seen_at: new Date().toISOString(),
-            last_seen_at: new Date().toISOString(),
-          };
-
-          store.offers.set(offer.id, offer);
-          createdOffers.push(offer);
-        }
-
-        return res.json({ count: createdOffers.length, offers: createdOffers });
+        return res.status(400).json({ error: 'A busca automática do catálogo do Mercado Livre foi desativada. Adicione a oferta e use o fluxo Gerar / Associar Link de Afiliado.' });
       }
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
