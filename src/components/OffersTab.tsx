@@ -175,7 +175,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
               type="button"
               onClick={() => void handleLiveSearchTrigger()}
               disabled={isSearchingLive}
-              className="px-4 py-2 bg-brand-500 hover:bg-brand-400 text-slate-950 font-bold text-sm rounded-md transition cursor-pointer disabled:opacity-50"
+              className="px-4 py-2 bg-brand-500 hover:bg-brand-400 text-bg font-bold text-sm rounded-md transition cursor-pointer disabled:opacity-50"
             >
               {isSearchingLive ? 'Buscando…' : 'Buscar automaticamente'}
             </button>
@@ -207,7 +207,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
                 onClick={() => setSelectedMarketplace(mp)}
                 className={`px-3 py-1 rounded-lg font-medium transition cursor-pointer ${
                   selectedMarketplace === mp
-                    ? 'bg-brand-500 text-slate-950 font-bold'
+                    ? 'bg-brand-500 text-bg font-bold'
                     : 'text-muted hover:text-text'
                 }`}
               >
@@ -254,7 +254,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
             <input value={mlUrl} onChange={e=>setMlUrl(e.target.value)} placeholder="https://www.mercadolivre.com.br/..." className="flex-1 min-w-[280px] bg-surface-2 border border-border-strong rounded-md px-3 py-2 text-sm text-text" required />
             <input value={mlTitle} onChange={e=>setMlTitle(e.target.value)} placeholder="Nome (opcional)" className="w-44 bg-surface-2 border border-border-strong rounded-md px-3 py-2 text-sm text-text" />
             <input value={mlPrice} onChange={e=>setMlPrice(e.target.value)} placeholder="Preço" type="number" min="0" step="0.01" className="w-28 bg-surface-2 border border-border-strong rounded-md px-3 py-2 text-sm text-text" />
-            <button disabled={mlBusy} className="px-4 py-2 bg-brand-500 text-slate-950 font-bold text-sm rounded-md disabled:opacity-50"><Plus className="w-3.5 h-3.5 inline mr-1"/>{mlBusy?'Adicionando...':'Adicionar oferta'}</button>
+            <button disabled={mlBusy} className="px-4 py-2 bg-brand-500 text-bg font-bold text-sm rounded-md disabled:opacity-50"><Plus className="w-3.5 h-3.5 inline mr-1"/>{mlBusy?'Adicionando...':'Adicionar oferta'}</button>
           </form>
         </div>
       </div>
@@ -395,7 +395,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
                       <button
                         id={`btn-open-ai-modal-${offer.id}`}
                         onClick={() => onOpenAiMessageModal(offer)}
-                        className="py-2 bg-surface-2 hover:bg-surface-3 border-border-strong text-slate-200 font-medium text-sm rounded-md border border-border-strong transition flex items-center justify-center gap-1 cursor-pointer"
+                        className="py-2 bg-surface-2 hover:bg-surface-3 border-border-strong text-text font-medium text-sm rounded-md border border-border-strong transition flex items-center justify-center gap-1 cursor-pointer"
                       >
                         <Sparkles className="w-3.5 h-3.5 text-brand-300" />
                         Mensagem IA
@@ -405,7 +405,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
                         id={`btn-quick-publish-${offer.id}`}
                         onClick={() => handlePublishClick(offer)}
                         disabled={!isReady || publishingId === offer.id}
-                        className="py-2 bg-brand-500 hover:bg-brand-400 text-slate-950 font-bold text-sm rounded-md transition flex items-center justify-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="py-2 bg-brand-500 hover:bg-brand-400 text-bg font-bold text-sm rounded-md transition flex items-center justify-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Send className="w-3.5 h-3.5" />
                         {publishingId === offer.id ? 'Enviando...' : isPublished ? 'Reenviar' : 'Publicar'}
