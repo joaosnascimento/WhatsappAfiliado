@@ -97,3 +97,12 @@ Audit of the existing production codebase, with priority on P0/P1 reliability, s
 - Data portability: add CSV/JSON export for offers, publications and analytics so users can audit their operation outside the application.
 - Automation controls: add a global workspace automation switch and a visible next-run / last-run / last-error status, complementing the per-destination pause/resume control.
 - User permissions: for multi-user workspaces, add owner/admin/operator roles and audit records for destructive actions.
+
+
+### Implemented after second-pass review
+- Global workspace automation switch added, persisted in PostgreSQL and enforced by `AutomationScheduler`.
+- Dashboard now exposes global automation pause/resume.
+- Secured Evolution webhook receiver added for `CONNECTION_UPDATE` and `QRCODE_UPDATED`, with instance/workspace validation and event deduplication.
+- Publication cancellation hardened so an already `PROCESSING` publication is not falsely marked cancelled; the user receives an explicit conflict instead.
+- Coupon lifecycle completed with list, activate/deactivate and soft-delete operations plus a dedicated dashboard surface.
+- Coupon API remains workspace-scoped through the existing `/api/coupons` authentication/workspace middleware.
