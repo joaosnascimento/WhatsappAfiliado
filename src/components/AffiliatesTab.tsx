@@ -38,7 +38,7 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
   const [mlStatus, setMlStatus] = useState<any>(null);
   const [mlBusy, setMlBusy] = useState(false);
   const refreshMlStatus = async () => {
-    try { const r = await apiFetch('/api/mercadolivre/status'); const d = await r.json().catch(() => ({})); if (r.ok) setMlStatus(d); } catch {}
+    try { const r = await apiFetch('/api/mercadolivre/status'); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Não foi possível consultar o status.'); setMlStatus(d); } catch (error) { toast('error','Status do Mercado Livre indisponível',(error as Error).message); }
   };
   const connectMl = async () => {
     setMlBusy(true);
@@ -48,7 +48,7 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
   const disconnectMl = async () => {
     setMlBusy(true);
     try { const r = await apiFetch('/api/mercadolivre/disconnect', { method: 'POST' }); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Não foi possível desconectar.'); setMlStatus(d); }
-    catch (e) { toast('error','Falha ao configurar WhatsApp',(e as Error).message); } finally { setMlBusy(false); }
+    catch (e) { toast('error','Falha ao desconectar Mercado Livre',(e as Error).message); } finally { setMlBusy(false); }
   };
 
   // Form states
@@ -70,10 +70,9 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
     e.preventDefault();
     setIsSavingShopee(true);
     try {
-      await onSaveAccount('acc_shopee_br', {
-        shopee_app_id: shopeeAppId,
-        shopee_secret: shopeeSecret || shopeeAcc?.credentials_encrypted?.shopee_secret || '',
-      });
+      const credentials: Record<string, string> = { shopee_app_id: shopeeAppId.trim() };
+      if (shopeeSecret.trim()) credentials.shopee_secret = shopeeSecret.trim();
+      await onSaveAccount('acc_shopee_br', credentials);
       toast('success','Credenciais salvas','As credenciais da Shopee foram atualizadas.');
     } catch (err) {
       toast('error','Erro ao salvar',(err as Error).message);
