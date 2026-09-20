@@ -123,7 +123,7 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
         </div>
         <div className="flex gap-3">
           <input type="password" value={waKey} onChange={e=>setWaKey(e.target.value)} placeholder={whatsappSettings?.evolutionApiKey==='configured'?'Chave já configurada':'Evolution API Key'} className="flex-1 bg-surface-2 border border-border-strong rounded-md px-3 py-2 text-sm text-text" />
-          <button disabled={waSaving} onClick={async()=>{setWaSaving(true);try{await onSaveWhatsApp({provider:waProvider,evolutionApiUrl:waUrl,evolutionApiKey:waKey,evolutionInstance:waInstance});toast('success','WhatsApp configurado','A configuração foi salva.')}catch(e){alert((e as Error).message)}finally{setWaSaving(false)}}} className="px-4 py-2 bg-brand-500 text-slate-950 rounded-md text-sm font-bold">{waSaving?'Salvando...':'Salvar WhatsApp'}</button>
+          <button disabled={waSaving} onClick={async()=>{setWaSaving(true);try{await onSaveWhatsApp({provider:waProvider,evolutionApiUrl:waUrl,evolutionApiKey:waKey,evolutionInstance:waInstance});toast('success','WhatsApp configurado','A configuração foi salva.')}catch(e){toast('error','Falha ao configurar WhatsApp',(e as Error).message)}finally{setWaSaving(false)}}} className="px-4 py-2 bg-brand-500 text-slate-950 rounded-md text-sm font-bold">{waSaving?'Salvando...':'Salvar WhatsApp'}</button>
         </div>
       </div>
 
