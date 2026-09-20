@@ -340,6 +340,28 @@ async function startServer() {
     }
   });
 
+  // 7. Mercado Livre: cadastro manual pelo link do anúncio
+  app.post('/api/offers/manual-mercadolivre', (req, res) => {
+    const originalUrl = String(req.body?.originalUrl || '').trim();
+    const title = String(req.body?.title || '').trim().slice(0, 200) || 'Oferta Mercado Livre';
+    const price = Number(req.body?.price || 0);
+    if (!/^https:\/\/(?:www\.)?mercadolivre\.com\.br\//i.test(originalUrl)) return res.status(400).json({ error: 'Use a URL de um anúncio do Mercado Livre Brasil.' });
+    if (!Number.isFinite(price) || price < 0) return res.status(400).json({ error: 'Preço inválido.' });
+    const productId = 'MLB_URL_' + Buffer.from(originalUrl).toString('base64url').slice(0, 40);
+    const product: any = {
+      id: 'ml_manual_' + Date.now(), marketplace: 'MERCADOLIVRE', external_product_id: productId,
+      title, image: '', original_url: originalUrl, price, metadata: { source: 'manual_affiliate_flow' }
+    };
+    const offer: Offer = {
+      id: 'offer_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6), product_id: product.id,
+      product, marketplace: 'MERCADOLIVRE', price, status: 'VALIDATED',
+      status_reason: 'Produto cadastrado. Gere o link no Portal de Afiliados e associe-o a esta oferta.',
+      first_seen_at: new Date().toISOString(), last_seen_at: new Date().toISOString()
+    };
+    store.products.set(product.id, product); store.offers.set(offer.id, offer);
+    res.status(201).json(offer);
+  });
+
   // 7. Rule 4: Associate Mercado Livre Affiliate Link
   app.post('/api/offers/:id/associate-ml-link', (req, res) => {
     const offer = store.offers.get(req.params.id);
