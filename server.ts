@@ -452,6 +452,7 @@ async function startServer() {
           createdOffers.push(offer);
         }
 
+        if (persistentStoreEnabled) await store.persist(req.user!.workspaceId);
         return res.json({ count: createdOffers.length, offers: createdOffers });
       } else {
         const account = findMarketplaceAccount('MERCADOLIVRE');
@@ -504,6 +505,7 @@ async function startServer() {
           createdOffers.push(offer);
         }
 
+        if (persistentStoreEnabled) await store.persist(req.user!.workspaceId);
         return res.json({ count: createdOffers.length, offers: createdOffers, automated: true });
       }
     } catch (err) {
