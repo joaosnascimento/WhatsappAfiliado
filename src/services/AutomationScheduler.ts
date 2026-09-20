@@ -13,8 +13,14 @@ function parseTime(value: string, fallback: number): number {
   return Number(match[1]) * 60 + Number(match[2]);
 }
 
-function isInsideWindow(now: Date, start: string, end: string): boolean {
-  const current = now.getHours() * 60 + now.getMinutes();
+function zonedMinutes(now: Date, timezone: string): { minutes:number; dateKey:string } {
+  const parts = new Intl.DateTimeFormat('en-CA',{timeZone:timezone,hour:'2-digit',minute:'2-digit',year:'numeric',month:'2-digit',day:'2-digit',hourCycle:'h23'}).formatToParts(now);
+  const get=(type:string)=>parts.find(p=>p.type===type)?.value || '00';
+  return { minutes:Number(get('hour'))*60+Number(get('minute')), dateKey:`${get('year')}-${get('month')}-${get('day')}` };
+}
+
+function isInsideWindow(now: Date, start: string, end: string, timezone: string): boolean {
+  const current = zonedMinutes(now,timezone).minutes;
   const from = parseTime(start, 0);
   const to = parseTime(end, 23 * 60 + 59);
   return from <= to ? current >= from && current <= to : current >= from || current <= to;
@@ -40,7 +46,7 @@ export class AutomationScheduler {
     this.running = true;
     let created = 0;
     try {
-      const workspaces = await query<{ id: string }>('SELECT id FROM workspaces');
+      const workspaces = await query<{ id: string; timezone: string }>(\"SELECT id, COALESCE(timezone,'America/Maceio') AS timezone FROM workspaces\");
       const now = new Date();
 
       for (const workspace of workspaces) {
@@ -73,10 +79,11 @@ export class AutomationScheduler {
             is_active: row.is_active,
           };
 
-          if (!isInsideWindow(now, destination.time_start, destination.time_end)) continue;
+          const local = zonedMinutes(now, workspace.timezone || 'America/Maceio');
+          if (!isInsideWindow(now, destination.time_start, destination.time_end, workspace.timezone || 'America/Maceio')) continue;
           const frequency = Math.max(5, destination.frequency_minutes || 60);
-          const slot = Math.floor((now.getHours() * 60 + now.getMinutes()) / frequency);
-          const dateKey = now.toISOString().slice(0, 10);
+          const slot = Math.floor(local.minutes / frequency);
+          const dateKey = local.dateKey;
 
           const eligible = offers
             .filter((o: Offer) => (o.status === 'AFFILIATE_LINK_READY' || o.status === 'READY_TO_PUBLISH') && o.affiliate_url)
