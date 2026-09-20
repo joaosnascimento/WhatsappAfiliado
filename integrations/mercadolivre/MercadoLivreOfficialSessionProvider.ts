@@ -2,7 +2,11 @@ import { chromium, type Browser, type BrowserContext, type Page } from 'playwrig
 import type { MarketplaceAccount, AffiliateProduct } from '../../src/types/affiliate.ts';
 import { MercadoLivreAffiliateService } from './MercadoLivreAffiliateService.ts';
 
-const PORTAL_URL = 'https://www.mercadolivre.com.br/afiliados/linkbuilder';
+const PORTAL_URLS = [
+  'https://www.mercadolivre.com.br/afiliados/linkbuilder',
+  'https://www.mercadolivre.com.br/afiliados',
+  'https://www.mercadolivre.com.br/l/afiliados-home',
+];
 const SEARCH_URL = 'https://lista.mercadolivre.com.br/';
 const ML_HOST = /(^|\.)mercadolivre\.com\.br$/i;
 const MeliShortLink = /^https:\/\/(?:www\.)?meli\.la\/[A-Za-z0-9_-]+/i;
@@ -114,32 +118,77 @@ async function findAffiliateLink(page: Page): Promise<string | null> {
   return match ? match[0] : null;
 }
 
+async function openAffiliateGenerator(page: Page) {
+  for (const url of PORTAL_URLS) {
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.waitForLoadState('networkidle').catch(() => undefined);
+      const body = await page.locator('body').innerText().catch(() => '');
+      const hasGeneratorField = await page.locator('textarea, input[type="url"], input').count() > 0;
+      if (hasGeneratorField || /gerador de links|insira .*url|criar link|gerar link/i.test(body)) return;
+    } catch {}
+  }
+
+  const generatorLink = page.getByRole('link', { name: /gerador de links|criar link|gerar link/i }).first();
+  if (await generatorLink.count()) {
+    await generatorLink.click();
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
+    return;
+  }
+
+  const generatorButton = page.getByRole('button', { name: /gerador de links|criar link|gerar link/i }).first();
+  if (await generatorButton.count()) {
+    await generatorButton.click();
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
+    return;
+  }
+
+  throw new Error('Não foi possível localizar o Gerador de Links no Portal de Afiliados do Mercado Livre.');
+}
+
 async function fillGenerator(page: Page, originalUrl: string) {
   const candidates = [
-    page.getByPlaceholder(/insira a url|cole.*url|url/i).first(),
-    page.locator('input[type="url"]').first(),
+    page.getByLabel(/insira .*url|url.*produto|link.*produto/i).first(),
+    page.getByPlaceholder(/insira .*url|cole.*url|url.*produto|uma ou mais urls/i).first(),
+    page.locator('textarea[name*="url" i], textarea[placeholder*="url" i]').first(),
+    page.locator('input[name*="url" i], input[aria-label*="url" i], input[type="url"]').first(),
+    page.locator('[contenteditable="true"]').first(),
     page.locator('textarea').first(),
     page.locator('input').first(),
   ];
+
   let filled = false;
   for (const locator of candidates) {
     try {
-      if (await locator.count()) { await locator.fill(originalUrl); filled = true; break; }
+      if (await locator.count() && await locator.isVisible().catch(() => false)) {
+        await locator.fill(originalUrl);
+        filled = true;
+        break;
+      }
     } catch {}
   }
-  if (!filled) throw new Error('O Gerador de Links do Mercado Livre mudou a interface e o campo de URL não foi localizado.');
+
+  if (!filled) {
+    throw new Error('O Gerador de Links do Mercado Livre mudou a interface e o campo de URL não foi localizado. Abra o gerador oficial ou use a opção de inserir o link manualmente.');
+  }
 
   const buttons = [
-    page.getByRole('button', { name: /gerar link|gerar/i }).first(),
+    page.getByRole('button', { name: /gerar link|gerar|criar link/i }).first(),
+    page.getByRole('button', { name: /compartilhar/i }).first(),
     page.getByText(/gerar link/i).first(),
     page.locator('button[type="submit"]').first(),
   ];
+
   for (const button of buttons) {
     try {
-      if (await button.count()) { await button.click(); return; }
+      if (await button.count() && await button.isVisible().catch(() => false)) {
+        await button.click();
+        return;
+      }
     } catch {}
   }
-  throw new Error('O botão Gerar Link não foi localizado no Portal de Afiliados.');
+
+  throw new Error('O botão para gerar o link não foi localizado no Portal de Afiliados. Use a opção de inserir o link manualmente.');
 }
 
 export class MercadoLivreOfficialSessionProvider {
@@ -248,8 +297,7 @@ export class MercadoLivreOfficialSessionProvider {
       throw new Error('Sessão do Mercado Livre expirada. Clique em Conectar Mercado Livre e faça login novamente.');
     }
 
-    await runtime.page.goto(PORTAL_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await runtime.page.waitForLoadState('networkidle').catch(() => undefined);
+    await openAffiliateGenerator(runtime.page);
     if (!(await isLoggedIn(runtime.page))) {
       await persistSession(account, runtime.context, 'EXPIRED');
       throw new Error('O Portal de Afiliados redirecionou para o login. Reconecte o Mercado Livre.');
