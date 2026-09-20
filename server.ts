@@ -525,6 +525,9 @@ async function startServer() {
     if (!affiliateUrl) {
       return res.status(400).json({ error: 'affiliateUrl é obrigatória.' });
     }
+    if (!/^https:\/\/(?:meli\.la\/|www\.mercadolivre\.com\.br\/).*$/i.test(String(affiliateUrl).trim())) {
+      return res.status(400).json({ error: 'Use um link de afiliado gerado pelo Mercado Livre (preferencialmente https://meli.la/...).' });
+    }
 
     try {
       const link = MercadoLivreAffiliateService.associateAffiliateLink({
