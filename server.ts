@@ -1236,8 +1236,18 @@ async function startServer() {
     } catch(err){res.status(400).json({error:(err as Error).message});}
   });
   app.get('/api/coupons', async (req,res) => {
-    try { res.json(await CouponService.getCouponsForProduct(req.user!.workspaceId, String(req.query.marketplace || 'SHOPEE') as any, req.query.productId ? String(req.query.productId) : undefined)); }
+    try { res.json(await CouponService.listAll(req.user!.workspaceId, req.query.marketplace ? String(req.query.marketplace) as any : undefined)); }
     catch(err){ res.status(500).json({error:(err as Error).message}); }
+  });
+
+  app.patch('/api/coupons/:id', async (req,res) => {
+    try { const current=await CouponService.setActive(req.user!.workspaceId,req.params.id,req.body?.is_active===undefined?true:Boolean(req.body.is_active)); res.json(current); }
+    catch(err){ res.status(404).json({error:(err as Error).message}); }
+  });
+
+  app.delete('/api/coupons/:id', async (req,res) => {
+    try { res.json({success:true,...await CouponService.delete(req.user!.workspaceId,req.params.id)}); }
+    catch(err){ res.status(404).json({error:(err as Error).message}); }
   });
 
   app.post('/api/coupons', async (req,res) => {
