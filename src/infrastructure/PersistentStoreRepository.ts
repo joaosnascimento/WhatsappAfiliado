@@ -81,6 +81,7 @@ export class PersistentStoreRepository {
           categories: destination.categories || [],
           marketplaces: destination.marketplaces || [],
           keywords: destination.keywords || [],
+          tags: destination.tags || destination.keywords || [],
           frequency_minutes: destination.frequency_minutes || 60,
           time_start: destination.time_start || '08:00',
           time_end: destination.time_end || '22:00',
