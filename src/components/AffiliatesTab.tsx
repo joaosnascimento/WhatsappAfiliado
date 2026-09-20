@@ -247,6 +247,8 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
                 {isSavingShopee ? 'Salvando...' : 'Salvar Credenciais Shopee'}
               </button>
 
+              {shopeeAcc?.credentials_encrypted && <button type="button" onClick={async()=>{if(!confirm('Remover as credenciais da Shopee?'))return;try{const r=await apiFetch('/api/accounts/'+encodeURIComponent(shopeeAcc.id),{method:'DELETE'});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Não foi possível remover as credenciais.');await loadAccounts?.();toast('success','Credenciais removidas','A Shopee foi desconectada deste workspace.')}catch(e){toast('error','Shopee',(e as Error).message)}}} className="px-4 py-2 border border-rose-500/20 bg-rose-500/10 text-rose-300 text-sm font-semibold rounded-md">Remover credenciais</button>}
+
               <button
                 id="btn-test-shopee-integration"
                 type="button"
