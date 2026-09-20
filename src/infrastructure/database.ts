@@ -1,7 +1,16 @@
+import 'dotenv/config';
 import { Pool, type PoolClient, type QueryResultRow } from 'pg';
 
+const databaseUrl = process.env.DATABASE_URL?.trim();
+
+if (!databaseUrl) {
+  throw new Error(
+    'DATABASE_URL não está configurada. Verifique o arquivo .env antes de iniciar o servidor.',
+  );
+}
+
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: databaseUrl,
   max: Number(process.env.DATABASE_POOL_MAX || 10),
   connectionTimeoutMillis: Number(process.env.DATABASE_CONNECTION_TIMEOUT_MS || 5000),
   idleTimeoutMillis: Number(process.env.DATABASE_IDLE_TIMEOUT_MS || 30000),
@@ -19,9 +28,19 @@ export async function query<T extends QueryResultRow = any>(text: string, values
 
 export async function transaction<T>(fn: (client: PoolClient) => Promise<T>) {
   const client = await pool.connect();
-  try { await client.query('BEGIN'); const result = await fn(client); await client.query('COMMIT'); return result; }
-  catch (error) { await client.query('ROLLBACK'); throw error; }
-  finally { client.release(); }
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
-export async function closeDatabase() { await pool.end(); }
+export async function closeDatabase() {
+  await pool.end();
+}
