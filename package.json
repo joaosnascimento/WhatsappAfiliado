@@ -12,7 +12,8 @@
     "lint": "tsc --noEmit",
     "test": "npm run lint",
     "db:migrate": "tsx scripts/migrate.ts",
-    "worker": "tsx src/workers/publicationWorker.ts"
+    "worker": "tsx src/workers/publicationWorker.ts",
+    "browser:install": "playwright install chromium"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -30,7 +31,8 @@
     "bullmq": "^5.58.5",
     "express-rate-limit": "^8.2.1",
     "bcryptjs": "^3.0.2",
-    "cookie": "^1.0.2"
+    "cookie": "^1.0.2",
+    "playwright": "^1.63.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
