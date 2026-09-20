@@ -206,12 +206,17 @@ function AppContent() {
   const handleGenerateAiMessage = async (offerId: string, destinationId?: string): Promise<string> => {
     const res = await apiFetch(`/api/offers/${offerId}/generate-ai-message`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ destinationId }) });
     if (!res.ok) { const err=await readJson(res); throw new Error(err.error||'Erro ao gerar mensagem'); }
-    const data = await readJson<{message:string}>(res); await loadData(); return data.message;
+    const data = await readJson<{message:string; aiUsed?:boolean; aiFallback?:boolean; warning?:string}>(res);
+    if (data.aiFallback) toast('info', 'Mensagem gerada sem IA', data.warning || 'Foi usado o modelo determinístico para manter a publicação segura.');
+    await loadData();
+    return data.message;
   };
 
   const handlePublish = async (offerId: string, destinationId: string) => {
     const res = await apiFetch(`/api/offers/${offerId}/publish`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ destinationId }) });
-    if (!res.ok) { const err=await readJson(res); throw new Error(err.error||'Erro na publicação'); }
+    const data = await readJson<{aiFallback?:boolean; warning?:string}>(res);
+    if (!res.ok) throw new Error((data as any).error || 'Erro na publicação');
+    if (data.aiFallback) toast('info', 'Publicação criada com mensagem padrão', data.warning || 'A IA não estava disponível; a mensagem determinística foi usada.');
     await loadData();
   };
 
