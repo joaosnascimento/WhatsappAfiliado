@@ -80,6 +80,11 @@ function AppContent() {
         apiFetch('/api/whatsapp/settings'),
       ]);
       if (responses.some((r) => r.status === 401)) { logout(); return; }
+      const failedIndex = responses.findIndex((r) => !r.ok);
+      if (failedIndex >= 0) {
+        const failedData = await readJson<{error?:string}>(responses[failedIndex]);
+        throw new Error(failedData.error || `Falha ao carregar dados (HTTP ${responses[failedIndex].status}).`);
+      }
 
       const [accRes, offRes, destRes, pubRes, repRes, audRes, waRes] = await Promise.all(responses.map(readJson));
       setAccounts(Array.isArray(accRes) ? accRes : []);
@@ -91,6 +96,7 @@ function AppContent() {
       setWhatsappSettings(waRes && typeof waRes === 'object' ? waRes : null);
     } catch (err) {
       console.error('Failed to load initial SaaS data:', err);
+      toast('error','Não foi possível atualizar o painel',(err as Error).message);
     }
   };
 
