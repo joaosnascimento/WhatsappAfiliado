@@ -496,8 +496,9 @@ async function startServer() {
     if (!offer) return res.status(404).json({ error: 'Oferta não encontrada.' });
     const pubs = await query<any>('SELECT id FROM publications WHERE offer_id=$1 AND workspace_id=$2', [offer.id, req.user!.workspaceId]);
     for (const pub of pubs) {
-      await query('DELETE FROM publications WHERE id=$1 AND workspace_id=$2', [pub.id, req.user!.workspaceId]);
-      store.publications.delete(pub.id);
+      await query("UPDATE publications SET status='CANCELLED',cancelled_at=NOW(),updated_at=NOW(),error='Oferta excluída antes do envio.' WHERE id=$1 AND workspace_id=$2", [pub.id, req.user!.workspaceId]);
+      const cachedPub = store.publications.get(pub.id);
+      if (cachedPub) { cachedPub.status = 'CANCELLED'; cachedPub.error_message = 'Oferta excluída antes do envio.'; }
     }
     store.offers.delete(offer.id);
     store.products.delete(offer.product_id);
@@ -550,16 +551,17 @@ async function startServer() {
   app.delete('/api/publications/:id', async (req, res) => {
     const rows = await query<any>('SELECT id FROM publications WHERE id=$1 AND workspace_id=$2', [req.params.id, req.user!.workspaceId]);
     if (!rows[0]) return res.status(404).json({ error: 'Publicação não encontrada.' });
-    await query('DELETE FROM publications WHERE id=$1 AND workspace_id=$2', [req.params.id, req.user!.workspaceId]);
-    store.publications.delete(req.params.id);
-    res.json({ success: true, deletedPublicationId: req.params.id });
+    const result = await query("UPDATE publications SET status='CANCELLED',cancelled_at=NOW(),updated_at=NOW(),error='Cancelada pelo usuário.' WHERE id=$1 AND workspace_id=$2 AND status NOT IN ('SENT','CANCELLED') RETURNING id", [req.params.id, req.user!.workspaceId]);
+    const cachedPub = store.publications.get(req.params.id);
+    if (cachedPub) { cachedPub.status = 'CANCELLED'; cachedPub.error_message = 'Cancelada pelo usuário.'; }
+    res.json({ success: true, deletedPublicationId: req.params.id, cancelled: Boolean(result.length) });
   });
 
   app.post('/api/publications/:id/retry', async (req, res) => {
     const rows = await query<any>('SELECT * FROM publications WHERE id=$1 AND workspace_id=$2', [req.params.id, req.user!.workspaceId]);
     if (!rows[0]) return res.status(404).json({ error: 'Publicação não encontrada.' });
     if (rows[0].status !== 'FAILED') return res.status(409).json({ error: 'Somente publicações com falha podem ser reenviadas.' });
-    await query("UPDATE publications SET status='QUEUED', error=NULL WHERE id=$1", [rows[0].id]);
+    await query("UPDATE publications SET status='QUEUED', attempt=0, next_retry_at=NULL, last_error_code=NULL, error=NULL, updated_at=NOW() WHERE id=$1 AND workspace_id=$2 AND status='FAILED'", [rows[0].id, req.user!.workspaceId]);
     try {
       const { enqueuePublication } = await import('./src/infrastructure/queue.ts');
       await enqueuePublication({ publicationId: rows[0].id, destinationId: rows[0].destination_id, offerId: rows[0].offer_id, scheduledAt: rows[0].scheduled_at });
