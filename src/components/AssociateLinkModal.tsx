@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ShieldCheck, Link2, AlertCircle, CheckCircle2, ExternalLink } from 'lucide-react';
+import { X, ShieldCheck, Link2, AlertCircle, CheckCircle2, ExternalLink, ClipboardPaste, Sparkles } from 'lucide-react';
 import type { Offer } from '../types/affiliate.ts';
 
 interface AssociateLinkModalProps {
@@ -18,6 +18,24 @@ export const AssociateLinkModal: React.FC<AssociateLinkModalProps> = ({
   const [urlInput, setUrlInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isReadingClipboard, setIsReadingClipboard] = useState(false);
+
+  const handlePasteClipboard = async () => {
+    setErrorMsg(null);
+    setIsReadingClipboard(true);
+    try {
+      if (!navigator.clipboard?.readText) throw new Error('O navegador não permite leitura automática da área de transferência.');
+      const text = (await navigator.clipboard.readText()).trim();
+      if (!text) throw new Error('A área de transferência está vazia.');
+      setUrlInput(text);
+    } catch (err) {
+      setErrorMsg((err as Error).message || 'Não foi possível ler a área de transferência.');
+    } finally { setIsReadingClipboard(false); }
+  };
+
+  const openOfficialGenerator = () => {
+    window.open('https://www.mercadolivre.com.br/afiliados/linkbuilder', '_blank', 'noopener,noreferrer');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,6 +116,16 @@ export const AssociateLinkModal: React.FC<AssociateLinkModalProps> = ({
           O sistema jamais publica produtos com URL comum ou parâmetros fictícios. Obtenha o link de afiliado oficial no painel de afiliados do Mercado Livre (ex: <code className="bg-slate-900/60 px-1 py-0.5 rounded text-amber-300">https://meli.la/...</code>) e cole abaixo para liberar a publicação.
         </div>
 
+        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-200/90 leading-relaxed">
+          <div className="flex items-center gap-1.5 font-bold text-emerald-300 mb-1"><ShieldCheck className="w-4 h-4" /> Geração oficial</div>
+          Abra o gerador oficial do Mercado Livre, gere o link e depois use <strong>Colar automaticamente</strong>. O sistema valida o link antes de liberar a publicação.
+        </div>
+
+        <div className="flex gap-2">
+          <button type="button" onClick={openOfficialGenerator} className="flex-1 py-2.5 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold text-xs rounded-xl flex items-center justify-center gap-2"><ExternalLink className="w-3.5 h-3.5" /> Abrir gerador oficial</button>
+          <button type="button" onClick={handlePasteClipboard} disabled={isReadingClipboard} className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 flex items-center justify-center gap-2 disabled:opacity-50"><ClipboardPaste className="w-3.5 h-3.5" /> {isReadingClipboard ? 'Lendo...' : 'Colar automaticamente'}</button>
+        </div>
+
         {/* Original URL link */}
         <div className="text-xs text-slate-400">
           <span>URL Original do Anúncio:</span>
@@ -155,6 +183,7 @@ export const AssociateLinkModal: React.FC<AssociateLinkModalProps> = ({
             </button>
           </div>
         </form>
+        <div className="text-[11px] text-slate-500 flex items-center gap-1.5"><Sparkles className="w-3 h-3" /> Depois da vinculação, IA, deduplicação e publicação continuam automáticas.</div>
       </div>
     </div>
   );
