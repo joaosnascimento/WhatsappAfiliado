@@ -300,7 +300,7 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-bg text-text flex flex-col font-sans selection:bg-brand-500 selection:text-bg">
-      <Header activeTab={activeTab} setActiveTab={setActiveTab} accounts={accounts} onRunTests={handleRunTests} isTestingSuite={isTestingSuite} onLogout={logout} />
+      <Header activeTab={activeTab} setActiveTab={setActiveTab} onRunTests={handleRunTests} isTestingSuite={isTestingSuite} onLogout={logout} />
       <main className="flex-1 w-full px-4 py-6 sm:px-6 lg:px-10 lg:py-8"><div className="animate-page-in">
         {activeTab === 'setup' && <SetupTab apiFetch={apiFetch} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} onNavigate={setActiveTab} />}
         {activeTab === 'dashboard' && <DashboardTab reports={reports} accounts={accounts} whatsappSettings={whatsappSettings} apiFetch={apiFetch} onNavigateToOffers={()=>setActiveTab('offers')} onNavigateToAffiliates={()=>setActiveTab('affiliates')} onNavigateToSetup={()=>setActiveTab('setup')} onNavigateToQueue={()=>setActiveTab('queue')} />}
