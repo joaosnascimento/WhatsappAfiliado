@@ -171,8 +171,9 @@ export class MercadoLivreOfficialSessionProvider {
       account.updated_at = new Date().toISOString();
       void waitForAuthentication(runtime.page).then(async (ok) => {
         if (ok) {
-          await runtime.page.goto(PORTAL_URL, { waitUntil: 'domcontentloaded' }).catch(() => undefined);
           await persistSession(account, runtime.context, 'CONNECTED');
+          try { await runtime.browser.close(); } catch {}
+          runtimes.delete(account.id);
         }
       });
       return { connected: false, status: 'LOGIN_REQUIRED', message: 'Navegador aberto. Faça login no Mercado Livre; a sessão será capturada automaticamente.' };
