@@ -157,7 +157,7 @@ async function createAffiliateLinkViaOfficialApi(page: Page, originalUrl: string
     const text = await response.text();
     let data: any = null;
     try { data = JSON.parse(text); } catch {}
-    if (!response.ok) throw new Error(\`HTTP \${response.status}: \${data?.message || data?.error || text.slice(0, 300)}\`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${data?.message || data?.error || text.slice(0, 300)}`);
     const candidates = [data?.urls?.[0]?.short_url, data?.urls?.[0]?.url, data?.short_url, data?.url].filter(Boolean);
     return candidates.find((value: string) => /^https:\/\/(?:www\.)?meli\.la\//i.test(value)) || candidates[0] || null;
   }, { originalUrl, tag: process.env.ML_AFFILIATE_TAG || 'whatsappafiliado', csrf });
