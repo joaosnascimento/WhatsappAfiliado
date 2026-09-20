@@ -251,7 +251,7 @@ export function App() {
       <div className="min-h-screen bg-bg text-text flex items-center justify-center px-4 py-8">
         <form onSubmit={handleAuth} className="w-full max-w-md bg-surface-1 border border-border rounded-xl p-8 shadow-card">
           <div className="text-center mb-7">
-            <div className="mx-auto mb-4 w-12 h-12 rounded-xl bg-brand-500 flex items-center justify-center text-slate-950 font-bold">WA</div>
+            <div className="mx-auto mb-4 w-12 h-12 rounded-xl bg-brand-500 flex items-center justify-center text-bg font-bold">WA</div>
             <h1 className="text-2xl font-bold text-text">Afiliados WhatsApp <span className="text-emerald-400">Pro</span></h1>
             <p className="text-sm text-muted mt-1">{authMode === 'login' ? 'Entre para acessar seu painel.' : 'Crie sua conta para começar.'}</p>
           </div>
