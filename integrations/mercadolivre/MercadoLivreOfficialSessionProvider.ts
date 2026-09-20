@@ -221,7 +221,7 @@ export class MercadoLivreOfficialSessionProvider {
         return { connected: true, status: 'CONNECTED', browserActive: true, updatedAt: account.credentials_encrypted.ml_session_updated_at };
       }
       await persistSession(account, runtime.context, 'EXPIRED');
-      try { await runtime.browser.close(); } catch {}
+      try { await runtime.browser?.close(); } catch {}
       runtimes.delete(account.id);
       return { connected: false, status: 'EXPIRED', browserActive: false, updatedAt: account.credentials_encrypted.ml_session_updated_at };
     }
@@ -269,7 +269,7 @@ export class MercadoLivreOfficialSessionProvider {
     } catch (error) {
       runtimes.delete(account.id);
       try { await runtime.context.close(); } catch {}
-      try { await runtime.browser.close(); } catch {}
+      try { await runtime.browser?.close(); } catch {}
       throw new Error(`Não foi possível abrir o Mercado Livre no navegador: ${(error as Error).message}`);
     }
     const logged = await isLoggedIn(runtime.page);
@@ -287,7 +287,7 @@ export class MercadoLivreOfficialSessionProvider {
         return { connected: false, status: 'LOGIN_REQUIRED', message: 'Navegador aberto. Faça login no Mercado Livre; a sessão será capturada automaticamente.' };
       }
       await persistSession(account, runtime.context, 'CONNECTED');
-      try { await runtime.browser.close(); } catch {}
+      try { await runtime.browser?.close(); } catch {}
       runtimes.delete(account.id);
       return { connected: true, status: 'CONNECTED', message: 'Login capturado. A sessão foi salva e o navegador pode permanecer fechado.' };
     }
@@ -308,7 +308,7 @@ export class MercadoLivreOfficialSessionProvider {
       } catch (error) {
         runtimes.delete(account.id);
         try { await runtime.context.close(); } catch {}
-        try { await runtime.browser.close(); } catch {}
+        try { await runtime.browser?.close(); } catch {}
         throw new Error(`Não foi possível abrir o Mercado Livre: ${(error as Error).message}`);
       }
     }
@@ -478,7 +478,7 @@ export class MercadoLivreOfficialSessionProvider {
       return products;
     } finally {
       // Discovery is headless; do not leave Chromium running after each scan.
-      try { await runtime.browser.close(); } catch {}
+      try { await runtime.browser?.close(); } catch {}
       runtimes.delete(account.id);
     }
   }
