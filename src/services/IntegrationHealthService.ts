@@ -32,7 +32,7 @@ export class IntegrationHealthService {
     const shopeeConfigured=Boolean(process.env.SHOPEE_AFFILIATE_APP_ID&&process.env.SHOPEE_AFFILIATE_SECRET);
     const shopee=await check('shopee',async()=>{ const rows=await query<any>("SELECT 1 FROM marketplace_accounts WHERE workspace_id=$1 AND marketplace='SHOPEE' LIMIT 1",[workspaceId]); if(!rows[0] && !shopeeConfigured) throw new Error('Shopee não configurada.'); },true);
 const gemini=await check('gemini',async()=>{},Boolean(process.env.GEMINI_API_KEY));
-    const ml=await check('mercadolivre',async()=>{ const rows=await query<any>("SELECT status,credentials_encrypted FROM marketplace_accounts WHERE workspace_id=$1 AND marketplace='MERCADOLIVRE' LIMIT 1",[workspaceId]); if(!rows[0]) throw new Error('Conta Mercado Livre não configurada.'); const status=String(rows[0].status||''); if(status==='AUTH_ERROR'||status==='TOKEN_EXPIRED') throw new Error('Sessão do Mercado Livre requer reconexão.'); });
+    const ml=await check('mercadolivre',async()=>{ const rows=await query<any>("SELECT status FROM marketplace_accounts WHERE workspace_id=$1 AND marketplace='MERCADOLIVRE' LIMIT 1",[workspaceId]); if(!rows[0]) throw new Error('Conta Mercado Livre não configurada.'); const status=String(rows[0].status||''); if(status==='AUTH_ERROR'||status==='TOKEN_EXPIRED') throw new Error('Sessão do Mercado Livre requer reconexão.'); });
     const checks=[database,redisHealth,whatsapp,ml,shopee,gemini];
     const overallStatus=checks.some(x=>x.status==='down')?'down':checks.some(x=>x.status==='degraded'||x.status==='not_configured')?'degraded':'ok';
     return {status:overallStatus,checks:{database,redis:redisHealth,whatsapp,mercadolivre:ml,shopee,gemini},timestamp:new Date().toISOString()};
