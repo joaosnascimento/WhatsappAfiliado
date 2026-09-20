@@ -213,6 +213,27 @@ export function App() {
     await loadData();
   };
 
+  const handleDeleteOffer = async (offerId: string) => {
+    const res = await apiFetch('/api/offers/' + encodeURIComponent(offerId), { method:'DELETE' });
+    const data = await readJson(res);
+    if (!res.ok) throw new Error(data.error || 'Não foi possível excluir a oferta.');
+    await loadData();
+  };
+
+  const handleDeletePublication = async (publicationId: string) => {
+    const res = await apiFetch('/api/publications/' + encodeURIComponent(publicationId), { method:'DELETE' });
+    const data = await readJson(res);
+    if (!res.ok) throw new Error(data.error || 'Não foi possível excluir o registro.');
+    await loadData();
+  };
+
+  const handleRetryPublication = async (publicationId: string) => {
+    const res = await apiFetch('/api/publications/' + encodeURIComponent(publicationId) + '/retry', { method:'POST' });
+    const data = await readJson(res);
+    if (!res.ok) throw new Error(data.error || 'Não foi possível reenviar.');
+    await loadData();
+  };
+
   const handleAddDestination = async (dest: Partial<Destination>) => {
     const res = await apiFetch('/api/destinations', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(dest) });
     if (!res.ok) { const err=await readJson(res); throw new Error(err.error||'Erro ao criar destino'); }
@@ -253,9 +274,9 @@ export function App() {
         {activeTab === 'setup' && <SetupTab apiFetch={apiFetch} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} onNavigate={setActiveTab} />}
         {activeTab === 'dashboard' && <DashboardTab reports={reports} onNavigateToOffers={()=>setActiveTab('offers')} onNavigateToAffiliates={()=>setActiveTab('affiliates')} />}
         {activeTab === 'affiliates' && <AffiliatesTab apiFetch={apiFetch} accounts={accounts} onSaveAccount={handleSaveAccount} onTestIntegration={handleTestIntegration} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} />}
-        {activeTab === 'offers' && <OffersTab offers={offers} destinations={destinations} onLiveSearch={handleLiveSearch} onOpenAssociateModal={(offer)=>setAssociateModalOffer(offer)} onOpenAiMessageModal={(offer)=>setAiModalOffer(offer)} onQuickPublish={handlePublish} />}
+        {activeTab === 'offers' && <OffersTab offers={offers} destinations={destinations} onLiveSearch={handleLiveSearch} onOpenAssociateModal={(offer)=>setAssociateModalOffer(offer)} onOpenAiMessageModal={(offer)=>setAiModalOffer(offer)} onQuickPublish={handlePublish} onDeleteOffer={handleDeleteOffer} />}
         {activeTab === 'destinations' && <DestinationsTab destinations={destinations} onAddDestination={handleAddDestination} apiFetch={apiFetch} />}
-        {activeTab === 'queue' && <PublicationsTab publications={publications} onTriggerSend={async()=>{}} />}
+        {activeTab === 'queue' && <PublicationsTab publications={publications} onTriggerSend={async()=>{}} onDelete={handleDeletePublication} onRetry={handleRetryPublication} />}
         {activeTab === 'audit' && <AuditTab records={auditRecords} />}
         {activeTab === 'docs' && <DocsTab onRunTests={handleRunTests} testResults={testResults} isRunningTests={isTestingSuite} />}
       </main>
