@@ -256,7 +256,7 @@ export function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-slate-950">
       <Header activeTab={activeTab} setActiveTab={setActiveTab} accounts={accounts} onRunTests={handleRunTests} isTestingSuite={isTestingSuite} onLogout={logout} />
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 w-full px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
         {activeTab === 'setup' && <SetupTab apiFetch={apiFetch} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} onNavigate={setActiveTab} />}
         {activeTab === 'dashboard' && <DashboardTab reports={reports} onNavigateToOffers={()=>setActiveTab('offers')} onNavigateToAffiliates={()=>setActiveTab('affiliates')} />}
         {activeTab === 'affiliates' && <AffiliatesTab accounts={accounts} onSaveAccount={handleSaveAccount} onTestIntegration={handleTestIntegration} onConnectMercadoLivre={handleConnectMercadoLivre} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} />}
