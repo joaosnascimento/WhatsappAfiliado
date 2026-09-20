@@ -499,6 +499,8 @@ async function startServer() {
   app.delete('/api/offers/:id', async (req, res) => {
     const offer = store.offers.get(req.params.id);
     if (!offer) return res.status(404).json({ error: 'Oferta não encontrada.' });
+    if ((offer as any).workspace_id && (offer as any).workspace_id !== req.user!.workspaceId) return res.status(404).json({ error: 'Oferta não encontrada.' });
+    if (persistentStoreEnabled) { const owned = await query<{id:string}>('SELECT id FROM offers WHERE id=$1 AND workspace_id=$2 LIMIT 1',[offer.id,req.user!.workspaceId]); if (!owned.length) return res.status(404).json({error:'Oferta não encontrada.'}); }
     const pubs = await query<any>('SELECT id FROM publications WHERE offer_id=$1 AND workspace_id=$2', [offer.id, req.user!.workspaceId]);
     for (const pub of pubs) {
       await query("UPDATE publications SET status='CANCELLED',cancelled_at=NOW(),updated_at=NOW(),error='Oferta excluída antes do envio.' WHERE id=$1 AND workspace_id=$2", [pub.id, req.user!.workspaceId]);
@@ -518,6 +520,7 @@ async function startServer() {
       return res.status(404).json({ error: 'Oferta não encontrada.' });
     }
 
+    if ((offer as any).workspace_id && (offer as any).workspace_id !== req.user!.workspaceId) return res.status(404).json({ error: 'Oferta não encontrada.' });
     const { affiliateUrl, destinationId, campaignId } = req.body;
     const mlAccount = findMarketplaceAccount('MERCADOLIVRE');
     if (!mlAccount) return res.status(400).json({ error: 'Conta do Mercado Livre não configurada neste workspace.' });
@@ -630,6 +633,7 @@ async function startServer() {
     if (!offer) {
       return res.status(404).json({ error: 'Oferta não encontrada.' });
     }
+    if ((offer as any).workspace_id && (offer as any).workspace_id !== req.user!.workspaceId) return res.status(404).json({ error: 'Oferta não encontrada.' });
 
     const affiliateUrl = offer.affiliate_url || offer.product.original_url;
     const destinationId = req.body.destinationId;
