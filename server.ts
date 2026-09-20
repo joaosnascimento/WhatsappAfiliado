@@ -192,7 +192,6 @@ async function startServer() {
       service: 'Automacao Afiliados WhatsApp SaaS',
       geminiConfigured: !!process.env.GEMINI_API_KEY,
       mercadolivreConfigured: !!process.env.MERCADOLIVRE_CLIENT_ID,
-      botDoAfiliadoConfigured: !!process.env.BOT_DO_AFILIADO_API_KEY,
       shopeeConfigured: !!process.env.SHOPEE_AFFILIATE_APP_ID,
       whatsappProvider: process.env.WHATSAPP_PROVIDER || 'cloud',
       evolutionConfigured: !!(process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY && process.env.EVOLUTION_INSTANCE),
@@ -353,7 +352,6 @@ async function startServer() {
         clientSecret: account?.credentials_encrypted.ml_client_secret,
         redirectUri: account?.credentials_encrypted.ml_redirect_uri,
         accessToken: account?.credentials_encrypted.ml_access_token,
-        botDoAfiliadoApiKey: process.env.BOT_DO_AFILIADO_API_KEY,
       });
       const testResult = await adapter.testConnection();
       return res.json(testResult);
@@ -453,7 +451,6 @@ async function startServer() {
         const adapter = new MercadoLivreAffiliateAdapter({
           clientId: mlAccount?.credentials_encrypted.ml_client_id,
           accessToken: mlAccount?.credentials_encrypted.ml_access_token,
-          botDoAfiliadoApiKey: process.env.BOT_DO_AFILIADO_API_KEY,
         });
 
         const products = await adapter.searchOffers({
@@ -553,33 +550,6 @@ async function startServer() {
     }
   });
 
-  // 7.1 Automatic Mercado Livre affiliate conversion via Bot do Afiliado fallback
-  app.post('/api/mercadolivre/affiliate/convert', requireAuth, workspaceContext, redisRateLimit({ windowSeconds: 60, max: 30, prefix: 'ml-affiliate-convert' }), async (req, res) => {
-    const originalUrl = String(req.body?.url || '').trim();
-    if (!originalUrl) return res.status(400).json({ error: 'url é obrigatória.' });
-
-    try {
-      const parsed = new URL(originalUrl);
-      if (!/(^|\\.)mercadolivre\\.com\\.br$|(^|\\.)mercadolibre\\.com$|(^|\\.)meli\\.la$/i.test(parsed.hostname)) {
-        return res.status(400).json({ error: 'Informe uma URL de produto do Mercado Livre.' });
-      }
-    } catch {
-      return res.status(400).json({ error: 'URL inválida.' });
-    }
-
-    if (!process.env.BOT_DO_AFILIADO_API_KEY) {
-      return res.status(503).json({ error: 'Automação do link de afiliado não configurada. Defina BOT_DO_AFILIADO_API_KEY no servidor.' });
-    }
-
-    try {
-      const { MercadoLivreAffiliateFallback } = await import('./integrations/mercadolivre/MercadoLivreAffiliateFallback.ts');
-      const fallback = new MercadoLivreAffiliateFallback();
-      const result = await fallback.convertLink(originalUrl);
-      res.json({ success: true, ...result });
-    } catch (error) {
-      res.status(502).json({ error: (error as Error).message || 'Falha ao converter o link do Mercado Livre.' });
-    }
-  });
 
   // 8. Generate AI Message
   app.post('/api/offers/:id/generate-ai-message', async (req, res) => {
