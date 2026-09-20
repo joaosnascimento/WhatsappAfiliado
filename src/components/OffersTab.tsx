@@ -43,6 +43,8 @@ export const OffersTab: React.FC<OffersTabProps> = ({
 }) => {
   const toast = useToast();
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [initialLoading,setInitialLoading]=useState(true);
+  React.useEffect(()=>{const t=window.setTimeout(()=>setInitialLoading(false),300);return()=>window.clearTimeout(t)},[]);
   const [selectedMarketplace, setSelectedMarketplace] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -129,6 +131,8 @@ export const OffersTab: React.FC<OffersTabProps> = ({
       setPublishingId(null);
     }
   };
+
+  if(initialLoading) return <div className="space-y-6" aria-busy="true"><div className="h-36 rounded-lg bg-surface-1 animate-pulse"/><div className="grid gap-4 md:grid-cols-2">{Array.from({length:4}).map((_,i)=><div key={i} className="h-56 rounded-lg bg-surface-1 animate-pulse"/>)}</div></div>;
 
   return (
     <div className="space-y-6">
