@@ -249,7 +249,7 @@ async function startServer() {
   });
 
   // Mercado Livre official browser automation
-  app.get('/api/mercadolivre/status', (req, res) => {
+  app.get('/api/mercadolivre/status', requireAuth, workspaceContext, (req, res) => {
     const account = findMarketplaceAccount('MERCADOLIVRE');
     if (!account) return res.json({ connected: false, status: 'DISCONNECTED' });
     void MercadoLivreOfficialSessionProvider.status(account)
@@ -257,7 +257,7 @@ async function startServer() {
       .catch(error => res.status(500).json({ error: (error as Error).message }));
   });
 
-  app.post('/api/mercadolivre/connect', async (req, res) => {
+  app.post('/api/mercadolivre/connect', requireAuth, workspaceContext, async (req, res) => {
     const account = findMarketplaceAccount('MERCADOLIVRE');
     if (!account) return res.status(400).json({ error: 'Conta Mercado Livre indisponível neste workspace.' });
     try {
@@ -272,7 +272,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/mercadolivre/disconnect', async (req, res) => {
+  app.post('/api/mercadolivre/disconnect', requireAuth, workspaceContext, async (req, res) => {
     const account = findMarketplaceAccount('MERCADOLIVRE');
     if (!account) return res.status(400).json({ error: 'Conta Mercado Livre indisponível neste workspace.' });
     try {
@@ -283,7 +283,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/mercadolivre/generate-link', async (req, res) => {
+  app.post('/api/mercadolivre/generate-link', requireAuth, workspaceContext, async (req, res) => {
     const account = findMarketplaceAccount('MERCADOLIVRE');
     if (!account) return res.status(400).json({ error: 'Conta Mercado Livre indisponível neste workspace.' });
     const originalUrl = String(req.body?.originalUrl || '').trim();
