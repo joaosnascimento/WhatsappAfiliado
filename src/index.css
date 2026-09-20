@@ -1,1 +1,23 @@
 @import "tailwindcss";
+
+html, body, #root {
+  min-height: 100%;
+  width: 100%;
+  margin: 0;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button, input, select, textarea {
+  font: inherit;
+}
+
+details > summary::-webkit-details-marker {
+  display: none;
+}
