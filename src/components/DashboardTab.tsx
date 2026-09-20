@@ -62,15 +62,15 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ reports, accounts, w
   const totalConversions = shopee.conversions + ml.conversions;
   const totalCommission = shopee.commissionBrl + ml.commissionBrl;
   const shopeeConnected=accounts.some(a=>a.marketplace==='SHOPEE' && a.status==='CONNECTED');
-  const whatsappConfigured=whatsappSettings?.provider==='evolution' && whatsappSettings?.evolutionApiUrl && whatsappSettings?.evolutionApiKey==='configured' && whatsappSettings?.evolutionInstance;
+  const whatsappConfigured=Boolean(whatsappSettings?.provider==='evolution' && whatsappSettings?.evolutionApiUrl && whatsappSettings?.evolutionApiKey==='configured' && whatsappSettings?.evolutionInstance);
   const waOpen=waState==='open';
   const mlConnected=mlState==='CONNECTED';
 
-  const stats = [
+  const stats: Array<{label:string; value:number|string; icon:React.ElementType; action?:()=>void}> = [
     { label:'Ofertas encontradas', value:totalOffers, icon:ShoppingBag, action:onNavigateToOffers },
     { label:'Links prontos', value:totalReady, icon:CheckCircle2, action:onNavigateToOffers },
     { label:'Envios registrados', value:totalPublications, icon:Send, action:onNavigateToQueue },
-    { label:'Comissão', value:`R$ ${totalCommission.toFixed(2)}`, icon:DollarSign, action:undefined },
+    { label:'Comissão', value:`R$ ${totalCommission.toFixed(2)}`, icon:DollarSign },
   ];
 
   return (
