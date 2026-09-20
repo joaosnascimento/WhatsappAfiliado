@@ -189,13 +189,6 @@ export function App() {
     return readJson(res);
   };
 
-  const handleConnectMercadoLivre = async () => {
-    const res = await apiFetch('/api/auth/mercadolivre/url');
-    const data = await readJson(res);
-    if (data.url) window.open(data.url, 'ml_oauth_popup', 'width=650,height=750');
-    else alert(data.error || 'Não foi possível obter a URL de autorização do Mercado Livre.');
-  };
-
   const handleLiveSearch = async (params: { marketplace: MarketplaceType; keyword: string; category?: string }) => {
     const res = await apiFetch('/api/offers/search-live', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(params) });
     if (!res.ok) { const err=await readJson(res); throw new Error(err.error||'Erro na busca ao vivo'); }
@@ -259,7 +252,7 @@ export function App() {
       <main className="flex-1 w-full px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
         {activeTab === 'setup' && <SetupTab apiFetch={apiFetch} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} onNavigate={setActiveTab} />}
         {activeTab === 'dashboard' && <DashboardTab reports={reports} onNavigateToOffers={()=>setActiveTab('offers')} onNavigateToAffiliates={()=>setActiveTab('affiliates')} />}
-        {activeTab === 'affiliates' && <AffiliatesTab accounts={accounts} onSaveAccount={handleSaveAccount} onTestIntegration={handleTestIntegration} onConnectMercadoLivre={handleConnectMercadoLivre} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} />}
+        {activeTab === 'affiliates' && <AffiliatesTab accounts={accounts} onSaveAccount={handleSaveAccount} onTestIntegration={handleTestIntegration} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} />}
         {activeTab === 'offers' && <OffersTab offers={offers} destinations={destinations} onLiveSearch={handleLiveSearch} onOpenAssociateModal={(offer)=>setAssociateModalOffer(offer)} onOpenAiMessageModal={(offer)=>setAiModalOffer(offer)} onQuickPublish={handlePublish} />}
         {activeTab === 'destinations' && <DestinationsTab destinations={destinations} onAddDestination={handleAddDestination} apiFetch={apiFetch} />}
         {activeTab === 'queue' && <PublicationsTab publications={publications} onTriggerSend={async()=>{}} />}
