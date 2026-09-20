@@ -2,6 +2,7 @@ import { query } from '../infrastructure/database.ts';
 import { decryptCredentials, encryptCredentials } from '../infrastructure/encryption.ts';
 import { ShopeeAffiliateAdapter } from '../../integrations/shopee/ShopeeAffiliateAdapter.ts';
 import { MercadoLivreAffiliateAdapter } from '../../integrations/mercadolivre/MercadoLivreAffiliateAdapter.ts';
+import { MercadoLivreOfficialSessionProvider } from '../../integrations/mercadolivre/MercadoLivreOfficialSessionProvider.ts';
 import { CouponService } from './CouponService.ts';
 import type { AffiliateProduct, Offer, MarketplaceType } from '../types/affiliate.ts';
 
@@ -98,22 +99,47 @@ export class MarketplaceDiscoveryScheduler {
               }
             }
           } else {
-            const clientId = credentials.ml_client_id || process.env.MERCADOLIVRE_CLIENT_ID;
-            const clientSecret = credentials.ml_client_secret || process.env.MERCADOLIVRE_CLIENT_SECRET;
-            const redirectUri = credentials.ml_redirect_uri || process.env.MERCADOLIVRE_REDIRECT_URI;
-            const accessToken = credentials.ml_access_token;
-            const refreshToken = credentials.ml_refresh_token;
-            if (!clientId || !accessToken) continue;
-            const adapter = new MercadoLivreAffiliateAdapter({
-              clientId, clientSecret, redirectUri, accessToken, refreshToken, accountId: account.id,
-              onTokenRefreshed: (newToken, newRefresh, expiresIn) => {
-                const nextCredentials = { ...credentials, ml_access_token: newToken, ml_refresh_token: newRefresh, ml_expires_at: Date.now() + expiresIn * 1000 };
-                void query('UPDATE marketplace_accounts SET credentials_encrypted=$2, updated_at=NOW(), status=\'CONNECTED\' WHERE id=$1 AND workspace_id=$3', [account.id, encryptCredentials(nextCredentials), workspaceId]);
-              },
-            });
-            products = await adapter.searchOffers({ keyword: job.keyword, limit: 10 });
+            const mlAccount = {
+              id: account.id,
+              workspace_id: workspaceId,
+              marketplace: 'MERCADOLIVRE' as const,
+              status: account.credentials?.ml_session_status === 'CONNECTED' ? 'CONNECTED' as const : 'AWAITING_CONFIG' as const,
+              status_message: account.credentials?.ml_session_status === 'CONNECTED' ? 'Sessão conectada.' : 'Conecte a conta Mercado Livre pelo navegador.',
+              credentials_encrypted: account.credentials || {},
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            };
+            try {
+              products = await MercadoLivreOfficialSessionProvider.discover(mlAccount, job.keyword, 10);
+              for (const product of products) {
+                try {
+                  const link = await MercadoLivreOfficialSessionProvider.generateLink(mlAccount, product.original_url, ['whatsapp', 'auto']);
+                  product.affiliate_url = link;
+                  state.links.push({
+                    id: `link_ml_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                    marketplace: 'MERCADOLIVRE',
+                    affiliate_account_id: account.id,
+                    product_id: product.id,
+                    original_url: product.original_url,
+                    affiliate_url: link,
+                    short_url: link,
+                    tracking_data: { sub_ids: ['whatsapp', 'auto'], source: 'mercadolivre_official_browser' },
+                    created_at: new Date().toISOString(),
+                  });
+                } catch (error) {
+                  product.metadata = { ...(product.metadata || {}), affiliate_error: (error as Error).message };
+                }
+              }
+              if (mlAccount.credentials_encrypted.ml_session_state) {
+                void query(
+                  'UPDATE marketplace_accounts SET credentials_encrypted=$2, status=$3, status_message=$4, updated_at=NOW() WHERE id=$1 AND workspace_id=$5',
+                  [account.id, encryptCredentials(mlAccount.credentials_encrypted), mlAccount.credentials_encrypted.ml_session_status === 'CONNECTED' ? 'CONNECTED' : 'AWAITING_CONFIG', mlAccount.status_message, workspaceId],
+                );
+              }
+            } catch (error) {
+              console.error('Mercado Livre browser discovery failed:', error);
+            }
           }
-
           for (const product of products.filter(p => workspaceDestinations.some(d => productMatches(p, d)))) {
             const existing = state.offers.find((o: Offer) => o.product?.external_product_id === product.external_product_id && o.marketplace === product.marketplace);
             const affiliateUrl = product.affiliate_url || existing?.affiliate_url;
