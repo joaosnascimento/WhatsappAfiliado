@@ -248,10 +248,10 @@ export function App() {
 
   if (!token || !user) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
-        <form onSubmit={handleAuth} className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-7 shadow-xl">
+      <div className="min-h-screen bg-bg text-text flex items-center justify-center px-4 py-8">
+        <form onSubmit={handleAuth} className="w-full max-w-md bg-surface-1 border border-border rounded-xl p-8 shadow-card">
           <div className="text-center mb-7">
-            <div className="mx-auto mb-4 w-12 h-12 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 font-bold">WA</div>
+            <div className="mx-auto mb-4 w-12 h-12 rounded-xl bg-brand-500 flex items-center justify-center text-slate-950 font-bold">WA</div>
             <h1 className="text-2xl font-bold text-white">Afiliados WhatsApp <span className="text-emerald-400">Pro</span></h1>
             <p className="text-sm text-slate-400 mt-1">{authMode === 'login' ? 'Entre para acessar seu painel.' : 'Crie sua conta para começar.'}</p>
           </div>
@@ -260,7 +260,7 @@ export function App() {
           <label className="block text-xs font-medium text-slate-300 mb-2">Senha</label>
           <input value={authPassword} onChange={(e)=>setAuthPassword(e.target.value)} type="password" required minLength={10} maxLength={128} autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} className="w-full mb-3 px-3 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white outline-none focus:border-emerald-500" />
           {authError && <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{authError}</div>}
-          <button disabled={authBusy} className="w-full py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-semibold">{authBusy ? 'Aguarde...' : authMode === 'login' ? 'Entrar' : 'Criar conta'}</button>
+          <button disabled={authBusy} className="w-full min-h-11 rounded-md bg-brand-500 hover:bg-brand-400 disabled:opacity-50 text-bg font-semibold transition-colors focus-visible:ring-4 focus-visible:ring-brand-500/20 outline-none">{authBusy ? 'Aguarde...' : authMode === 'login' ? 'Entrar' : 'Criar conta'}</button>
           <button type="button" onClick={()=>{setAuthMode(authMode === 'login' ? 'register' : 'login');setAuthError('');}} className="w-full mt-3 text-sm text-emerald-400 hover:text-emerald-300">
             {authMode === 'login' ? 'Ainda não tenho conta — criar agora' : 'Já tenho uma conta — entrar'}
           </button>
@@ -272,7 +272,7 @@ export function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-slate-950">
       <Header activeTab={activeTab} setActiveTab={setActiveTab} accounts={accounts} onRunTests={handleRunTests} isTestingSuite={isTestingSuite} onLogout={logout} />
-      <main className="flex-1 w-full px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+      <main className="flex-1 w-full px-4 py-6 sm:px-6 lg:px-10 lg:py-8"><div className="animate-page-in">
         {activeTab === 'setup' && <SetupTab apiFetch={apiFetch} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} onNavigate={setActiveTab} />}
         {activeTab === 'dashboard' && <DashboardTab reports={reports} onNavigateToOffers={()=>setActiveTab('offers')} onNavigateToAffiliates={()=>setActiveTab('affiliates')} />}
         {activeTab === 'affiliates' && <AffiliatesTab apiFetch={apiFetch} accounts={accounts} onSaveAccount={handleSaveAccount} onTestIntegration={handleTestIntegration} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} />}
@@ -281,7 +281,7 @@ export function App() {
         {activeTab === 'queue' && <PublicationsTab publications={publications} onTriggerSend={async()=>{}} onDelete={handleDeletePublication} onRetry={handleRetryPublication} />}
         {activeTab === 'audit' && <AuditTab records={auditRecords} />}
         {activeTab === 'docs' && <DocsTab onRunTests={handleRunTests} testResults={testResults} isRunningTests={isTestingSuite} />}
-      </main>
+      </div></main>
       <AssociateLinkModal offer={associateModalOffer} onClose={()=>setAssociateModalOffer(null)} onAssociate={handleAssociateMLLink} />
       <AiMessageModal offer={aiModalOffer} destinations={destinations} onClose={()=>setAiModalOffer(null)} onGenerateMessage={handleGenerateAiMessage} onPublish={handlePublish} />
     </div>
