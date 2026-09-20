@@ -12,7 +12,10 @@ import {
 } from 'lucide-react';
 import type { MarketplaceAccount, IntegrationTestResult } from '../types/affiliate.ts';
 
+type ApiFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
 interface AffiliatesTabProps {
+  apiFetch: ApiFetch;
   accounts: MarketplaceAccount[];
   onSaveAccount: (accountId: string, credentials: Record<string, string>) => Promise<void>;
   onTestIntegration: (marketplace: 'SHOPEE') => Promise<IntegrationTestResult>;
@@ -21,6 +24,7 @@ interface AffiliatesTabProps {
 }
 
 export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
+  apiFetch,
   accounts,
   onSaveAccount,
   onTestIntegration,
@@ -28,6 +32,22 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
   onSaveWhatsApp,
 }) => {
   const shopeeAcc = accounts.find((a) => a.marketplace === 'SHOPEE');
+  const mlAcc = accounts.find((a) => a.marketplace === 'MERCADOLIVRE');
+  const [mlStatus, setMlStatus] = useState<any>(null);
+  const [mlBusy, setMlBusy] = useState(false);
+  const refreshMlStatus = async () => {
+    try { const r = await apiFetch('/api/mercadolivre/status'); const d = await r.json().catch(() => ({})); if (r.ok) setMlStatus(d); } catch {}
+  };
+  const connectMl = async () => {
+    setMlBusy(true);
+    try { const r = await apiFetch('/api/mercadolivre/connect', { method: 'POST' }); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Não foi possível conectar.'); setMlStatus(d); alert(d.message || 'Conexão iniciada.'); }
+    catch (e) { alert((e as Error).message); } finally { setMlBusy(false); }
+  };
+  const disconnectMl = async () => {
+    setMlBusy(true);
+    try { const r = await apiFetch('/api/mercadolivre/disconnect', { method: 'POST' }); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Não foi possível desconectar.'); setMlStatus(d); }
+    catch (e) { alert((e as Error).message); } finally { setMlBusy(false); }
+  };
 
   // Form states
   const [shopeeAppId, setShopeeAppId] = useState(shopeeAcc?.credentials_encrypted?.shopee_app_id || '');
@@ -41,6 +61,8 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
   const [waKey,setWaKey]=useState('');
   const [waInstance,setWaInstance]=useState(whatsappSettings?.evolutionInstance||'');
   const [waSaving,setWaSaving]=useState(false);
+
+  React.useEffect(() => { void refreshMlStatus(); const t = window.setInterval(() => void refreshMlStatus(), 8000); return () => window.clearInterval(t); }, []);
 
   const handleSaveShopee = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,6 +123,36 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
         <div className="flex gap-3">
           <input type="password" value={waKey} onChange={e=>setWaKey(e.target.value)} placeholder={whatsappSettings?.evolutionApiKey==='configured'?'Chave já configurada':'Evolution API Key'} className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
           <button disabled={waSaving} onClick={async()=>{setWaSaving(true);try{await onSaveWhatsApp({provider:waProvider,evolutionApiUrl:waUrl,evolutionApiKey:waKey,evolutionInstance:waInstance});alert('WhatsApp configurado.')}catch(e){alert((e as Error).message)}finally{setWaSaving(false)}}} className="px-4 py-2 bg-emerald-500 text-slate-950 rounded-xl text-xs font-bold">{waSaving?'Salvando...':'Salvar WhatsApp'}</button>
+        </div>
+      </div>
+
+      <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-6 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold text-xl">ML</div>
+              <div>
+                <h3 className="font-bold text-white text-lg">Mercado Livre</h3>
+                <p className="text-xs text-slate-400">Automação pelo navegador usando sua sessão autenticada.</p>
+              </div>
+              <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded-full border ${(mlStatus?.status === 'CONNECTED' || mlAcc?.status === 'CONNECTED') ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20' : 'text-amber-300 bg-amber-500/10 border-amber-500/20'}`}>
+                {(mlStatus?.status === 'CONNECTED' || mlAcc?.status === 'CONNECTED') ? 'Conectado' : mlStatus?.status === 'LOGIN_REQUIRED' ? 'Login necessário' : 'Desconectado'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 mt-4 max-w-3xl leading-relaxed">
+              O WhatsappAfiliado abre um Chromium, você entra normalmente na sua conta e a sessão é salva de forma protegida. Depois disso, o sistema pode pesquisar produtos, abrir o Gerador de Links, gerar o link de afiliado e continuar o pipeline automaticamente.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <button onClick={connectMl} disabled={mlBusy} className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl text-xs font-bold disabled:opacity-50">{mlBusy ? 'Abrindo navegador...' : 'Conectar Mercado Livre'}</button>
+            <button onClick={refreshMlStatus} disabled={mlBusy} className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white rounded-xl text-xs font-semibold">Atualizar</button>
+            {(mlStatus?.status === 'CONNECTED' || mlAcc?.status === 'CONNECTED') && <button onClick={disconnectMl} disabled={mlBusy} className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-rose-300 rounded-xl text-xs font-semibold">Desconectar</button>}
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          <div className="rounded-xl bg-slate-800/70 border border-slate-800 p-3"><strong className="text-white">1. Login</strong><p className="text-slate-400 mt-1">Feito no próprio Mercado Livre, sem senha armazenada pelo sistema.</p></div>
+          <div className="rounded-xl bg-slate-800/70 border border-slate-800 p-3"><strong className="text-white">2. Link</strong><p className="text-slate-400 mt-1">O Gerador de Links é operado automaticamente pelo navegador.</p></div>
+          <div className="rounded-xl bg-slate-800/70 border border-slate-800 p-3"><strong className="text-white">3. WhatsApp</strong><p className="text-slate-400 mt-1">Link → IA → deduplicação → fila de publicação.</p></div>
         </div>
       </div>
 
