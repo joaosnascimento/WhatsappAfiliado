@@ -50,6 +50,7 @@ const worker=new Worker('affiliate-publications',async job=>{
 
     const publication:Publication={id:current.id,workspace_id:current.workspace_id,offer_id:current.offer_id,destination_id:current.destination_id,
       affiliate_link_id:current.affiliate_link_id||'unknown',affiliate_url:current.affiliate_url,image_url:stateOffer.product?.image||undefined,
+      image_title:stateOffer.product?.title||'Oferta',
       message:current.message,status:'PROCESSING',scheduled_at:new Date(current.scheduled_at||current.created_at).toISOString()};
 
     const settings=await WhatsAppSettingsService.get(current.workspace_id);
