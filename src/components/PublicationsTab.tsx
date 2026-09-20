@@ -12,6 +12,8 @@ interface PublicationsTabProps {
 export const PublicationsTab: React.FC<PublicationsTabProps> = ({
   publications,
   onTriggerSend,
+  onDelete,
+  onRetry,
 }) => {
   return (
     <div className="space-y-6">
