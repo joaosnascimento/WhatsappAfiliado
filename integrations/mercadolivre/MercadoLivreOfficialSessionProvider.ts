@@ -372,18 +372,19 @@ export class MercadoLivreOfficialSessionProvider {
     // Mercado Livre renders search results progressively. Reading the DOM only once
     // captures the first 1-2 cards in many sessions. Scroll in controlled batches and
     // collect cards after each batch until we have enough distinct listings.
-    const collectRows = async () => await runtime.page.locator('li, article').evaluateAll((els) =>
-      els.map((el) => {
-        const node = el as HTMLElement;
-        const anchors = Array.from(node.querySelectorAll<HTMLAnchorElement>('a[href]'));
-        const productAnchor = anchors.find(a => /mercadolivre\.com\.br/i.test(a.href) && /\/MLB[-_]|\/p\/MLB/i.test(a.href));
-        const image = node.querySelector<HTMLImageElement>('img');
+    const collectRows = async () => await runtime.page.locator('a[href*="/MLB"], a[href*="/p/MLB"]').evaluateAll((anchors) =>
+      anchors.map((anchor) => {
+        const a = anchor as HTMLAnchorElement;
+        const node = a.closest<HTMLElement>(
+          '[class*="poly-card"], [class*="ui-search-result"], [class*="andes-card"], li, article'
+        ) || a.parentElement || a;
+        const image = node.querySelector<HTMLImageElement>('img') || a.querySelector<HTMLImageElement>('img');
         const imageSrc = image?.currentSrc || image?.src || image?.getAttribute('data-src') || image?.getAttribute('data-original') || image?.getAttribute('data-lazy-src') || '';
         const srcset = image?.getAttribute('srcset') || image?.getAttribute('data-srcset') || '';
         const srcsetImage = srcset ? srcset.split(',').map(v => v.trim().split(/\s+/)[0]).filter(Boolean).pop() || '' : '';
         return {
-          href: productAnchor?.href || '',
-          text: (node.textContent || '').replace(/\s+/g, ' ').trim(),
+          href: a.href || '',
+          text: (node.textContent || a.textContent || '').replace(/\s+/g, ' ').trim(),
           image: imageSrc || srcsetImage,
         };
       })
@@ -422,27 +423,32 @@ export class MercadoLivreOfficialSessionProvider {
 
       const cardText = row.text;
       const discountMatch = cardText.match(/(\d{1,3})\s*%\s*(?:OFF|de\s*desconto|desconto)/i);
-      if (!discountMatch) continue;
-
-      // Prefer an explicit "De R$ X por R$ Y" / "R$ X R$ Y" pair.
-      // We require the original price to be strictly greater than the current price.
       const prices = [...cardText.matchAll(/R\$\s*([0-9.]+(?:,[0-9]{2})?)/gi)]
         .map(m => Number(m[1].replace(/\./g, '').replace(',', '.')))
         .filter(Number.isFinite);
 
-      if (prices.length < 2) continue;
-
+      // Mercado Livre can render different card shapes depending on the page,
+      // locale and login state. Accept a current/original pair or a current price
+      // plus a discount badge instead of requiring one exact DOM shape.
+      if (!prices.length) continue;
       const currentPrice = Math.min(...prices);
-      const originalCandidates = prices.filter(price => price > currentPrice);
-      if (!originalCandidates.length) continue;
+      if (!Number.isFinite(currentPrice) || currentPrice <= 0) continue;
 
-      const originalPrice = Math.max(...originalCandidates);
-      const discount = Number(discountMatch[1]);
-      const calculatedDiscount = Math.round((1 - currentPrice / originalPrice) * 100);
+      let originalPrice = prices.filter(price => price > currentPrice).sort((x, y) => y - x)[0] || currentPrice;
+      let discount = discountMatch ? Number(discountMatch[1]) : 0;
 
-      // Reject inconsistent/stale card data instead of inventing a discount.
-      if (currentPrice <= 0 || originalPrice <= currentPrice || discount <= 0) continue;
-      if (Math.abs(calculatedDiscount - discount) > 3) continue;
+      if (discount > 0 && originalPrice <= currentPrice && discount < 100) {
+        originalPrice = Number((currentPrice / (1 - discount / 100)).toFixed(2));
+      }
+      if (originalPrice < currentPrice) originalPrice = currentPrice;
+
+      const calculatedDiscount = originalPrice > currentPrice
+        ? Math.round((1 - currentPrice / originalPrice) * 100)
+        : 0;
+
+      if (discount > 0 && calculatedDiscount > 0 && Math.abs(calculatedDiscount - discount) > 5) {
+        discount = calculatedDiscount;
+      }
 
       const title = cardText
         .replace(/R\$\s*[0-9.]+(?:,[0-9]{2})?/gi, '')
