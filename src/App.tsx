@@ -222,6 +222,13 @@ function AppContent() {
     await loadData();
   };
 
+  const handleTriggerSend = async (publicationId: string) => {
+    const res = await apiFetch('/api/publications/' + encodeURIComponent(publicationId) + '/send', { method:'POST' });
+    const data = await readJson(res);
+    if (!res.ok) throw new Error(data.error || 'Não foi possível enviar a publicação agora.');
+    await loadData();
+  };
+
   const handleDeletePublication = async (publicationId: string) => {
     const res = await apiFetch('/api/publications/' + encodeURIComponent(publicationId), { method:'DELETE' });
     const data = await readJson(res);
@@ -278,7 +285,7 @@ function AppContent() {
         {activeTab === 'affiliates' && <AffiliatesTab apiFetch={apiFetch} accounts={accounts} onSaveAccount={handleSaveAccount} onTestIntegration={handleTestIntegration} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} />}
         {activeTab === 'offers' && <OffersTab offers={offers} destinations={destinations} onLiveSearch={handleLiveSearch} onOpenAssociateModal={(offer)=>setAssociateModalOffer(offer)} onOpenAiMessageModal={(offer)=>setAiModalOffer(offer)} onQuickPublish={handlePublish} onDeleteOffer={handleDeleteOffer} />}
         {activeTab === 'destinations' && <DestinationsTab destinations={destinations} onAddDestination={handleAddDestination} apiFetch={apiFetch} />}
-        {activeTab === 'queue' && <PublicationsTab publications={publications} onTriggerSend={async()=>{}} onDelete={handleDeletePublication} onRetry={handleRetryPublication} />}
+        {activeTab === 'queue' && <PublicationsTab publications={publications} onTriggerSend={handleTriggerSend} onDelete={handleDeletePublication} onRetry={handleRetryPublication} />}
         {activeTab === 'audit' && <AuditTab records={auditRecords} />}
         {activeTab === 'docs' && <DocsTab onRunTests={handleRunTests} testResults={testResults} isRunningTests={isTestingSuite} />}
       </div></main>
