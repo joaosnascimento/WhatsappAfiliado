@@ -7,24 +7,7 @@ import type { Destination, Offer, Publication } from '../types/affiliate.ts';
 
 type WorkspaceState = { offers?: Offer[] };
 
-function parseTime(value: string, fallback: number): number {
-  const match = /^(\d{2}):(\d{2})$/.exec(value || '');
-  if (!match) return fallback;
-  return Number(match[1]) * 60 + Number(match[2]);
-}
-
-function zonedMinutes(now: Date, timezone: string): { minutes:number; dateKey:string } {
-  const parts = new Intl.DateTimeFormat('en-CA',{timeZone:timezone,hour:'2-digit',minute:'2-digit',year:'numeric',month:'2-digit',day:'2-digit',hourCycle:'h23'}).formatToParts(now);
-  const get=(type:string)=>parts.find(p=>p.type===type)?.value || '00';
-  return { minutes:Number(get('hour'))*60+Number(get('minute')), dateKey:`${get('year')}-${get('month')}-${get('day')}` };
-}
-
-export function isInsideWindow(now: Date, start: string, end: string, timezone: string): boolean {
-  const current = zonedMinutes(now,timezone).minutes;
-  const from = parseTime(start, 0);
-  const to = parseTime(end, 23 * 60 + 59);
-  return from <= to ? current >= from && current <= to : current >= from || current <= to;
-}
+import { zonedMinutes, isInsideWindow } from './TimezoneService.ts';
 
 function matchesDestination(offer: Offer, destination: Destination): boolean {
   if (destination.marketplaces.length && !destination.marketplaces.includes(offer.marketplace)) return false;
