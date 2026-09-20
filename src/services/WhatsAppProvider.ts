@@ -1,5 +1,6 @@
 import type { Destination, Publication } from '../types/affiliate.ts';
 import { assertSafeOutboundUrl } from '../security/outboundUrl.ts';
+import { BrandedOfferImageService } from './BrandedOfferImageService.ts';
 
 export type WhatsAppProviderName = 'WHATSAPP_CLOUD_API' | 'EVOLUTION_API' | 'WEBHOOK_GATEWAY' | 'SIMULATOR';
 
@@ -93,14 +94,22 @@ export class WhatsAppProvider {
     try {
       const safeBase = await assertSafeOutboundUrl(baseUrl);
       let imageUrl: string | undefined;
-      if (publication.image_url) imageUrl = (await assertSafeOutboundUrl(publication.image_url)).toString();
+      let renderedImageBase64: string | undefined;
+      if (publication.image_url) {
+        imageUrl = (await assertSafeOutboundUrl(publication.image_url)).toString();
+        try {
+          renderedImageBase64 = await BrandedOfferImageService.render(imageUrl, publication.image_title || 'Oferta');
+        } catch (error) {
+          console.warn('Branded offer image unavailable; falling back to original image URL:', error instanceof Error ? error.message : String(error));
+        }
+      }
       const endpoint = publication.image_url ? 'sendMedia' : 'sendText';
       const res = await fetch(`${safeBase.toString().replace(/\/$/, '')}/message/${endpoint}/${encodeURIComponent(instance)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: apiKey },
         signal: controller.signal,
         body: publication.image_url
-          ? JSON.stringify({ number: destination.identifier, mediatype: 'image', mimetype: 'image/jpeg', media: imageUrl, caption: publication.message, fileName: 'oferta.jpg' })
+          ? JSON.stringify({ number: destination.identifier, mediatype: 'image', mimetype: 'image/jpeg', media: renderedImageBase64 || imageUrl, caption: publication.message, fileName: 'oferta.jpg' })
           : JSON.stringify({ number: destination.identifier, text: publication.message, linkPreview: true }),
       });
 
