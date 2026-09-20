@@ -940,7 +940,7 @@ async function startServer() {
     res.json({success:true,deleted:true,id:destination.id});
   });
 
-  app.post('/api/destinations', (req, res) => {
+  app.post('/api/destinations', async (req, res) => {
     const body = req.body as Partial<Destination>;
     const id = body.id || `dest_${Date.now()}`;
     if (!body.identifier || !String(body.identifier).trim()) return res.status(400).json({ error: 'identifier é obrigatório.' });
