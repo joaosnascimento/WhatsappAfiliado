@@ -29,7 +29,7 @@ async function readJson<T = any>(response: Response): Promise<T> {
   try { return JSON.parse(text) as T; } catch { return {} as T; }
 }
 
-export function App() {
+function AppContent() {
   const toast = useToast();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [firstRunRedirected, setFirstRunRedirected] = useState(false);
@@ -288,4 +288,5 @@ export function App() {
   );
 }
 
-export default function AppWithProviders() { return <ToastProvider><App /></ToastProvider>; }
+export function App() { return <ToastProvider><AppContent /></ToastProvider>; }
+export default App;
