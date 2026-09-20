@@ -24,7 +24,7 @@ export interface MarketplaceAccount {
     ml_user_id?: string;
     ml_expires_at?: number;
     ml_session_state?: string;
-    ml_session_status?: 'DISCONNECTED' | 'LOGIN_REQUIRED' | 'CONNECTED' | 'EXPIRED' | 'ERROR';
+    ml_session_status?: 'NOT_CONFIGURED' | 'LOGIN_REQUIRED' | 'CONNECTED' | 'EXPIRED' | 'DISCONNECTED' | 'RECONNECTING' | 'ERROR';
     ml_session_updated_at?: string;
     // Shopee
     shopee_app_id?: string;
@@ -147,7 +147,7 @@ export interface Publication {
   affiliate_url: string;
   image_url?: string;
   message: string;
-  status: 'QUEUED' | 'SCHEDULED' | 'SENT' | 'FAILED';
+  status: 'DRAFT' | 'QUEUED' | 'PROCESSING' | 'SCHEDULED' | 'SENT' | 'FAILED' | 'RETRYING' | 'CANCELLED' | 'EXPIRED';
   scheduled_at: string;
   sent_at?: string;
   error_message?: string;
