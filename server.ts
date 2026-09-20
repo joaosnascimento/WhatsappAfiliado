@@ -171,7 +171,6 @@ async function startServer() {
       status: 'ok',
       service: 'Automacao Afiliados WhatsApp SaaS',
       geminiConfigured: !!process.env.GEMINI_API_KEY,
-      mercadolivreConfigured: true,
       shopeeConfigured: !!process.env.SHOPEE_AFFILIATE_APP_ID,
       whatsappProvider: process.env.WHATSAPP_PROVIDER || 'cloud',
       evolutionConfigured: !!(process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY && process.env.EVOLUTION_INSTANCE),
