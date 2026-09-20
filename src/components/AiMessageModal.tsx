@@ -160,7 +160,7 @@ export const AiMessageModal: React.FC<AiMessageModalProps> = ({
               id="btn-confirm-publish-modal"
               onClick={handleSendToWhatsApp}
               disabled={isPublishing || !isReady || !message}
-              className="px-5 py-2 bg-brand-500 hover:bg-brand-400 text-slate-950 font-bold text-sm rounded-md transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-5 py-2 bg-brand-500 hover:bg-brand-400 text-bg font-bold text-sm rounded-md transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               title={!isReady ? 'Requer link de afiliado oficial validado' : 'Enviar para WhatsApp'}
             >
               <Send className="w-3.5 h-3.5" />
