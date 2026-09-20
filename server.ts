@@ -1070,7 +1070,15 @@ async function startServer() {
         evolutionInstance: body.evolutionInstance || current.evolutionInstance,
       };
       await WhatsAppSettingsService.save(req.user!.workspaceId,next as any);
-      res.json({success:true,provider:next.provider});
+      let webhookConfigured=false;
+      if (next.provider === 'evolution' && next.evolutionApiUrl && next.evolutionApiKey && next.evolutionInstance && process.env.APP_URL && process.env.EVOLUTION_WEBHOOK_SECRET) {
+        try {
+          const webhookUrl=process.env.APP_URL.replace(/\\/$/,'') + '/webhooks/evolution/' + encodeURIComponent(req.user!.workspaceId);
+          const wh=await fetch(next.evolutionApiUrl + '/webhook/set/' + encodeURIComponent(next.evolutionInstance),{method:'POST',headers:{apikey:next.evolutionApiKey,'Content-Type':'application/json'},body:JSON.stringify({enabled:true,url:webhookUrl,webhookByEvents:false,webhookBase64:false,events:['CONNECTION_UPDATE','QRCODE_UPDATED']})});
+          webhookConfigured=wh.ok;
+        } catch {}
+      }
+      res.json({success:true,provider:next.provider,webhookConfigured});
     } catch(err){ res.status(400).json({error:(err as Error).message}); }
   });
 
