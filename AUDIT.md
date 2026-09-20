@@ -41,6 +41,11 @@ Audit of the existing production codebase, with priority on P0/P1 reliability, s
 - Regression suite verifies the canonical Evolution group request and workspace timezone windows.
 - External Evolution, Mercado Livre and WhatsApp end-to-end validation requires the configured production credentials/services; source-level regressions cannot prove live provider behavior.
 
+### Security hardening added
+- Publication creation now verifies offer and destination workspace ownership in persistent mode.
+- Offer delete, ML affiliate-link association and AI generation reject cross-workspace cached objects.
+- Integration state transition rules are centralized in `IntegrationStateMachine.ts` with regression coverage.
+
 ## Known limitations
 - Live Evolution instance behavior still requires an actual configured Evolution API.
 - Live Mercado Livre Playwright login/session behavior requires a real account and browser environment.
