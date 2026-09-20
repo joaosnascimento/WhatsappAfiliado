@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "npm run lint",
+    "test": "tsc --noEmit && tsx src/test/production-regressions.test.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "worker": "tsx src/workers/publicationWorker.ts",
     "browser:install": "playwright install chromium"
