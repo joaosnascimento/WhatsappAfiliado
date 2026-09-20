@@ -8,6 +8,7 @@ import { AutomationScheduler } from '../services/AutomationScheduler.ts';
 import { MarketplaceDiscoveryScheduler } from '../services/MarketplaceDiscoveryScheduler.ts';
 import { AccountHealthService } from '../services/AccountHealthService.ts';
 import { ConversionSyncService } from '../services/ConversionSyncService.ts';
+import { AuditService } from '../services/AuditService.ts';
 import { WhatsAppSettingsService } from '../services/WhatsAppSettingsService.ts';
 import type { Destination, Publication } from '../types/affiliate.ts';
 
@@ -65,6 +66,20 @@ const worker = new Worker('affiliate-publications', async job => {
     await query('UPDATE workspace_state SET state=$2, updated_at=NOW() WHERE workspace_id=$1', [row.workspace_id, JSON.stringify(state)]);
   }
   const offer = state?.offers?.find((item: any) => item.id === row.offer_id);
+  if (offer) {
+    const link = state?.links?.find((item: any) => item.id === row.affiliate_link_id);
+    const sentPublication: Publication = {
+      ...publication,
+      status: 'SENT',
+      sent_at: new Date().toISOString(),
+    };
+    await AuditService.logPublicationTrace({
+      offer,
+      destination,
+      publication: sentPublication,
+      affiliateAccountId: link?.affiliate_account_id || 'unknown',
+    });
+  }
   if (offer?.product?.external_product_id) {
     await DeduplicationService.recordPublication(
       row.workspace_id,

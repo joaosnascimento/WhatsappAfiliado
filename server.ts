@@ -105,7 +105,7 @@ async function startServer() {
     app.use((req, res, next) => {
       res.on('finish', () => {
         const workspaceId = req.user?.workspaceId;
-        if (!workspaceId) return;
+        if (!workspaceId || ['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return;
         void runWithWorkspace(workspaceId, () => store.persist(workspaceId)).catch((error) => console.error('Persistence error:', error));
       });
       next();
@@ -119,6 +119,10 @@ async function startServer() {
     const workspaceId = req.user?.workspaceId;
     if (!workspaceId) return res.status(401).json({ error: 'Autenticação obrigatória.' });
     void runWithWorkspace(workspaceId, next).catch(next);
+  };
+
+  const refreshPersistentWorkspace = async (req: express.Request) => {
+    if (persistentStoreEnabled && req.user?.workspaceId) await store.loadPersistent(req.user.workspaceId);
   };
 
   app.use('/api/accounts', requireAuth, workspaceContext);
@@ -189,7 +193,8 @@ async function startServer() {
   });
 
   // 3. Accounts management
-  app.get('/api/accounts', (req, res) => {
+  app.get('/api/accounts', async (req, res) => {
+    await refreshPersistentWorkspace(req);
     const list = Array.from(store.accounts.values()).map((acc) => ({
       id: acc.id,
       workspace_id: acc.workspace_id,
@@ -227,7 +232,7 @@ async function startServer() {
   });
 
   // 4. Test Integration Diagnostic (Mercado Livre & Shopee)
-  app.post('/api/test-integration/:marketplace', requireAuth, redisRateLimit({windowSeconds:60,max:5,prefix:'integration-test'}), async (req, res) => {
+  app.post('/api/test-integration/:marketplace', requireAuth, workspaceContext, redisRateLimit({windowSeconds:60,max:5,prefix:'integration-test'}), async (req, res) => {
     const marketplace = req.params.marketplace.toUpperCase();
 
     if (marketplace === 'SHOPEE') {
@@ -297,7 +302,8 @@ async function startServer() {
   });
 
   // 6. Offers API
-  app.get('/api/offers', (req, res) => {
+  app.get('/api/offers', async (req, res) => {
+    await refreshPersistentWorkspace(req);
     const marketplace = req.query.marketplace as string;
     const status = req.query.status as string;
 
@@ -549,15 +555,62 @@ async function startServer() {
     const rows = await query<any>('SELECT * FROM publications WHERE id=$1 AND workspace_id=$2', [req.params.id, req.user!.workspaceId]);
     if (!rows[0]) return res.status(404).json({ error: 'Publicação não encontrada.' });
     if (rows[0].status !== 'FAILED') return res.status(409).json({ error: 'Somente publicações com falha podem ser reenviadas.' });
-    const { enqueuePublication } = await import('./src/infrastructure/queue.ts');
     await query("UPDATE publications SET status='QUEUED', error=NULL WHERE id=$1", [rows[0].id]);
     try {
+      const { enqueuePublication } = await import('./src/infrastructure/queue.ts');
       await enqueuePublication({ publicationId: rows[0].id, destinationId: rows[0].destination_id, offerId: rows[0].offer_id, scheduledAt: rows[0].scheduled_at });
     } catch (error) {
       await query("UPDATE publications SET status='FAILED', error=$2 WHERE id=$1", [rows[0].id, (error as Error).message]);
       return res.status(503).json({ error: 'Fila de publicação indisponível.' });
     }
     res.json({ success: true, status: 'QUEUED' });
+  });
+
+  // Send a queued/scheduled publication immediately through the same BullMQ + worker pipeline used by automation.
+  // This intentionally does not send WhatsApp from the HTTP request: the worker remains the single sender.
+  app.post('/api/publications/:id/send', async (req, res) => {
+    const rows = await query<any>('SELECT * FROM publications WHERE id=$1 AND workspace_id=$2', [req.params.id, req.user!.workspaceId]);
+    if (!rows[0]) return res.status(404).json({ error: 'Publicação não encontrada.' });
+    if (!['QUEUED', 'SCHEDULED'].includes(rows[0].status)) {
+      return res.status(409).json({ error: 'Somente publicações na fila ou agendadas podem ser enviadas agora.' });
+    }
+
+    const scheduledAt = new Date().toISOString();
+    const jobId = `publication:${rows[0].id}`;
+    try {
+      const { publicationQueue, enqueuePublication } = await import('./src/infrastructure/queue.ts');
+      const existingJob = await publicationQueue.getJob(jobId);
+      if (existingJob) {
+        const state = await existingJob.getState();
+        if (state === 'active') return res.status(409).json({ error: 'A publicação já está sendo processada pelo worker.' });
+        await existingJob.remove();
+      }
+
+      await query("UPDATE publications SET status='QUEUED', scheduled_at=$2, error=NULL WHERE id=$1 AND workspace_id=$3", [rows[0].id, scheduledAt, req.user!.workspaceId]);
+      const queued = await enqueuePublication({
+        publicationId: rows[0].id,
+        destinationId: rows[0].destination_id,
+        offerId: rows[0].offer_id,
+        scheduledAt,
+      });
+
+      const cached = store.publications.get(rows[0].id);
+      if (cached) {
+        cached.status = 'QUEUED';
+        cached.scheduled_at = scheduledAt;
+        cached.error_message = undefined;
+      }
+      if (persistentStoreEnabled) await store.persist(req.user!.workspaceId);
+      return res.status(202).json({ success: true, queued: true, immediate: true, jobId: queued.id, scheduledAt });
+    } catch (error) {
+      await query("UPDATE publications SET status='FAILED', error=$2 WHERE id=$1 AND workspace_id=$3", [rows[0].id, (error as Error).message, req.user!.workspaceId]);
+      const cached = store.publications.get(rows[0].id);
+      if (cached) {
+        cached.status = 'FAILED';
+        cached.error_message = (error as Error).message;
+      }
+      return res.status(503).json({ error: 'Não foi possível colocar a publicação na fila para envio imediato.' });
+    }
   });
 
   // 8. Generate AI Message
@@ -572,7 +625,7 @@ async function startServer() {
     const dest = destinationId ? store.destinations.get(destinationId) : undefined;
 
     try {
-      const message = await AiMessageService.generateMessage({
+      const generated = await AiMessageService.generateMessageWithStatus({
         product: offer.product,
         marketplace: offer.marketplace,
         affiliateUrl,
@@ -581,8 +634,8 @@ async function startServer() {
         couponCode: offer.coupon_code,
       });
 
-      offer.ai_generated_message = message;
-      res.json({ message });
+      offer.ai_generated_message = generated.message;
+      res.json({ message: generated.message, aiUsed: !generated.usedFallback, aiFallback: generated.usedFallback, warning: generated.fallbackReason });
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
     }
@@ -668,13 +721,18 @@ async function startServer() {
 
     // Ensure AI message exists or generate it
     let message = offer.ai_generated_message;
+    let aiFallback = false;
+    let aiWarning: string | undefined;
     if (!message) {
-      message = await AiMessageService.generateMessage({
+      const generated = await AiMessageService.generateMessageWithStatus({
         product: offer.product,
         marketplace: offer.marketplace,
         affiliateUrl: publicationAffiliateUrl,
         destinationName: destination.name,
       });
+      message = generated.message;
+      aiFallback = generated.usedFallback;
+      aiWarning = generated.fallbackReason;
       offer.ai_generated_message = message;
     } else {
       message = message.replaceAll(offer.affiliate_url!, publicationAffiliateUrl);
@@ -739,11 +797,12 @@ async function startServer() {
       // A oferta continua pronta para nova tentativa quando o Redis/worker voltar.
       return res.status(503).json({ success:false, publication, error:'Fila de publicação indisponível.' });
     }
-    return res.status(202).json({ success:true, queued:true, publication });
+    return res.status(202).json({ success:true, queued:true, publication, aiUsed: !aiFallback, aiFallback, warning: aiWarning });
   });
 
   // 10. Destinations
-  app.get('/api/destinations', (req, res) => {
+  app.get('/api/destinations', async (req, res) => {
+    await refreshPersistentWorkspace(req);
     res.json(Array.from(store.destinations.values()));
   });
 
@@ -781,12 +840,14 @@ async function startServer() {
   });
 
   // 11. Publications Queue & History
-  app.get('/api/publications', (req, res) => {
+  app.get('/api/publications', async (req, res) => {
+    await refreshPersistentWorkspace(req);
     res.json(Array.from(store.publications.values()).reverse());
   });
 
   // 12. Reports / Dashboard with persisted publication and real analytics data.
   app.get('/api/reports', async (req, res) => {
+    await refreshPersistentWorkspace(req);
     try {
       const allOffers = Array.from(store.offers.values());
       const allPubs = Array.from(store.publications.values());
@@ -806,9 +867,13 @@ async function startServer() {
   });
 
   // 13. Audit records (Section 29)
-  app.get('/api/audit', (req, res) => {
-    const marketplace = req.query.marketplace as any;
-    res.json(AuditService.getAuditRecords(req.user!.workspaceId, marketplace));
+  app.get('/api/audit', async (req, res) => {
+    try {
+      const marketplace = req.query.marketplace as any;
+      res.json(await AuditService.getAuditRecords(req.user!.workspaceId, marketplace));
+    } catch (err) {
+      res.status(500).json({ error: 'Não foi possível carregar a auditoria.' });
+    }
   });
 
   // Analytics: real click/conversion counters persisted in PostgreSQL.

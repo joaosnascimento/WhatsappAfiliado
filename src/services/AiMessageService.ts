@@ -33,6 +33,10 @@ export class AiMessageService {
    * Mandate: The model CANNOT hallucinate price, discount, coupons, or availability.
    */
   public static async generateMessage(input: AiMessageInput): Promise<string> {
+    return (await this.generateMessageWithStatus(input)).message;
+  }
+
+  public static async generateMessageWithStatus(input: AiMessageInput): Promise<{ message: string; usedFallback: boolean; fallbackReason?: string }> {
     const { product, marketplace, affiliateUrl, couponCode, destinationName } = input;
 
     const mpLabel = marketplace === 'SHOPEE' ? 'Shopee' : 'Mercado Livre';
@@ -91,17 +95,18 @@ ${JSON.stringify(verifiedFacts, null, 2)}
           const unexpectedUrl = urlMatches.some(url => url !== affiliateUrl);
           const couponIsRequired = Boolean(couponCode);
           if (unexpectedUrl || !required.every(fact => generated.includes(fact)) || (couponIsRequired && !generated.includes(couponCode!))) {
-            return this.buildDeterministicMessage(input);
+            return { message: this.buildDeterministicMessage(input), usedFallback: true, fallbackReason: 'A IA retornou conteúdo que não passou pela validação de fatos.' };
           }
-          return generated;
+          return { message: generated, usedFallback: false };
         }
       } catch (err) {
         console.warn('Gemini API call failed, using deterministic template:', (err as Error).message);
+        return { message: this.buildDeterministicMessage(input), usedFallback: true, fallbackReason: `Falha na IA: ${(err as Error).message}` };
       }
     }
 
     // High quality deterministic fallback strictly adhering to confirmed facts
-    return this.buildDeterministicMessage(input);
+    return { message: this.buildDeterministicMessage(input), usedFallback: true, fallbackReason: process.env.GEMINI_API_KEY ? 'A IA não retornou uma mensagem válida; foi usado o modelo determinístico.' : 'GEMINI_API_KEY não configurada; foi usado o modelo determinístico.' };
   }
 
   /**

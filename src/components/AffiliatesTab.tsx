@@ -38,7 +38,7 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
   const [mlStatus, setMlStatus] = useState<any>(null);
   const [mlBusy, setMlBusy] = useState(false);
   const refreshMlStatus = async () => {
-    try { const r = await apiFetch('/api/mercadolivre/status'); const d = await r.json().catch(() => ({})); if (r.ok) setMlStatus(d); } catch {}
+    try { const r = await apiFetch('/api/mercadolivre/status'); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Não foi possível consultar o status.'); setMlStatus(d); } catch (error) { toast('error','Status do Mercado Livre indisponível',(error as Error).message); }
   };
   const connectMl = async () => {
     setMlBusy(true);
@@ -47,8 +47,8 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
   };
   const disconnectMl = async () => {
     setMlBusy(true);
-    try { const r = await apiFetch('/api/mercadolivre/disconnect', { method: 'POST' }); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Não foi possível desconectar.'); setMlStatus(d); }
-    catch (e) { toast('error','Falha ao configurar WhatsApp',(e as Error).message); } finally { setMlBusy(false); }
+    try { const r = await apiFetch('/api/mercadolivre/disconnect', { method: 'POST' }); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Não foi possível desconectar.'); await refreshMlStatus(); toast('success','Mercado Livre desconectado','A sessão foi removida.'); }
+    catch (e) { toast('error','Falha ao desconectar Mercado Livre',(e as Error).message); } finally { setMlBusy(false); }
   };
 
   // Form states
@@ -70,10 +70,9 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
     e.preventDefault();
     setIsSavingShopee(true);
     try {
-      await onSaveAccount('acc_shopee_br', {
-        shopee_app_id: shopeeAppId,
-        shopee_secret: shopeeSecret || shopeeAcc?.credentials_encrypted?.shopee_secret || '',
-      });
+      const credentials: Record<string, string> = { shopee_app_id: shopeeAppId.trim() };
+      if (shopeeSecret.trim()) credentials.shopee_secret = shopeeSecret.trim();
+      await onSaveAccount('acc_shopee_br', credentials);
       toast('success','Credenciais salvas','As credenciais da Shopee foram atualizadas.');
     } catch (err) {
       toast('error','Erro ao salvar',(err as Error).message);
@@ -137,7 +136,7 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
                 <h3 className="font-bold text-text text-lg">Mercado Livre</h3>
                 <p className="text-sm text-muted">Automação pelo navegador usando sua sessão autenticada.</p>
               </div>
-              <span className={`text-sm uppercase font-bold px-2 py-1 rounded-full border ${(mlStatus?.status === 'CONNECTED' || mlAcc?.status === 'CONNECTED') ? 'text-brand-200 bg-brand-500/10 border-brand-500/20' : 'text-amber-300 bg-amber-500/10 border-amber-500/20'}`}>
+              <span className={`text-sm uppercase font-bold px-2 py-1 rounded-full border ${(mlStatus?.status === 'CONNECTED' || (!mlStatus && mlAcc?.status === 'CONNECTED')) ? 'text-brand-200 bg-brand-500/10 border-brand-500/20' : 'text-amber-300 bg-amber-500/10 border-amber-500/20'}`}>
                 {(mlStatus?.status === 'CONNECTED' || mlAcc?.status === 'CONNECTED') ? 'Conectado' : mlStatus?.status === 'LOGIN_REQUIRED' ? 'Login necessário' : 'Desconectado'}
               </span>
             </div>

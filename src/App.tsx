@@ -80,6 +80,11 @@ function AppContent() {
         apiFetch('/api/whatsapp/settings'),
       ]);
       if (responses.some((r) => r.status === 401)) { logout(); return; }
+      const failedIndex = responses.findIndex((r) => !r.ok);
+      if (failedIndex >= 0) {
+        const failedData = await readJson<{error?:string}>(responses[failedIndex]);
+        throw new Error(failedData.error || `Falha ao carregar dados (HTTP ${responses[failedIndex].status}).`);
+      }
 
       const [accRes, offRes, destRes, pubRes, repRes, audRes, waRes] = await Promise.all(responses.map(readJson));
       setAccounts(Array.isArray(accRes) ? accRes : []);
@@ -91,6 +96,7 @@ function AppContent() {
       setWhatsappSettings(waRes && typeof waRes === 'object' ? waRes : null);
     } catch (err) {
       console.error('Failed to load initial SaaS data:', err);
+      toast('error','Não foi possível atualizar o painel',(err as Error).message);
     }
   };
 
@@ -197,6 +203,17 @@ function AppContent() {
     await loadData();
   };
 
+  const handleManualMercadoLivre = async (payload: { originalUrl: string; title?: string; price: number }) => {
+    const res = await apiFetch('/api/offers/manual-mercadolivre', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload),
+    });
+    const data = await readJson(res);
+    if (!res.ok) throw new Error(data.error || 'Não foi possível adicionar a oferta.');
+    await loadData();
+  };
+
   const handleAssociateMLLink = async (offerId: string, affiliateUrl: string) => {
     const res = await apiFetch(`/api/offers/${offerId}/associate-ml-link`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ affiliateUrl }) });
     if (!res.ok) { const err=await readJson(res); throw new Error(err.error||'Erro ao associar link'); }
@@ -206,12 +223,17 @@ function AppContent() {
   const handleGenerateAiMessage = async (offerId: string, destinationId?: string): Promise<string> => {
     const res = await apiFetch(`/api/offers/${offerId}/generate-ai-message`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ destinationId }) });
     if (!res.ok) { const err=await readJson(res); throw new Error(err.error||'Erro ao gerar mensagem'); }
-    const data = await readJson<{message:string}>(res); await loadData(); return data.message;
+    const data = await readJson<{message:string; aiUsed?:boolean; aiFallback?:boolean; warning?:string}>(res);
+    if (data.aiFallback) toast('info', 'Mensagem gerada sem IA', data.warning || 'Foi usado o modelo determinístico para manter a publicação segura.');
+    await loadData();
+    return data.message;
   };
 
   const handlePublish = async (offerId: string, destinationId: string) => {
     const res = await apiFetch(`/api/offers/${offerId}/publish`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ destinationId }) });
-    if (!res.ok) { const err=await readJson(res); throw new Error(err.error||'Erro na publicação'); }
+    const data = await readJson<{aiFallback?:boolean; warning?:string}>(res);
+    if (!res.ok) throw new Error((data as any).error || 'Erro na publicação');
+    if (data.aiFallback) toast('info', 'Publicação criada com mensagem padrão', data.warning || 'A IA não estava disponível; a mensagem determinística foi usada.');
     await loadData();
   };
 
@@ -219,6 +241,13 @@ function AppContent() {
     const res = await apiFetch('/api/offers/' + encodeURIComponent(offerId), { method:'DELETE' });
     const data = await readJson(res);
     if (!res.ok) throw new Error(data.error || 'Não foi possível excluir a oferta.');
+    await loadData();
+  };
+
+  const handleTriggerSend = async (publicationId: string) => {
+    const res = await apiFetch('/api/publications/' + encodeURIComponent(publicationId) + '/send', { method:'POST' });
+    const data = await readJson(res);
+    if (!res.ok) throw new Error(data.error || 'Não foi possível enviar a publicação agora.');
     await loadData();
   };
 
@@ -276,9 +305,9 @@ function AppContent() {
         {activeTab === 'setup' && <SetupTab apiFetch={apiFetch} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} onNavigate={setActiveTab} />}
         {activeTab === 'dashboard' && <DashboardTab reports={reports} onNavigateToOffers={()=>setActiveTab('offers')} onNavigateToAffiliates={()=>setActiveTab('affiliates')} />}
         {activeTab === 'affiliates' && <AffiliatesTab apiFetch={apiFetch} accounts={accounts} onSaveAccount={handleSaveAccount} onTestIntegration={handleTestIntegration} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} />}
-        {activeTab === 'offers' && <OffersTab offers={offers} destinations={destinations} onLiveSearch={handleLiveSearch} onOpenAssociateModal={(offer)=>setAssociateModalOffer(offer)} onOpenAiMessageModal={(offer)=>setAiModalOffer(offer)} onQuickPublish={handlePublish} onDeleteOffer={handleDeleteOffer} />}
+        {activeTab === 'offers' && <OffersTab offers={offers} destinations={destinations} onLiveSearch={handleLiveSearch} onManualAddMercadoLivre={handleManualMercadoLivre} onOpenAssociateModal={(offer)=>setAssociateModalOffer(offer)} onOpenAiMessageModal={(offer)=>setAiModalOffer(offer)} onQuickPublish={handlePublish} onDeleteOffer={handleDeleteOffer} />}
         {activeTab === 'destinations' && <DestinationsTab destinations={destinations} onAddDestination={handleAddDestination} apiFetch={apiFetch} />}
-        {activeTab === 'queue' && <PublicationsTab publications={publications} onTriggerSend={async()=>{}} onDelete={handleDeletePublication} onRetry={handleRetryPublication} />}
+        {activeTab === 'queue' && <PublicationsTab publications={publications} onTriggerSend={handleTriggerSend} onDelete={handleDeletePublication} onRetry={handleRetryPublication} />}
         {activeTab === 'audit' && <AuditTab records={auditRecords} />}
         {activeTab === 'docs' && <DocsTab onRunTests={handleRunTests} testResults={testResults} isRunningTests={isTestingSuite} />}
       </div></main>

@@ -56,7 +56,7 @@ export const SetupTab: React.FC<SetupTabProps> = ({ apiFetch, whatsappSettings, 
   };
   const loadGroups=async()=>{
     try{const d=await read(await apiFetch('/api/whatsapp/groups'));setGroups(Array.isArray(d)?d:[]);}
-    catch(e){setGroups([]);}
+    catch(e){setGroups([]);notify((e as Error).message);}
   };
   const sendTest=async()=>{
     if(!selectedGroup)return;
