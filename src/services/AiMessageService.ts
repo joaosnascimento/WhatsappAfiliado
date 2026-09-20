@@ -100,8 +100,16 @@ ${JSON.stringify(verifiedFacts, null, 2)}
           return { message: generated, usedFallback: false };
         }
       } catch (err) {
-        console.warn('Gemini API call failed, using deterministic template:', (err as Error).message);
-        return { message: this.buildDeterministicMessage(input), usedFallback: true, fallbackReason: `Falha na IA: ${(err as Error).message}` };
+        const rawMessage = (err as Error).message || 'erro desconhecido';
+        const isCapacity = /503|UNAVAILABLE|429|RESOURCE_EXHAUSTED|high demand|temporar/i.test(rawMessage);
+        console.warn('Gemini API unavailable; using deterministic template:', rawMessage);
+        return {
+          message: this.buildDeterministicMessage(input),
+          usedFallback: true,
+          fallbackReason: isCapacity
+            ? 'A IA está temporariamente indisponível por limite de capacidade. A mensagem foi gerada automaticamente pelo modelo seguro de contingência.'
+            : 'A IA não pôde concluir a geração. A mensagem foi gerada automaticamente pelo modelo seguro de contingência.',
+        };
       }
     }
 
