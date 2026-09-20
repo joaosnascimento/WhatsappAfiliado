@@ -90,7 +90,7 @@ export class PersistentStoreRepository {
           `INSERT INTO destinations (id,workspace_id,type,identifier,name,config,is_active,deleted_at)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
            ON CONFLICT (id) DO UPDATE SET type=EXCLUDED.type,identifier=EXCLUDED.identifier,name=EXCLUDED.name,
-             config=EXCLUDED.config,is_active=EXCLUDED.is_active`,
+             config=EXCLUDED.config,is_active=EXCLUDED.is_active,deleted_at=EXCLUDED.deleted_at`,
           [destination.id, workspaceId, destination.type, destination.identifier, destination.name, JSON.stringify(config), destination.is_active !== false, destination.deleted_at || null]
         );
       }
