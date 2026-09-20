@@ -271,7 +271,7 @@ export class MercadoLivreOfficialSessionProvider {
       runtimes.delete(account.id);
       return { connected: true, status: 'CONNECTED', message: 'Login capturado. A sessão foi salva e o navegador pode permanecer fechado.' };
     }
-    await runtime.page.goto(PORTAL_URL, { waitUntil: 'domcontentloaded' });
+    await runtime.page.goto(PORTAL_URLS[0], { waitUntil: 'domcontentloaded' });
     await persistSession(account, runtime.context, 'CONNECTED');
     return { connected: true, status: 'CONNECTED', message: 'Mercado Livre conectado e pronto para automação.' };
   }
@@ -304,15 +304,9 @@ export class MercadoLivreOfficialSessionProvider {
     }
     await fillGenerator(runtime.page, originalUrl);
 
-    if (labels?.length) {
-      for (const label of labels.slice(0, 5)) {
-        try {
-          const labelControl = runtime.page.getByText(label, { exact: true }).first();
-          if (await labelControl.count()) await labelControl.click();
-        } catch {}
-      }
-    }
-
+    // The official browser portal is the only attribution flow used here.
+    // Do not inject custom IDs/subIds into the portal: its current UI can reject
+    // generated Custom Id values (for example when a value contains ':').
     // The portal can take several seconds to create the attribution link.
     // Poll instead of using a fixed short delay so the publication pipeline does not
     // get stuck in "link pending" while the portal is still processing.
