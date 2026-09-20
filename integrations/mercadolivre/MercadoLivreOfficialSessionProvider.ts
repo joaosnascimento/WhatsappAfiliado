@@ -33,9 +33,15 @@ async function isLoggedIn(page: Page): Promise<boolean> {
   const url = page.url();
   if (/login|auth|signin/i.test(url)) return false;
   try {
-    const text = (await page.locator('body').innerText({ timeout: 3000 })).slice(0, 12000);
-    if (/entrar|iniciar sessão|criar conta/i.test(text) && !/afiliad/i.test(text)) return false;
-    return /afiliad|gerador de links|meu perfil|receitas|métricas/i.test(text) || /mercadolivre\.com\.br/i.test(url);
+    const loginControls = page.getByRole('link', { name: /entrar|iniciar sessão/i });
+    if (await loginControls.count()) {
+      for (let i = 0; i < Math.min(3, await loginControls.count()); i++) {
+        if (await loginControls.nth(i).isVisible().catch(() => false)) return false;
+      }
+    }
+    const body = (await page.locator('body').innerText({ timeout: 5000 })).slice(0, 16000);
+    if (/criar conta/i.test(body) && /entrar/i.test(body) && !/sair/i.test(body)) return false;
+    return /sair|minha conta|afiliados|gerador de links|receitas|métricas/i.test(body);
   } catch { return false; }
 }
 
