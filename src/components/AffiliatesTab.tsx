@@ -34,7 +34,6 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
 }) => {
   const toast=useToast();
   const shopeeAcc = accounts.find((a) => a.marketplace === 'SHOPEE');
-  const mlAcc = accounts.find((a) => a.marketplace === 'MERCADOLIVRE');
   const [mlStatus, setMlStatus] = useState<any>(null);
   const [mlBusy, setMlBusy] = useState(false);
   const refreshMlStatus = async () => {
