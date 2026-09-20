@@ -64,7 +64,7 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
   const [waInstance,setWaInstance]=useState(whatsappSettings?.evolutionInstance||'');
   const [waSaving,setWaSaving]=useState(false);
 
-  React.useEffect(() => { void refreshMlStatus(); const t = window.setInterval(() => void refreshMlStatus(), 8000); return () => window.clearInterval(t); }, []);
+  React.useEffect(() => { void refreshMlStatus(); const t = window.setInterval(() => void refreshMlStatus(), 30000); return () => window.clearInterval(t); }, []);
 
   const handleSaveShopee = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,7 +137,7 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
                 <p className="text-sm text-muted">Automação pelo navegador usando sua sessão autenticada.</p>
               </div>
               <span className={`text-sm uppercase font-bold px-2 py-1 rounded-full border ${(mlStatus?.status === 'CONNECTED' || (!mlStatus && mlAcc?.status === 'CONNECTED')) ? 'text-brand-200 bg-brand-500/10 border-brand-500/20' : 'text-amber-300 bg-amber-500/10 border-amber-500/20'}`}>
-                {(mlStatus?.status === 'CONNECTED' || mlAcc?.status === 'CONNECTED') ? 'Conectado' : mlStatus?.status === 'LOGIN_REQUIRED' ? 'Login necessário' : 'Desconectado'}
+                {mlStatus?.status === 'CONNECTED' ? 'Conectado' : mlStatus?.status === 'LOGIN_REQUIRED' || mlStatus?.status === 'EXPIRED' ? 'Login necessário' : 'Desconectado'}
               </span>
             </div>
             <p className="text-sm text-text mt-4 max-w-3xl leading-relaxed">
@@ -147,7 +147,7 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
           <div className="flex flex-wrap gap-2 shrink-0">
             <button onClick={connectMl} disabled={mlBusy} className="px-4 py-2.5 bg-brand-500 hover:bg-brand-400 text-bg rounded-md text-sm font-bold disabled:opacity-50">{mlBusy ? 'Abrindo navegador...' : 'Conectar Mercado Livre'}</button>
             <button onClick={refreshMlStatus} disabled={mlBusy} className="px-4 py-2.5 bg-surface-2 hover:bg-surface-3 border-border-strong border border-border-strong text-text rounded-md text-sm font-semibold">Atualizar</button>
-            {(mlStatus?.status === 'CONNECTED' || mlAcc?.status === 'CONNECTED') && <button onClick={disconnectMl} disabled={mlBusy} className="px-4 py-2.5 bg-surface-2 hover:bg-surface-3 border-border-strong border border-border-strong text-rose-300 rounded-md text-sm font-semibold">Desconectar</button>}
+            {mlStatus?.status === 'CONNECTED' && <button onClick={disconnectMl} disabled={mlBusy} className="px-4 py-2.5 bg-surface-2 hover:bg-surface-3 border-border-strong border border-border-strong text-rose-300 rounded-md text-sm font-semibold">Desconectar</button>}
           </div>
         </div>
         <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
