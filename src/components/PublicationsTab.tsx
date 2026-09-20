@@ -178,7 +178,7 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({
               {/* Link and SubId footer */}
               <div className="text-sm text-muted space-y-1.5 pt-2 border-t border-border">
                 <div className="flex items-center justify-between">
-                  <span>Link de Atribuição:</span>
+                  <span>Link de Afiliado:</span>
                   <a
                     href={pub.affiliate_url}
                     target="_blank"
@@ -191,7 +191,7 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({
 
                 {pub.tracking_subids && pub.tracking_subids.length > 0 && (
                   <div className="flex items-center justify-between">
-                    <span>SubIds Ativos:</span>
+                    <span>Rastreamento:</span>
                     <div className="flex gap-1">
                       {pub.tracking_subids.map((sub, i) => (
                         <span key={i} className="text-sm bg-surface-2 px-1.5 py-0.5 rounded font-mono text-text">
