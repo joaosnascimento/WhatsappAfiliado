@@ -27,7 +27,7 @@ const sizes: Record<ButtonSize,string> = {
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({variant='primary', size='md', loading=false, icon, children, disabled, className='', ...props}, ref) => (
     <button ref={ref} disabled={disabled || loading} aria-busy={loading || undefined}
-      className={['inline-flex items-center justify-center gap-2 rounded-md font-semibold transition-all duration-150 outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-50', variants[variant], sizes[size], className].join(' ')}>
+      className={['inline-flex items-center justify-center gap-2 rounded-md font-semibold transition-all duration-150 outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-50', variants[variant], sizes[size], className].join(' ')} {...props}>
       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : icon}
       {children}
     </button>
