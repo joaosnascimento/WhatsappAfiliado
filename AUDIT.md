@@ -106,3 +106,13 @@ Audit of the existing production codebase, with priority on P0/P1 reliability, s
 - Publication cancellation hardened so an already `PROCESSING` publication is not falsely marked cancelled; the user receives an explicit conflict instead.
 - Coupon lifecycle completed with list, activate/deactivate and soft-delete operations plus a dedicated dashboard surface.
 - Coupon API remains workspace-scoped through the existing `/api/coupons` authentication/workspace middleware.
+
+
+## 2026-09-20 — Roteamento automático por tags e publicação sem aprovação manual
+
+- Destinos WhatsApp agora possuem tags próprias, persistidas junto da configuração do destino.
+- O scheduler usa as tags do grupo para roteamento: uma oferta é elegível para o grupo quando pelo menos uma tag configurada aparece no título, categoria ou metadados da oferta; a comparação ignora acentos e maiúsculas/minúsculas.
+- keywords e categories existentes continuam compatíveis como aliases de roteamento, evitando quebra das configurações antigas.
+- Removida a dependência de historical_deal_verified como bloqueio de publicação automática. A oferta não precisa mais de aprovação manual para entrar no fluxo.
+- A tela de ofertas deixou de exibir o botão de aprovação/publicação manual. O fluxo esperado agora é captura → link de afiliado → roteamento por tags → IA → fila → envio.
+- A seleção manual de destino para publicação foi removida da tela de ofertas para impedir publicação no grupo errado e respeitar as regras de tags.
