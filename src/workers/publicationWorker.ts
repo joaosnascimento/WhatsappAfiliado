@@ -103,7 +103,7 @@ async function shutdown(){ await worker.close(); try{await connection.quit();}ca
 process.once('SIGTERM',()=>void shutdown()); process.once('SIGINT',()=>void shutdown());
 async function recoverQueuedPublications() {
   const rows = await query<any>(
-    "SELECT id,destination_id,offer_id,scheduled_at FROM publications WHERE status IN ('QUEUED','SCHEDULED','RETRYING') ORDER BY scheduled_at ASC LIMIT 500",
+    "SELECT id,destination_id,offer_id,scheduled_at,next_retry_at,status FROM publications WHERE status IN ('QUEUED','SCHEDULED','RETRYING') ORDER BY COALESCE(next_retry_at,scheduled_at) ASC LIMIT 500",
   );
   let recovered = 0;
   for (const row of rows) {
@@ -112,7 +112,7 @@ async function recoverQueuedPublications() {
         publicationId: row.id,
         destinationId: row.destination_id,
         offerId: row.offer_id,
-        scheduledAt: row.scheduled_at,
+        scheduledAt: row.status === 'RETRYING' && row.next_retry_at ? row.next_retry_at : row.scheduled_at,
       });
       recovered++;
     } catch (error) {
