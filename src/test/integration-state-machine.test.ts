@@ -1,0 +1,11 @@
+import { canTransitionWhatsApp, canTransitionMercadoLivre } from '../services/IntegrationStateMachine.ts';
+const assert=(v:boolean,m:string)=>{if(!v)throw new Error(m);};
+assert(canTransitionWhatsApp('CONNECTED','DISCONNECTED'),'WhatsApp must allow disconnect');
+assert(canTransitionWhatsApp('DISCONNECTED','RECONNECTING'),'WhatsApp must allow reconnect');
+assert(canTransitionWhatsApp('RECONNECTING','CONNECTED'),'WhatsApp must allow successful reconnect');
+assert(!canTransitionWhatsApp('NOT_CONFIGURED','SENT' as any),'WhatsApp must reject unrelated states');
+assert(canTransitionMercadoLivre('CONNECTED','EXPIRED'),'Mercado Livre must allow expiration');
+assert(canTransitionMercadoLivre('EXPIRED','RECONNECTING'),'Mercado Livre must allow reconnect');
+assert(canTransitionMercadoLivre('RECONNECTING','CONNECTED'),'Mercado Livre must allow successful reconnect');
+assert(!canTransitionMercadoLivre('NOT_CONFIGURED','SENT' as any),'Mercado Livre must reject unrelated states');
+console.log('Integration state machine: PASS');
