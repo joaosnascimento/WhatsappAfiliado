@@ -57,7 +57,18 @@ async function waitForAuthentication(page: Page, timeoutMs = 5 * 60 * 1000): Pro
 async function launch(account: MarketplaceAccount, headed: boolean): Promise<Runtime> {
   const existing = runtimes.get(account.id);
   if (existing) {
-    try { if (!existing.browser.isConnected()) throw new Error('browser disconnected'); return existing; } catch { runtimes.delete(account.id); }
+    try {
+      if (!existing.browser.isConnected() || existing.context.pages().length === 0 || existing.page.isClosed()) {
+        throw new Error('runtime closed');
+      }
+      // A runtime created for the interactive login must remain headed. Reuse it
+      // only when it is actually alive; otherwise create a fresh browser.
+      return existing;
+    } catch {
+      runtimes.delete(account.id);
+      try { await existing.context.close(); } catch {}
+      try { await existing.browser.close(); } catch {}
+    }
   }
 
   const browser = await chromium.launch({
@@ -144,7 +155,14 @@ export class MercadoLivreOfficialSessionProvider {
 
   static async connect(account: MarketplaceAccount) {
     const runtime = await launch(account, true);
-    await runtime.page.goto('https://www.mercadolivre.com.br/', { waitUntil: 'domcontentloaded' });
+    try {
+      await runtime.page.goto('https://www.mercadolivre.com.br/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    } catch (error) {
+      runtimes.delete(account.id);
+      try { await runtime.context.close(); } catch {}
+      try { await runtime.browser.close(); } catch {}
+      throw new Error(`Não foi possível abrir o Mercado Livre no navegador: ${(error as Error).message}`);
+    }
     const logged = await isLoggedIn(runtime.page);
     if (!logged) {
       account.credentials_encrypted.ml_session_status = 'LOGIN_REQUIRED';
@@ -169,9 +187,16 @@ export class MercadoLivreOfficialSessionProvider {
     if (/(^|\/)(busca|categorias|ofertas|home|cart|checkout)(\/|$)/i.test(new URL(originalUrl).pathname)) throw new Error('Somente páginas individuais de produto podem gerar link de afiliado.');
 
     let runtime = runtimes.get(account.id);
-    if (!runtime) {
+    if (!runtime || !runtime.browser.isConnected() || runtime.page.isClosed()) {
       runtime = await launch(account, false);
-      await runtime.page.goto('https://www.mercadolivre.com.br/', { waitUntil: 'domcontentloaded' });
+      try {
+        await runtime.page.goto('https://www.mercadolivre.com.br/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+      } catch (error) {
+        runtimes.delete(account.id);
+        try { await runtime.context.close(); } catch {}
+        try { await runtime.browser.close(); } catch {}
+        throw new Error(`Não foi possível abrir o Mercado Livre: ${(error as Error).message}`);
+      }
     }
     if (!(await isLoggedIn(runtime.page))) {
       await persistSession(account, runtime.context, 'EXPIRED');
