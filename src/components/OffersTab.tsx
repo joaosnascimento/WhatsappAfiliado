@@ -120,7 +120,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
           <div>
             <h2 className="text-lg font-bold text-white tracking-tight">Radar & Pipeline de Ofertas</h2>
             <p className="text-xs text-slate-400">
-              Busca em tempo real nas APIs de catálogo e validação estrita de atribuição
+              Busca automática por navegador no Mercado Livre e API na Shopee, com geração de afiliado e validação
             </p>
           </div>
 
@@ -132,6 +132,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
               className="bg-slate-800 border border-slate-700 text-xs font-semibold text-white rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"
             >
               <option value="SHOPEE">Shopee Open API</option>
+              <option value="MERCADOLIVRE">Mercado Livre automatizado</option>
               
             </select>
 
@@ -153,7 +154,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
               disabled={isSearchingLive}
               className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl transition cursor-pointer disabled:opacity-50"
             >
-              {isSearchingLive ? 'Buscando API...' : 'Buscar na API'}
+              {isSearchingLive ? 'Buscando API...' : 'Buscar automaticamente'}
             </button>
           </form>
         </div>
@@ -215,7 +216,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
 
       <div className="bg-slate-900 border border-emerald-500/20 rounded-2xl p-5 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-end gap-4">
-          <div className="flex-1"><h3 className="text-sm font-bold text-white">Mercado Livre — adicionar oferta</h3><p className="text-xs text-slate-400 mt-1">Cole o link do anúncio. Depois use <b className="text-emerald-400">Gerar / Associar Link de Afiliado</b> para vincular o link oficial.</p></div>
+          <div className="flex-1"><h3 className="text-sm font-bold text-white">Mercado Livre — fallback manual</h3><p className="text-xs text-slate-400 mt-1">Use apenas se a automação do navegador estiver temporariamente indisponível. O fluxo normal gera e vincula o link automaticamente.</p></div>
           <form onSubmit={handleAddMercadoLivre} className="flex flex-wrap gap-2 lg:max-w-3xl lg:flex-1">
             <input value={mlUrl} onChange={e=>setMlUrl(e.target.value)} placeholder="https://www.mercadolivre.com.br/..." className="flex-1 min-w-[280px] bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" required />
             <input value={mlTitle} onChange={e=>setMlTitle(e.target.value)} placeholder="Nome (opcional)" className="w-44 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
@@ -395,7 +396,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
           <AlertCircle className="w-8 h-8 text-slate-500 mx-auto" />
           <h3 className="text-base font-semibold text-white">Nenhuma oferta localizada com os filtros atuais</h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
-            Use a barra de busca acima para consultar o catálogo em tempo real da Shopee Open API ou do Mercado Livre Brasil.
+            Use a busca automática para descobrir produtos e gerar links de afiliado. O Mercado Livre usa a sessão conectada no navegador.
           </p>
         </div>
       )}
