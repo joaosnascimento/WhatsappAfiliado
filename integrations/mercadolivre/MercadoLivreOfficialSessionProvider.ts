@@ -358,16 +358,19 @@ export class MercadoLivreOfficialSessionProvider {
         const anchors = Array.from(node.querySelectorAll<HTMLAnchorElement>('a[href]'));
         const productAnchor = anchors.find(a => /mercadolivre\.com\.br/i.test(a.href) && /\/MLB[-_]|\/p\/MLB/i.test(a.href));
         const image = node.querySelector<HTMLImageElement>('img');
+        const imageSrc = image?.currentSrc || image?.src || image?.getAttribute('data-src') || image?.getAttribute('data-original') || image?.getAttribute('data-lazy-src') || '';
+        const srcset = image?.getAttribute('srcset') || image?.getAttribute('data-srcset') || '';
+        const srcsetImage = srcset ? srcset.split(',').map(v => v.trim().split(/\s+/)[0]).filter(Boolean).pop() || '' : '';
         return {
           href: productAnchor?.href || '',
           text: (node.textContent || '').replace(/\s+/g, ' ').trim(),
-          image: image?.currentSrc || image?.src || '',
+          image: imageSrc || srcsetImage,
         };
       })
     ).catch(() => [] as Array<{href:string;text:string;image:string}>);
 
     const rowsByUrl = new Map<string, {href:string;text:string;image:string}>();
-    const maxScrollRounds = Math.max(4, Number(process.env.ML_DISCOVERY_SCROLL_ROUNDS || 8));
+    const maxScrollRounds = Math.max(6, Number(process.env.ML_DISCOVERY_SCROLL_ROUNDS || 12));
     const scrollPauseMs = Math.max(500, Number(process.env.ML_DISCOVERY_SCROLL_PAUSE_MS || 1200));
     let stableRounds = 0;
 
@@ -384,7 +387,7 @@ export class MercadoLivreOfficialSessionProvider {
       }
       if (rowsByUrl.size === before) stableRounds++;
       else stableRounds = 0;
-      if (rowsByUrl.size >= Math.max(limit * 3, 20) && stableRounds >= 2) break;
+      if (rowsByUrl.size >= Math.max(limit * 6, 60) && stableRounds >= 2) break;
     }
 
     const rows = [...rowsByUrl.values()];
