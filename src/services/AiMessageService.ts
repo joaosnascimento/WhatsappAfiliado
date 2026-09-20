@@ -1,6 +1,23 @@
 import { GoogleGenAI } from '@google/genai';
 import type { AffiliateProduct, MarketplaceType } from '../types/affiliate.ts';
 
+function sanitizeProductTitle(value: string): string {
+  let title = String(value || '').replace(/\\s+/g, ' ').trim();
+
+  // Mercado Livre pages sometimes concatenate rating/sales metadata into the
+  // product title. Never expose that presentation metadata as part of the
+  // WhatsApp product name.
+  title = title
+    .replace(/\\s+Classificação\\s+[0-9]+(?:[.,][0-9]+)?\\s+de\\s+5\\s+estrelas?\\.?/gi, '')
+    .replace(/\\s+Mais\\s+de\\s+[0-9.]+(?:[.,][0-9]+)?\\s*(?:mil|k)?\\s+produtos?\\.?/gi, '')
+    .replace(/\\s+[0-9]+(?:[.,][0-9]+)?\\s*\\|\\s*\\+[0-9.]+(?:[.,][0-9]+)?\\s*(?:mil|k)?\\s+vendidos.*$/i, '')
+    .replace(/\\s+por\\s+[^|]+?(?=\\s+[0-9]+(?:[.,][0-9]+)?\\s*\\|\\s*\\+)/i, '')
+    .replace(/\\s{2,}/g, ' ')
+    .trim();
+
+  return title;
+}
+
 export interface AiMessageInput {
   product: AffiliateProduct;
   marketplace: MarketplaceType;
@@ -38,6 +55,7 @@ export class AiMessageService {
 
   public static async generateMessageWithStatus(input: AiMessageInput): Promise<{ message: string; usedFallback: boolean; fallbackReason?: string }> {
     const { product, marketplace, affiliateUrl, couponCode, destinationName } = input;
+    const cleanTitle = sanitizeProductTitle(product.title);
 
     const mpLabel = marketplace === 'SHOPEE' ? 'Shopee' : 'Mercado Livre';
     const priceFormatted = `R$ ${product.price.toFixed(2).replace('.', ',')}`;
@@ -47,7 +65,7 @@ export class AiMessageService {
     const discountFormatted = product.discount ? `${product.discount}% OFF` : null;
 
     const verifiedFacts = {
-      titulo_produto: product.title,
+      titulo_produto: cleanTitle,
       preco_atual: priceFormatted,
       preco_original: originalPriceFormatted || 'Não informado (NÃO inventar)',
       desconto: discountFormatted || 'Não informado (NÃO inventar)',
@@ -90,7 +108,7 @@ ${JSON.stringify(verifiedFacts, null, 2)}
         const generated = response.text?.trim();
         if (generated && generated.length > 20 && generated.length <= 2000) {
           // Treat the model as untrusted input: it may format facts, but cannot replace verified data.
-          const required = [product.title, priceFormatted, affiliateUrl];
+          const required = [cleanTitle, priceFormatted, affiliateUrl];
           const urlMatches = generated.match(/https?:\/\/[^\s)]+/gi) || [];
           const unexpectedUrl = urlMatches.some(url => url !== affiliateUrl);
           const couponIsRequired = Boolean(couponCode);
@@ -122,13 +140,14 @@ ${JSON.stringify(verifiedFacts, null, 2)}
    */
   public static buildDeterministicMessage(input: AiMessageInput): string {
     const { product, marketplace, affiliateUrl, couponCode } = input;
+    const cleanTitle = sanitizeProductTitle(product.title);
     const mpEmoji = marketplace === 'SHOPEE' ? '🟠' : '🟡';
     const mpName = marketplace === 'SHOPEE' ? 'Shopee' : 'Mercado Livre';
 
     const lines: string[] = [];
     lines.push(`🔥 *ACHADO NO ${mpName.toUpperCase()}!* ${mpEmoji}`);
     lines.push('');
-    lines.push(`📦 *${product.title}*`);
+    lines.push(`📦 *${cleanTitle}*`);
     lines.push('');
 
     if (product.original_price && product.original_price > product.price) {
