@@ -343,9 +343,15 @@ export class MercadoLivreOfficialSessionProvider {
       seen.add(row.href);
     }
 
-    await persistSession(account, runtime.context, 'CONNECTED');
-    return products;
+      await persistSession(account, runtime.context, 'CONNECTED');
+      return products;
+    } finally {
+      // Discovery is headless; do not leave Chromium running after each scan.
+      try { await runtime.browser.close(); } catch {}
+      runtimes.delete(account.id);
+    }
   }
+
   static async disconnect(account: MarketplaceAccount) {
     const runtime = runtimes.get(account.id);
     if (runtime) await closeAndPersist(account, runtime);
