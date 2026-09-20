@@ -6,10 +6,6 @@ on:
   pull_request:
     branches: ["main"]
 
-permissions:
-  contents: read
-  pull-requests: write
-
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -21,23 +17,6 @@ jobs:
       - name: Install dependencies
         run: npm install
       - name: Typecheck
-        run: |
-          set -o pipefail
-          npm run lint 2>&1 | tee /tmp/typecheck.log
-      - name: Report typecheck error
-        if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const log = fs.existsSync('/tmp/typecheck.log') ? fs.readFileSync('/tmp/typecheck.log', 'utf8') : 'Typecheck failed without a captured log.';
-            const fence = String.fromCharCode(96).repeat(3);
-            const body = '### CI Typecheck output\\n\\n' + fence + 'text\\n' + log.slice(-10000) + '\\n' + fence;
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body,
-            });
+        run: npm run lint
       - name: Build
         run: npm run build
