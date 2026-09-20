@@ -9,7 +9,6 @@ import { store, runWithWorkspace, findMarketplaceAccount } from './src/services/
 import { runMigrations } from './src/infrastructure/migrations.ts';
 import { ensureWorkspace } from './src/infrastructure/workspace.ts';
 import { closeDatabase, query } from './src/infrastructure/database.ts';
-import { publicationQueue, enqueuePublication } from './src/infrastructure/queue.ts';
 import { redis } from './src/infrastructure/redis.ts';
 import { registerUser, authenticateUser, createSession, revokeSession } from './src/services/auth.ts';
 import { requireAuth } from './src/services/authMiddleware.ts';
@@ -558,6 +557,7 @@ async function startServer() {
     if (rows[0].status !== 'FAILED') return res.status(409).json({ error: 'Somente publicações com falha podem ser reenviadas.' });
     await query("UPDATE publications SET status='QUEUED', error=NULL WHERE id=$1", [rows[0].id]);
     try {
+      const { enqueuePublication } = await import('./src/infrastructure/queue.ts');
       await enqueuePublication({ publicationId: rows[0].id, destinationId: rows[0].destination_id, offerId: rows[0].offer_id, scheduledAt: rows[0].scheduled_at });
     } catch (error) {
       await query("UPDATE publications SET status='FAILED', error=$2 WHERE id=$1", [rows[0].id, (error as Error).message]);
@@ -578,6 +578,7 @@ async function startServer() {
     const scheduledAt = new Date().toISOString();
     const jobId = `publication:${rows[0].id}`;
     try {
+      const { publicationQueue, enqueuePublication } = await import('./src/infrastructure/queue.ts');
       const existingJob = await publicationQueue.getJob(jobId);
       if (existingJob) {
         const state = await existingJob.getState();
