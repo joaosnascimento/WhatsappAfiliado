@@ -817,13 +817,10 @@ async function startServer() {
       });
     }
 
-    const tracked = await AnalyticsService.createTrackedLink({
-      workspaceId:req.user!.workspaceId, marketplace:offer.marketplace, affiliateUrl:offer.affiliate_url!,
-      affiliateLinkId:offer.affiliate_link_id, offerId:offer.id, destinationId:destination.id,
-      subId:`whatsapp:${destination.id}:${offer.marketplace.toLowerCase()}`
-    });
-    const publicBase=(process.env.APP_URL || '').replace(/\/$/,'');
-    const publicationAffiliateUrl=publicBase ? `${publicBase}/r/${tracked.id}` : offer.affiliate_url!;
+    // The WhatsApp message must contain the real marketplace affiliate URL.
+    // Do not replace it with the application's /r/:id redirect (which depends on
+    // APP_URL/Cloudflare and can make every offer appear under the same attribution domain).
+    const publicationAffiliateUrl = offer.affiliate_url!;
 
     // Ensure AI message exists or generate it
     let message = offer.ai_generated_message;
