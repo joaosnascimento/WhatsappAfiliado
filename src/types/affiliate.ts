@@ -145,6 +145,7 @@ export interface Publication {
   destination?: Destination;
   affiliate_link_id: string;
   affiliate_url: string;
+  image_url?: string;
   message: string;
   status: 'QUEUED' | 'SCHEDULED' | 'SENT' | 'FAILED';
   scheduled_at: string;
