@@ -618,7 +618,7 @@ async function startServer() {
     const dest = destinationId ? store.destinations.get(destinationId) : undefined;
 
     try {
-      const message = await AiMessageService.generateMessage({
+      const generated = await AiMessageService.generateMessageWithStatus({
         product: offer.product,
         marketplace: offer.marketplace,
         affiliateUrl,
@@ -627,8 +627,8 @@ async function startServer() {
         couponCode: offer.coupon_code,
       });
 
-      offer.ai_generated_message = message;
-      res.json({ message });
+      offer.ai_generated_message = generated.message;
+      res.json({ message: generated.message, aiUsed: !generated.usedFallback, aiFallback: generated.usedFallback, warning: generated.fallbackReason });
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
     }
@@ -714,13 +714,18 @@ async function startServer() {
 
     // Ensure AI message exists or generate it
     let message = offer.ai_generated_message;
+    let aiFallback = false;
+    let aiWarning: string | undefined;
     if (!message) {
-      message = await AiMessageService.generateMessage({
+      const generated = await AiMessageService.generateMessageWithStatus({
         product: offer.product,
         marketplace: offer.marketplace,
         affiliateUrl: publicationAffiliateUrl,
         destinationName: destination.name,
       });
+      message = generated.message;
+      aiFallback = generated.usedFallback;
+      aiWarning = generated.fallbackReason;
       offer.ai_generated_message = message;
     } else {
       message = message.replaceAll(offer.affiliate_url!, publicationAffiliateUrl);
@@ -785,7 +790,7 @@ async function startServer() {
       // A oferta continua pronta para nova tentativa quando o Redis/worker voltar.
       return res.status(503).json({ success:false, publication, error:'Fila de publicação indisponível.' });
     }
-    return res.status(202).json({ success:true, queued:true, publication });
+    return res.status(202).json({ success:true, queued:true, publication, aiUsed: !aiFallback, aiFallback, warning: aiWarning });
   });
 
   // 10. Destinations
