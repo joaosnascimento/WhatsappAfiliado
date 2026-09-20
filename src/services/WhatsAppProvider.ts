@@ -55,7 +55,7 @@ export class WhatsAppProvider {
           to: destination.identifier,
           type: publication.image_url ? 'image' : 'text',
           ...(publication.image_url
-            ? { image: { link: publication.image_url, caption: publication.message } }
+            ? { image: { link: imageUrl, caption: publication.message } }
             : { text: { preview_url: true, body: publication.message } }),
         }),
       });
@@ -92,12 +92,14 @@ export class WhatsAppProvider {
     const { controller, timeout } = timeoutSignal(Number(process.env.OUTBOUND_REQUEST_TIMEOUT_MS || 15000));
     try {
       const safeBase = await assertSafeOutboundUrl(baseUrl);
+      let imageUrl: string | undefined;
+      if (publication.image_url) imageUrl = (await assertSafeOutboundUrl(publication.image_url)).toString();
       const res = await fetch(`${safeBase.toString().replace(/\/$/, '')}/message/sendText/${encodeURIComponent(instance)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: apiKey },
         signal: controller.signal,
         body: publication.image_url
-          ? JSON.stringify({ number: destination.identifier, mediatype: 'image', media: publication.image_url, caption: publication.message, fileName: 'oferta.jpg' })
+          ? JSON.stringify({ number: destination.identifier, mediatype: 'image', media: imageUrl, caption: publication.message, fileName: 'oferta.jpg' })
           : JSON.stringify({ number: destination.identifier, text: publication.message, linkPreview: true }),
       });
 
