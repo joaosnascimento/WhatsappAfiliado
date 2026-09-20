@@ -13,6 +13,7 @@ import {
   ArrowRight,
   TrendingDown,
   Plus,
+  Trash2,
 } from 'lucide-react';
 import type { Offer, Destination, MarketplaceType } from '../types/affiliate.ts';
 
@@ -27,6 +28,7 @@ interface OffersTabProps {
   onOpenAssociateModal: (offer: Offer) => void;
   onOpenAiMessageModal: (offer: Offer) => void;
   onQuickPublish: (offerId: string, destinationId: string) => Promise<void>;
+  onDeleteOffer: (offerId: string) => Promise<void>;
 }
 
 export const OffersTab: React.FC<OffersTabProps> = ({
@@ -36,6 +38,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
   onOpenAssociateModal,
   onOpenAiMessageModal,
   onQuickPublish,
+  onDeleteOffer,
 }) => {
   const [selectedMarketplace, setSelectedMarketplace] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
@@ -48,6 +51,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
   const [mlTitle, setMlTitle] = useState('');
   const [mlPrice, setMlPrice] = useState('');
   const [mlBusy, setMlBusy] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Filter offers locally
   const filteredOffers = offers.filter((offer) => {
@@ -94,6 +98,14 @@ export const OffersTab: React.FC<OffersTabProps> = ({
       setMlUrl(''); setMlTitle(''); setMlPrice('');
       window.location.reload();
     } catch (err) { alert((err as Error).message); } finally { setMlBusy(false); }
+  };
+
+  const handleDeleteOffer = async (offer: Offer) => {
+    if (!window.confirm('Excluir esta oferta capturada? Esta ação também remove publicações relacionadas.')) return;
+    setDeletingId(offer.id);
+    try { await onDeleteOffer(offer.id); }
+    catch (err) { alert((err as Error).message); }
+    finally { setDeletingId(null); }
   };
 
   const handlePublishClick = async (offer: Offer) => {
