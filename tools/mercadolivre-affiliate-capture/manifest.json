@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "WhatsappAfiliado — Captura de Link Mercado Livre",
+  "version": "1.0.0",
+  "description": "Captura um link de afiliado que você acabou de gerar nas ferramentas oficiais do Mercado Livre e copia para a área de transferência.",
+  "permissions": ["activeTab", "scripting", "clipboardWrite"],
+  "action": {
+    "default_title": "Capturar link de afiliado"
+  }
+}
