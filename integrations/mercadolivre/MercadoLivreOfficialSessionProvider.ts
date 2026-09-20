@@ -349,10 +349,10 @@ export class MercadoLivreOfficialSessionProvider {
         throw new Error('O Mercado Livre perdeu a sessão durante a busca. Reconecte pelo botão Conectar Mercado Livre.');
       }
 
-    // Only accept listings that visibly advertise a discount. A lower price alone
-    // is not enough: the card must expose an original price higher than the current
-    // price and an explicit discount percentage.
-    const rows = await runtime.page.locator('li, article').evaluateAll((els) =>
+    // Mercado Livre renders search results progressively. Reading the DOM only once
+    // captures the first 1-2 cards in many sessions. Scroll in controlled batches and
+    // collect cards after each batch until we have enough distinct listings.
+    const collectRows = async () => await runtime.page.locator('li, article').evaluateAll((els) =>
       els.map((el) => {
         const node = el as HTMLElement;
         const anchors = Array.from(node.querySelectorAll<HTMLAnchorElement>('a[href]'));
@@ -366,6 +366,28 @@ export class MercadoLivreOfficialSessionProvider {
       })
     ).catch(() => [] as Array<{href:string;text:string;image:string}>);
 
+    const rowsByUrl = new Map<string, {href:string;text:string;image:string}>();
+    const maxScrollRounds = Math.max(4, Number(process.env.ML_DISCOVERY_SCROLL_ROUNDS || 8));
+    const scrollPauseMs = Math.max(500, Number(process.env.ML_DISCOVERY_SCROLL_PAUSE_MS || 1200));
+    let stableRounds = 0;
+
+    for (let round = 0; round < maxScrollRounds; round++) {
+      for (const row of await collectRows()) {
+        if (row.href) rowsByUrl.set(row.href, row);
+      }
+      const before = rowsByUrl.size;
+      await runtime.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await runtime.page.waitForTimeout(scrollPauseMs);
+      await runtime.page.waitForLoadState('networkidle').catch(() => undefined);
+      for (const row of await collectRows()) {
+        if (row.href) rowsByUrl.set(row.href, row);
+      }
+      if (rowsByUrl.size === before) stableRounds++;
+      else stableRounds = 0;
+      if (rowsByUrl.size >= Math.max(limit * 3, 20) && stableRounds >= 2) break;
+    }
+
+    const rows = [...rowsByUrl.values()];
     const seen = new Set<string>();
     const products: AffiliateProduct[] = [];
 
