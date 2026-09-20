@@ -100,4 +100,5 @@ setInterval(()=>void AutomationScheduler.tick().then(created=>{if(created)consol
 
 async function shutdown(){ await worker.close(); try{await connection.quit();}catch{} process.exit(0); }
 process.once('SIGTERM',()=>void shutdown()); process.once('SIGINT',()=>void shutdown());
-console.log('Publication worker running.');
+await worker.waitUntilReady();
+console.log('Publication worker running and connected to Redis.');
