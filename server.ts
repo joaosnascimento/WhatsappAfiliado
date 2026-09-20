@@ -106,7 +106,7 @@ async function startServer() {
     app.use((req, res, next) => {
       res.on('finish', () => {
         const workspaceId = req.user?.workspaceId;
-        if (!workspaceId) return;
+        if (!workspaceId || ['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return;
         void runWithWorkspace(workspaceId, () => store.persist(workspaceId)).catch((error) => console.error('Persistence error:', error));
       });
       next();
@@ -120,6 +120,10 @@ async function startServer() {
     const workspaceId = req.user?.workspaceId;
     if (!workspaceId) return res.status(401).json({ error: 'Autenticação obrigatória.' });
     void runWithWorkspace(workspaceId, next).catch(next);
+  };
+
+  const refreshPersistentWorkspace = async (req: express.Request) => {
+    if (persistentStoreEnabled && req.user?.workspaceId) await store.loadPersistent(req.user.workspaceId);
   };
 
   app.use('/api/accounts', requireAuth, workspaceContext);
@@ -190,7 +194,8 @@ async function startServer() {
   });
 
   // 3. Accounts management
-  app.get('/api/accounts', (req, res) => {
+  app.get('/api/accounts',
+    await refreshPersistentWorkspace(req); (req, res) => {
     const list = Array.from(store.accounts.values()).map((acc) => ({
       id: acc.id,
       workspace_id: acc.workspace_id,
@@ -298,7 +303,8 @@ async function startServer() {
   });
 
   // 6. Offers API
-  app.get('/api/offers', (req, res) => {
+  app.get('/api/offers',
+    await refreshPersistentWorkspace(req); (req, res) => {
     const marketplace = req.query.marketplace as string;
     const status = req.query.status as string;
 
@@ -794,7 +800,8 @@ async function startServer() {
   });
 
   // 10. Destinations
-  app.get('/api/destinations', (req, res) => {
+  app.get('/api/destinations',
+    await refreshPersistentWorkspace(req); (req, res) => {
     res.json(Array.from(store.destinations.values()));
   });
 
@@ -832,12 +839,14 @@ async function startServer() {
   });
 
   // 11. Publications Queue & History
-  app.get('/api/publications', (req, res) => {
+  app.get('/api/publications',
+    await refreshPersistentWorkspace(req); (req, res) => {
     res.json(Array.from(store.publications.values()).reverse());
   });
 
   // 12. Reports / Dashboard with persisted publication and real analytics data.
-  app.get('/api/reports', async (req, res) => {
+  app.get('/api/reports',
+    await refreshPersistentWorkspace(req); async (req, res) => {
     try {
       const allOffers = Array.from(store.offers.values());
       const allPubs = Array.from(store.publications.values());
