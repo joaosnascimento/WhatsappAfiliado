@@ -7,7 +7,8 @@ import { CouponService } from './CouponService.ts';
 import type { AffiliateProduct, Offer, MarketplaceType } from '../types/affiliate.ts';
 
 type DestinationRow = { id: string; workspace_id: string; config: any; is_active: boolean };
-type State = { products?: AffiliateProduct[]; links?: any[]; offers?: Offer[]; campaigns?: any[]; destinations?: any[]; publications?: any[]; conversions?: any[] };
+type PriceObservation = { price: number; observed_at: string };
+type State = { products?: AffiliateProduct[]; links?: any[]; offers?: Offer[]; campaigns?: any[]; destinations?: any[]; publications?: any[]; conversions?: any[]; price_history?: Record<string, PriceObservation[]> };
 
 function unique<T>(values: T[]): T[] { return [...new Set(values)]; }
 
@@ -43,6 +44,7 @@ export class MarketplaceDiscoveryScheduler {
         state.products ||= [];
         state.links ||= [];
         state.offers ||= [];
+        state.price_history ||= {};
 
         const accounts = await query<any>(
           'SELECT id, marketplace, credentials_encrypted FROM marketplace_accounts WHERE workspace_id=$1',
@@ -141,11 +143,25 @@ export class MarketplaceDiscoveryScheduler {
             }
           }
           for (const product of products.filter(p => workspaceDestinations.some(d => productMatches(p, d)))) {
+            const historyKey = product.marketplace + ':' + product.external_product_id;
+            const nowIso = new Date().toISOString();
+            const historyDays = Math.max(7, Number(process.env.REAL_DEAL_HISTORY_DAYS || 30));
+            const minRealDiscount = Math.max(1, Number(process.env.REAL_DEAL_MIN_DISCOUNT_PERCENT || 10));
+            const cutoff = Date.now() - historyDays * 24 * 60 * 60 * 1000;
+            const previousHistory = (state.price_history[historyKey] || []).filter((item: PriceObservation) => Number.isFinite(item.price) && item.price > 0 && new Date(item.observed_at).getTime() >= cutoff);
+            const previousPrices = previousHistory.map(item => item.price).filter(price => price > 0);
+            const previousLowest = previousPrices.length ? Math.min(...previousPrices) : undefined;
+            const displayedDiscount = Number(product.discount || 0);
+            const historicalDeal = previousLowest !== undefined && product.price > 0 && product.price <= previousLowest && displayedDiscount >= minRealDiscount;
+            state.price_history[historyKey] = [...previousHistory, { price: product.price, observed_at: nowIso }].sort((a, b) => new Date(a.observed_at).getTime() - new Date(b.observed_at).getTime()).slice(-100);
+            const dealMetadata = { ...(product.metadata || {}), historical_deal_verified: historicalDeal, historical_lowest_price: previousLowest, historical_price_days: historyDays, real_deal_min_discount: minRealDiscount, price_history_observations: previousPrices.length };
+            product.metadata = dealMetadata;
             const existing = state.offers.find((o: Offer) => o.product?.external_product_id === product.external_product_id && o.marketplace === product.marketplace);
             const affiliateUrl = product.affiliate_url || existing?.affiliate_url;
             const status: Offer['status'] = affiliateUrl ? 'AFFILIATE_LINK_READY' : 'VALIDATED';
             if (existing) {
               existing.product = { ...existing.product, ...product, affiliate_url: affiliateUrl };
+              existing.status_reason = historicalDeal ? undefined : 'Oferta não confirmada como promoção real: aguardando histórico de preço e desconto mínimo.';
               existing.price = product.price;
               existing.original_price = product.original_price;
               existing.discount = product.discount;
@@ -165,10 +181,10 @@ export class MarketplaceDiscoveryScheduler {
                 commission: product.commission,
                 score: Math.min(100, Math.round((product.discount || 0) * 1.5 + (product.rating || 0) * 8)),
                 status,
-                status_reason: affiliateUrl ? undefined : product.marketplace === 'MERCADOLIVRE' ? 'Aguardando link oficial do Programa de Afiliados Mercado Livre.' : 'Link de afiliado ainda não confirmado.',
+                status_reason: historicalDeal ? (affiliateUrl ? undefined : product.marketplace === 'MERCADOLIVRE' ? 'Aguardando link oficial do Programa de Afiliados Mercado Livre.' : 'Link de afiliado ainda não confirmado.') : 'Oferta descoberta, mas ainda não confirmada como promoção real. Aguardando histórico de preço e desconto mínimo.',
                 affiliate_url: affiliateUrl,
                 first_seen_at: new Date().toISOString(),
-                last_seen_at: new Date().toISOString(),
+                last_seen_at: nowIso,
               };
               state.products.push(product);
               state.offers.push(offer);
