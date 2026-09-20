@@ -53,3 +53,10 @@ Mercado Livre mantém storageState persistido independentemente do processo Chro
 - Evolution lifecycle events can be received through the secured workspace webhook endpoint. `CONNECTION_UPDATE` and `QRCODE_UPDATED` reconcile the persisted WhatsApp runtime state without requiring a dashboard refresh. Evolution documents these events as connection/QR lifecycle events.
 - Publication cancellation does not claim to cancel an in-flight external send: `PROCESSING` records return a conflict and are allowed to finish, avoiding a false `CANCELLED` state.
 - Coupons have a workspace-scoped lifecycle: list, activation/deactivation and soft deletion.
+
+
+### Automatic destination routing
+Destinations expose a persisted tags list. The automation scheduler evaluates each eligible offer against each active destination independently, matching destination tags against offer title/category/metadata. This allows the same offer pool to feed different WhatsApp groups with different content.
+
+### Automation-only publication flow
+Manual offer approval is not part of the normal flow. Eligible offers are routed automatically after affiliate-link readiness, AI message generation and idempotency/deduplication checks. The dashboard no longer provides a manual publication action or manual destination selector.
