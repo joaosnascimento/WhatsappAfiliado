@@ -301,7 +301,7 @@ export class MercadoLivreOfficialSessionProvider {
     if (/(^|\/)(busca|categorias|ofertas|home|cart|checkout)(\/|$)/i.test(new URL(originalUrl).pathname)) throw new Error('Somente páginas individuais de produto podem gerar link de afiliado.');
 
     let runtime = runtimes.get(account.id);
-    if (!runtime || !runtime.browser.isConnected() || runtime.page.isClosed()) {
+    if (!runtime || runtime.page.isClosed()) {
       runtime = await launch(account, false);
       try {
         await runtime.page.goto('https://www.mercadolivre.com.br/', { waitUntil: 'domcontentloaded', timeout: 30000 });
