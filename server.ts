@@ -823,7 +823,7 @@ async function startServer() {
     const publicationAffiliateUrl = offer.affiliate_url!;
 
     // Ensure AI message exists or generate it
-    let message = offer.ai_generated_message;
+    let message: string = offer.ai_generated_message ?? '';
     let aiFallback = false;
     let aiWarning: string | undefined;
 
