@@ -14,7 +14,7 @@ export const SetupTab: React.FC<SetupTabProps> = ({ apiFetch, whatsappSettings, 
   const [key,setKey]=useState('');
   const [instance,setInstance]=useState(whatsappSettings?.evolutionInstance || 'whatsappafiliado');
   const [saving,setSaving]=useState(false);
-  const [status,setStatus]=useState('unknown');
+  const [status,setStatus]=useState('UNKNOWN');
   const [statusError,setStatusError]=useState('');
   const [qr,setQr]=useState('');
   const [busy,setBusy]=useState(false);
@@ -24,7 +24,7 @@ export const SetupTab: React.FC<SetupTabProps> = ({ apiFetch, whatsappSettings, 
   const [message,setMessage]=useState('Teste enviado pelo WhatsappAfiliado.');
   const [notice,setNotice]=useState('');
   const configured=Boolean(whatsappSettings?.provider==='evolution' && whatsappSettings?.evolutionApiUrl && whatsappSettings?.evolutionApiKey==='configured' && whatsappSettings?.evolutionInstance);
-  const connected=status==='open';
+  const connected=status==='CONNECTED';
 
   useEffect(()=>{ if(whatsappSettings?.evolutionApiUrl)setUrl(whatsappSettings.evolutionApiUrl); if(whatsappSettings?.evolutionInstance)setInstance(whatsappSettings.evolutionInstance); },[whatsappSettings]);
 
@@ -32,8 +32,8 @@ export const SetupTab: React.FC<SetupTabProps> = ({ apiFetch, whatsappSettings, 
   const read=async(r:Response)=>{const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Não foi possível concluir a ação.');return d;};
 
   const check=async()=>{
-    try{const r=await apiFetch('/api/whatsapp/status');const d=await r.json().catch(()=>({}));setStatus(d.state||'error');setStatusError(r.ok?'':(d.error||''));if((d.state||'').toLowerCase()!=='open'){setQr('');setGroups([]);setSelectedGroup('');}}
-    catch(e){setStatus('error');setStatusError((e as Error).message);setQr('');setGroups([]);setSelectedGroup('');}
+    try{const r=await apiFetch('/api/whatsapp/status');const d=await r.json().catch(()=>({}));setStatus(d.runtimeState || (String(d.state||'').toLowerCase()==='open'?'CONNECTED':String(d.state||'').toLowerCase()==='close'?'DISCONNECTED':'UNKNOWN'));setStatusError(r.ok?'':(d.error||''));if((d.runtimeState || '').toUpperCase()!=='CONNECTED'){setQr('');setGroups([]);setSelectedGroup('');}}
+    catch(e){setStatus('ERROR');setStatusError((e as Error).message);setQr('');setGroups([]);setSelectedGroup('');}
   };
   useEffect(()=>{void check();const t=window.setInterval(()=>void check(),7000);return()=>window.clearInterval(t);},[]);
   useEffect(()=>{if(connected){setQr('');void loadGroups();}},[connected]);
@@ -46,17 +46,17 @@ export const SetupTab: React.FC<SetupTabProps> = ({ apiFetch, whatsappSettings, 
 
   const connect=async()=>{
     setBusy(true);
-    try{const d=await read(await apiFetch('/api/whatsapp/connect',{method:'POST'}));setQr(d.qrcode||'');setStatus(d.state||'connecting');setStatusError('');notify(d.state==='open'?'WhatsApp já estava conectado.':d.qrcode?'Leia o QR Code com seu celular.':'Reconexão iniciada.');}
+    try{const d=await read(await apiFetch('/api/whatsapp/connect',{method:'POST'}));setQr(d.qrcode||'');setStatus(d.runtimeState || 'CONNECTING');setStatusError('');notify(d.state==='open'?'WhatsApp já estava conectado.':d.qrcode?'Leia o QR Code com seu celular.':'Reconexão iniciada.');}
     catch(e){setStatus('error');setStatusError((e as Error).message);notify((e as Error).message);}finally{setBusy(false);}
   };
   const disconnect=async()=>{
     setBusy(true);
-    try{await read(await apiFetch('/api/whatsapp/disconnect',{method:'POST'}));setQr('');setGroups([]);setSelectedGroup('');setStatus('close');setStatusError('');notify('WhatsApp desconectado. Você pode reconectar quando quiser.');}
+    try{await read(await apiFetch('/api/whatsapp/disconnect',{method:'POST'}));setQr('');setGroups([]);setSelectedGroup('');setStatus('DISCONNECTED');setStatusError('');notify('WhatsApp desconectado. Você pode reconectar quando quiser.');}
     catch(e){notify((e as Error).message);}finally{setBusy(false);}
   };
   const refreshQr=async()=>{
     setBusy(true);
-    try{const d=await read(await apiFetch('/api/whatsapp/qrcode'));setQr(d.qrcode||'');setStatus('connecting');}
+    try{const d=await read(await apiFetch('/api/whatsapp/qrcode'));setQr(d.qrcode||'');setStatus('QR_REQUIRED');}
     catch(e){notify((e as Error).message);}finally{setBusy(false);}
   };
   const loadGroups=async()=>{
@@ -70,15 +70,15 @@ export const SetupTab: React.FC<SetupTabProps> = ({ apiFetch, whatsappSettings, 
     catch(e){notify((e as Error).message);}finally{setTestBusy(false);}
   };
 
-  const stateLabel=connected?'Conectado':status==='connecting'?'Aguardando leitura':configured?'Pronto para conectar':'Configuração necessária';
-  const stateClass=connected?'text-brand-200 bg-brand-500/10 border-brand-500/20':status==='connecting'?'text-amber-300 bg-amber-500/10 border-amber-500/20':'text-text bg-surface-2 border-border-strong';
+  const stateLabel=connected?'Conectado':(status==='CONNECTING'||status==='QR_REQUIRED')?'Aguardando leitura':configured?'Pronto para conectar':'Configuração necessária';
+  const stateClass=connected?'text-brand-200 bg-brand-500/10 border-brand-500/20':(status==='CONNECTING'||status==='QR_REQUIRED'||status==='RECONNECTING')?'text-amber-300 bg-amber-500/10 border-amber-500/20':'text-text bg-surface-2 border-border-strong';
 
   return <div className="w-full space-y-6">
     {notice&&<div className="fixed right-5 top-20 z-50 rounded-md border border-border-strong bg-surface-1 px-4 py-3 text-sm text-text shadow-2xl">{notice}</div>}
 
     <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div><p className="text-sm font-semibold uppercase tracking-widest text-brand-300">Primeiros passos</p><h1 className="mt-1 text-3xl font-bold tracking-tight text-text">Vamos deixar tudo funcionando.</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted">Conecte seu WhatsApp uma vez. Depois, o painel cuida do restante.</p></div>
-      <span className={"inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold "+stateClass}><span className={"h-2 w-2 rounded-full "+(connected?'bg-emerald-400':status==='connecting'?'bg-amber-400':'bg-slate-500')}/>{stateLabel}</span>
+      <span className={"inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold "+stateClass}><span className={"h-2 w-2 rounded-full "+(connected?'bg-emerald-400':(status==='CONNECTING'||status==='QR_REQUIRED'||status==='RECONNECTING')?'bg-amber-400':'bg-slate-500')}/>{stateLabel}</span>
     </div>
 
     <div className={card+" p-6 sm:p-8"}>
@@ -119,9 +119,9 @@ export const SetupTab: React.FC<SetupTabProps> = ({ apiFetch, whatsappSettings, 
             <>
               <div className="flex flex-wrap gap-2">
                 <button onClick={connect} disabled={busy} className={button+" bg-white text-bg hover:bg-slate-200"}>
-                  {busy?<><Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>Reconectando...</>:<><QrCode className="mr-2 inline h-4 w-4"/>{status==='close'||status==='error'?'Reconectar':'Gerar QR Code'}</>}
+                  {busy?<><Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>Reconectando...</>:<><QrCode className="mr-2 inline h-4 w-4"/>{status==='DISCONNECTED'||status==='ERROR'||status==='INSTANCE_NOT_FOUND'?'Reconectar':'Gerar QR Code'}</>}
                 </button>
-                {status==='connecting'&&<button onClick={refreshQr} disabled={busy} className={button+" border border-border-strong text-text hover:bg-surface-2"}><RefreshCw className="mr-2 inline h-4 w-4"/>Atualizar QR</button>}
+                {(status==='CONNECTING'||status==='QR_REQUIRED')&&<button onClick={refreshQr} disabled={busy} className={button+" border border-border-strong text-text hover:bg-surface-2"}><RefreshCw className="mr-2 inline h-4 w-4"/>Atualizar QR</button>}
               </div>
               {statusError&&<div className="mt-4 flex gap-2 rounded-md border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-300"><CircleAlert className="h-4 w-4 shrink-0"/><span>{statusError}</span></div>}
               <ol className="mt-5 space-y-2 text-sm text-muted">
