@@ -1,4 +1,4 @@
-import React from 'react';
+import React,{useEffect,useState} from 'react';
 import { Send, CheckCircle2, Clock, XCircle, Users, ExternalLink, ShieldCheck, Trash2, RefreshCw } from 'lucide-react';
 import type { Publication } from '../types/affiliate.ts';
 
@@ -15,6 +15,9 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({
   onDelete,
   onRetry,
 }) => {
+  const [initialLoading,setInitialLoading]=useState(true);
+  useEffect(()=>{const t=window.setTimeout(()=>setInitialLoading(false),300);return()=>window.clearTimeout(t)},[]);
+  if(initialLoading) return <div className="space-y-6" aria-busy="true"><div className="h-28 rounded-lg bg-surface-1 animate-pulse"/><div className="grid gap-5 md:grid-cols-2">{Array.from({length:4}).map((_,i)=><div key={i} className="h-64 rounded-lg bg-surface-1 animate-pulse"/>)}</div></div>;
   return (
     <div className="space-y-6">
       <div className="bg-surface-1 border border-border rounded-lg p-6">
