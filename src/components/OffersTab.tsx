@@ -299,7 +299,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
                       </a>
                     ) : (
                       <span className="text-yellow-400 font-sans italic">
-                        Bloqueado (Pendente associação)
+                        Ação necessária
                       </span>
                     )}
                   </div>
@@ -327,7 +327,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
                       className="col-span-2 py-2 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
                     >
                       <Link2 className="w-3.5 h-3.5" />
-                      Associar Link meli.la Oficial
+                      Gerar / Associar Link de Afiliado
                     </button>
                   ) : (
                     <>
