@@ -77,6 +77,7 @@ export class PersistentStoreRepository {
       for (const destination of this.store.destinations.values() as Iterable<any>) {
         if (destination.workspace_id !== workspaceId) continue;
         const config = {
+          deleted_at: destination.deleted_at || null,
           categories: destination.categories || [],
           marketplaces: destination.marketplaces || [],
           keywords: destination.keywords || [],
@@ -86,11 +87,11 @@ export class PersistentStoreRepository {
           priority: destination.priority || 'NORMAL',
         };
         await client.query(
-          `INSERT INTO destinations (id,workspace_id,type,identifier,name,config,is_active)
-           VALUES ($1,$2,$3,$4,$5,$6,$7)
+          `INSERT INTO destinations (id,workspace_id,type,identifier,name,config,is_active,deleted_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
            ON CONFLICT (id) DO UPDATE SET type=EXCLUDED.type,identifier=EXCLUDED.identifier,name=EXCLUDED.name,
              config=EXCLUDED.config,is_active=EXCLUDED.is_active`,
-          [destination.id, workspaceId, destination.type, destination.identifier, destination.name, JSON.stringify(config), destination.is_active !== false]
+          [destination.id, workspaceId, destination.type, destination.identifier, destination.name, JSON.stringify(config), destination.is_active !== false, destination.deleted_at || null]
         );
       }
 
