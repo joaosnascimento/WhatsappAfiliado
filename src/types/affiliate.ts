@@ -148,6 +148,7 @@ export interface Publication {
   affiliate_link_id: string;
   affiliate_url: string;
   image_url?: string;
+  image_title?: string;
   message: string;
   status: 'DRAFT' | 'QUEUED' | 'PROCESSING' | 'SCHEDULED' | 'SENT' | 'FAILED' | 'RETRYING' | 'CANCELLED' | 'EXPIRED';
   scheduled_at: string;
