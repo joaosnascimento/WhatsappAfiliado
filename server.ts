@@ -480,6 +480,21 @@ async function startServer() {
     res.status(201).json(offer);
   });
 
+  // Remove a wrongly captured offer and any publications created from it.
+  app.delete('/api/offers/:id', async (req, res) => {
+    const offer = store.offers.get(req.params.id);
+    if (!offer) return res.status(404).json({ error: 'Oferta não encontrada.' });
+    const pubs = await query<any>('SELECT id FROM publications WHERE offer_id=$1 AND workspace_id=$2', [offer.id, req.user!.workspaceId]);
+    for (const pub of pubs) {
+      await query('DELETE FROM publications WHERE id=$1 AND workspace_id=$2', [pub.id, req.user!.workspaceId]);
+      store.publications.delete(pub.id);
+    }
+    store.offers.delete(offer.id);
+    store.products.delete(offer.product_id);
+    if (offer.affiliate_link_id) store.links.delete(offer.affiliate_link_id);
+    res.json({ success: true, deletedOfferId: offer.id, deletedPublications: pubs.length });
+  });
+
   // 7. Rule 4: Associate Mercado Livre Affiliate Link
   app.post('/api/offers/:id/associate-ml-link', (req, res) => {
     const offer = store.offers.get(req.params.id);
