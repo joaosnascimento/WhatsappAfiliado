@@ -55,7 +55,7 @@ export class WhatsAppProvider {
           to: destination.identifier,
           type: publication.image_url ? 'image' : 'text',
           ...(publication.image_url
-            ? { image: { link: imageUrl, caption: publication.message } }
+            ? { image: { link: publication.image_url, caption: publication.message } }
             : { text: { preview_url: true, body: publication.message } }),
         }),
       });
