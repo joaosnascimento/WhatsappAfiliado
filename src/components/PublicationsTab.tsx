@@ -1,10 +1,12 @@
 import React from 'react';
-import { Send, CheckCircle2, Clock, XCircle, Users, ExternalLink, ShieldCheck } from 'lucide-react';
+import { Send, CheckCircle2, Clock, XCircle, Users, ExternalLink, ShieldCheck, Trash2, RefreshCw } from 'lucide-react';
 import type { Publication } from '../types/affiliate.ts';
 
 interface PublicationsTabProps {
   publications: Publication[];
   onTriggerSend: (pubId: string) => Promise<void>;
+  onDelete: (pubId: string) => Promise<void>;
+  onRetry: (pubId: string) => Promise<void>;
 }
 
 export const PublicationsTab: React.FC<PublicationsTabProps> = ({
@@ -86,6 +88,16 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({
                   {pub.message}
                 </div>
               </div>
+
+              {isFailed && (
+                <div className="space-y-2">
+                  <div className="text-[11px] text-rose-300">{pub.error_message || 'O envio falhou.'}</div>
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={() => void onRetry(pub.id)} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 border border-emerald-500/20"><RefreshCw className="h-3.5 w-3.5" /> Reenviar</button>
+                    <button type="button" onClick={() => void onDelete(pub.id)} className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-300 border border-rose-500/20"><Trash2 className="h-3.5 w-3.5" /> Excluir falha</button>
+                  </div>
+                </div>
+              )}
 
               {/* Link and SubId footer */}
               <div className="text-xs text-slate-400 space-y-1.5 pt-2 border-t border-slate-800">
