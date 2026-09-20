@@ -40,7 +40,7 @@ export class AuditService {
     destination: Destination;
     publication: Publication;
     affiliateAccountId: string;
-  }): AuditRecord {
+  }): Promise<AuditRecord> {
     const record: AuditRecord = {
       workspaceId: params.publication.workspace_id || 'unknown',
       id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
