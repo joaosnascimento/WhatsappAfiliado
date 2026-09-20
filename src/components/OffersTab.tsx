@@ -357,7 +357,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
                 {offer.marketplace === 'MERCADOLIVRE' && !offer.affiliate_url && (
                   <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-[11px] text-blue-300 flex items-start gap-1.5">
                     <ShieldAlert className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
-                    <span>O link oficial do Mercado Livre será gerado automaticamente quando a oferta for processada/publicada.</span>
+                    <span>{offer.status_reason || 'A geração automática do link oficial está em processamento. O sistema tentará novamente antes de publicar.'}</span>
                   </div>
                 )}
               </div>
@@ -368,7 +368,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
                   {/* If ML needs link association */}
                   {offer.marketplace === 'MERCADOLIVRE' && !isReady && (
                     <div className="col-span-2 py-2 text-center text-[11px] text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-                      Link oficial sendo gerado automaticamente…
+                      {offer.status_reason || 'Aguardando geração e validação do link oficial…'}
                     </div>
                   )}
                   {(
