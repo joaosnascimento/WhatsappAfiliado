@@ -537,6 +537,29 @@ async function startServer() {
   });
 
 
+  app.delete('/api/publications/:id', async (req, res) => {
+    const rows = await query<any>('SELECT id FROM publications WHERE id=$1 AND workspace_id=$2', [req.params.id, req.user!.workspaceId]);
+    if (!rows[0]) return res.status(404).json({ error: 'Publicação não encontrada.' });
+    await query('DELETE FROM publications WHERE id=$1 AND workspace_id=$2', [req.params.id, req.user!.workspaceId]);
+    store.publications.delete(req.params.id);
+    res.json({ success: true, deletedPublicationId: req.params.id });
+  });
+
+  app.post('/api/publications/:id/retry', async (req, res) => {
+    const rows = await query<any>('SELECT * FROM publications WHERE id=$1 AND workspace_id=$2', [req.params.id, req.user!.workspaceId]);
+    if (!rows[0]) return res.status(404).json({ error: 'Publicação não encontrada.' });
+    if (rows[0].status !== 'FAILED') return res.status(409).json({ error: 'Somente publicações com falha podem ser reenviadas.' });
+    const { enqueuePublication } = await import('./src/infrastructure/queue.ts');
+    await query("UPDATE publications SET status='QUEUED', error=NULL WHERE id=$1", [rows[0].id]);
+    try {
+      await enqueuePublication(rows[0].id, new Date(rows[0].scheduled_at || Date.now()), rows[0].workspace_id);
+    } catch (error) {
+      await query("UPDATE publications SET status='FAILED', error=$2 WHERE id=$1", [rows[0].id, (error as Error).message]);
+      return res.status(503).json({ error: 'Fila de publicação indisponível.' });
+    }
+    res.json({ success: true, status: 'QUEUED' });
+  });
+
   // 8. Generate AI Message
   app.post('/api/offers/:id/generate-ai-message', async (req, res) => {
     const offer = store.offers.get(req.params.id);
