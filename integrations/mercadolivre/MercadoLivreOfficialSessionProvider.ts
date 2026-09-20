@@ -151,15 +151,42 @@ export class MercadoLivreOfficialSessionProvider {
         await persistSession(account, runtime.context, 'CONNECTED');
         return { connected: true, status: 'CONNECTED', browserActive: true, updatedAt: account.credentials_encrypted.ml_session_updated_at };
       }
+      await persistSession(account, runtime.context, 'EXPIRED');
+      try { await runtime.browser.close(); } catch {}
+      runtimes.delete(account.id);
+      return { connected: false, status: 'EXPIRED', browserActive: false, updatedAt: account.credentials_encrypted.ml_session_updated_at };
     }
+
     const saved = sessionFromAccount(account);
-    if (!saved) return { connected: false, status: 'DISCONNECTED', browserActive: false };
-    return {
-      connected: account.credentials_encrypted.ml_session_status === 'CONNECTED',
-      status: account.credentials_encrypted.ml_session_status || 'LOGIN_REQUIRED',
-      browserActive: false,
-      updatedAt: account.credentials_encrypted.ml_session_updated_at,
-    };
+    if (!saved) {
+      account.credentials_encrypted.ml_session_status = 'DISCONNECTED';
+      account.status = 'AWAITING_CONFIG';
+      account.status_message = 'Mercado Livre desconectado.';
+      return { connected: false, status: 'DISCONNECTED', browserActive: false };
+    }
+
+    // Never trust a persisted CONNECTED flag alone: the user can revoke the
+    // Mercado Livre session outside this application.
+    const runtimeCheck = await launch(account, false);
+    try {
+      await runtimeCheck.page.goto('https://www.mercadolivre.com.br/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+      const logged = await isLoggedIn(runtimeCheck.page);
+      if (!logged) {
+        await persistSession(account, runtimeCheck.context, 'EXPIRED');
+        return { connected: false, status: 'EXPIRED', browserActive: false, updatedAt: account.credentials_encrypted.ml_session_updated_at };
+      }
+      await persistSession(account, runtimeCheck.context, 'CONNECTED');
+      return { connected: true, status: 'CONNECTED', browserActive: false, updatedAt: account.credentials_encrypted.ml_session_updated_at };
+    } catch (error) {
+      account.credentials_encrypted.ml_session_status = 'ERROR';
+      account.status = 'AUTH_ERROR';
+      account.status_message = 'Não foi possível validar a sessão do Mercado Livre: ' + (error as Error).message;
+      account.updated_at = new Date().toISOString();
+      return { connected: false, status: 'ERROR', browserActive: false, error: account.status_message };
+    } finally {
+      try { await runtimeCheck.browser.close(); } catch {}
+      runtimes.delete(account.id);
+    }
   }
 
   static async connect(account: MarketplaceAccount) {

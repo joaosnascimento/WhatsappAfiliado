@@ -254,12 +254,16 @@ async function startServer() {
   });
 
   // Mercado Livre official browser automation
-  app.get('/api/mercadolivre/status', requireAuth, workspaceContext, (req, res) => {
+  app.get('/api/mercadolivre/status', requireAuth, workspaceContext, async (req, res) => {
     const account = findMarketplaceAccount('MERCADOLIVRE');
     if (!account) return res.json({ connected: false, status: 'DISCONNECTED' });
-    void MercadoLivreOfficialSessionProvider.status(account)
-      .then(result => res.json(result))
-      .catch(error => res.status(500).json({ error: (error as Error).message }));
+    try {
+      const result = await MercadoLivreOfficialSessionProvider.status(account);
+      if (persistentStoreEnabled) await store.persist(req.user!.workspaceId);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
   });
 
   app.post('/api/mercadolivre/connect', requireAuth, workspaceContext, async (req, res) => {
@@ -981,8 +985,10 @@ async function startServer() {
       const cfg = await getEvolutionConfig(req.user!.workspaceId);
       const r = await fetch(cfg.base + '/instance/connectionState/' + encodeURIComponent(cfg.instance), { headers:{apikey:cfg.key} });
       const data = await r.json().catch(()=>({}));
-      if (!r.ok) return res.status(r.status).json({configured:true,state:'error',error:'Evolution API não respondeu corretamente.'});
-      res.json({configured:true,instance:cfg.instance,state:data?.instance?.state || data?.state || 'unknown'});
+      if (r.status === 404) return res.json({configured:true,instance:cfg.instance,state:'close',exists:false});
+      if (!r.ok) return res.status(r.status).json({configured:true,state:'error',error:data?.message || data?.error || 'Evolution API não respondeu corretamente.'});
+      const state=String(data?.instance?.state || data?.state || 'close').toLowerCase();
+      res.json({configured:true,instance:cfg.instance,state,connected:state==='open',exists:true});
     } catch(err) { res.status(400).json({configured:false,state:'not_configured',error:(err as Error).message}); }
   });
 
@@ -991,27 +997,49 @@ async function startServer() {
       const cfg = await getEvolutionConfig(req.user!.workspaceId);
       const headers = { apikey:cfg.key, 'Content-Type':'application/json' };
       const instancesRes = await fetch(cfg.base + '/instance/fetchInstances', {headers:{apikey:cfg.key}});
-      let instances:any[] = [];
-      if (instancesRes.ok) { const raw=await instancesRes.json().catch(()=>[]); instances=Array.isArray(raw)?raw:(raw?.instances||raw?.response||[]); }
+      if (!instancesRes.ok) {
+        const body=await instancesRes.text().catch(()=> '');
+        return res.status(instancesRes.status).json({error:'Não foi possível consultar as instâncias da Evolution API: HTTP '+instancesRes.status+(body ? ': '+body.slice(0,300) : '')});
+      }
+      const raw=await instancesRes.json().catch(()=>[]);
+      const instances:any[]=Array.isArray(raw)?raw:(raw?.instances||raw?.response||[]);
       const exists = instances.some((i:any)=>String(i?.name||i?.instanceName||i?.instance?.instanceName||'')===cfg.instance);
       if (exists) {
         const stateRes = await fetch(cfg.base + '/instance/connectionState/' + encodeURIComponent(cfg.instance), {headers:{apikey:cfg.key}});
         const stateData = await stateRes.json().catch(()=>({}));
-        const currentState = stateData?.instance?.state || stateData?.state;
-        if (currentState === 'open') return res.json({state:'open',qrcode:null,instance:cfg.instance});
+        const currentState = String(stateData?.instance?.state || stateData?.state || '').toLowerCase();
+        if (stateRes.ok && currentState === 'open') return res.json({state:'open',qrcode:null,instance:cfg.instance});
       }
       if (!exists) {
         const create = await fetch(cfg.base + '/instance/create', {method:'POST',headers,body:JSON.stringify({instanceName:cfg.instance,integration:'WHATSAPP-BAILEYS',qrcode:true,groupsIgnore:false,alwaysOnline:true})});
-        if (!create.ok && create.status !== 409) return res.status(create.status).json({error:'Não foi possível criar a conexão WhatsApp.'});
+        if (!create.ok && create.status !== 409) {
+          const body=await create.text().catch(()=> '');
+          return res.status(create.status).json({error:'Não foi possível criar a conexão WhatsApp: HTTP '+create.status+(body ? ': '+body.slice(0,300) : '')});
+        }
         const created=await create.json().catch(()=>({}));
         const qr=normalizeQrCode(created?.qrcode?.base64 || created?.qrcode?.code || null);
         if(qr) return res.json({state:'connecting',qrcode:qr,instance:cfg.instance});
       }
       const connect = await fetch(cfg.base + '/instance/connect/' + encodeURIComponent(cfg.instance), {headers:{apikey:cfg.key}});
       const data=await connect.json().catch(()=>({}));
-      if(!connect.ok) return res.status(connect.status).json({error:'Não foi possível gerar o QR Code.'});
-      res.json({state:'connecting',qrcode:normalizeQrCode(data?.base64 || data?.qrcode?.base64 || data?.qrcode?.code || data?.code || null),instance:cfg.instance});
+      if(!connect.ok) return res.status(connect.status).json({error:data?.message || data?.error || 'Não foi possível gerar o QR Code.'});
+      res.json({state:'connecting',qrcode:normalizeQrCode(data?.base64 || data?.qrcode?.base64 || data?.qrcode?.code || null),instance:cfg.instance});
     } catch(err) { res.status(400).json({error:(err as Error).message}); }
+  });
+
+  app.post('/api/whatsapp/disconnect', async (req,res) => {
+    try {
+      const cfg=await getEvolutionConfig(req.user!.workspaceId);
+      const r=await fetch(cfg.base + '/instance/logout/' + encodeURIComponent(cfg.instance),{method:'DELETE',headers:{apikey:cfg.key}});
+      const body=await r.text().catch(()=> '');
+      if(!r.ok) {
+        // Some Evolution deployments expose logout as POST instead of DELETE.
+        const retry=await fetch(cfg.base + '/instance/logout/' + encodeURIComponent(cfg.instance),{method:'POST',headers:{apikey:cfg.key}});
+        const retryBody=await retry.text().catch(()=> '');
+        if(!retry.ok && retry.status !== 404) return res.status(retry.status).json({error:'Não foi possível desconectar o WhatsApp: HTTP '+retry.status+(retryBody ? ': '+retryBody.slice(0,300) : '')});
+      }
+      res.json({success:true,state:'close'});
+    } catch(err){res.status(400).json({error:(err as Error).message});}
   });
 
   app.get('/api/whatsapp/qrcode', async (req,res) => {
