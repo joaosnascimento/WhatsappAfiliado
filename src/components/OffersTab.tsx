@@ -123,7 +123,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
                 placeholder="Buscar produto (ex: Pokémon, SSD)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 w-64"
+                className="bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 w-full sm:w-64"
               />
               <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
             </div>
@@ -164,7 +164,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
           </div>
 
           {/* Status filter */}
-          <div className="flex items-center bg-slate-800 rounded-xl p-1 border border-slate-700 overflow-x-auto">
+          <div className="flex flex-wrap items-center bg-slate-800 rounded-xl p-1 border border-slate-700">
             {['ALL', 'VALIDATED', 'AFFILIATE_LINK_READY', 'PUBLISHED'].map((st) => (
               <button
                 key={st}
