@@ -48,7 +48,7 @@ export async function enqueuePublication(input: { publicationId:string; destinat
   if(!Number.isFinite(scheduledAtMs)) throw new Error('scheduledAt inválido.');
   const delay=Math.max(0,scheduledAtMs-Date.now());
   try {
-    return await publicationQueue.add('publish',input,{jobId:`publication:${input.publicationId}`,delay});
+    return await publicationQueue.add('publish',input,{jobId:`publication-${input.publicationId}`,delay});
   } catch (error) {
     throw new Error(`Não foi possível adicionar a publicação à fila Redis: ${error instanceof Error ? error.message : String(error)}`);
   }
