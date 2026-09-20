@@ -123,7 +123,7 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
         </div>
         <div className="flex gap-3">
           <input type="password" value={waKey} onChange={e=>setWaKey(e.target.value)} placeholder={whatsappSettings?.evolutionApiKey==='configured'?'Chave já configurada':'Evolution API Key'} className="flex-1 bg-surface-2 border border-border-strong rounded-md px-3 py-2 text-sm text-text" />
-          <button disabled={waSaving} onClick={async()=>{setWaSaving(true);try{await onSaveWhatsApp({provider:waProvider,evolutionApiUrl:waUrl,evolutionApiKey:waKey,evolutionInstance:waInstance});toast('success','WhatsApp configurado','A configuração foi salva.')}catch(e){toast('error','Falha ao configurar WhatsApp',(e as Error).message)}finally{setWaSaving(false)}}} className="px-4 py-2 bg-brand-500 text-slate-950 rounded-md text-sm font-bold">{waSaving?'Salvando...':'Salvar WhatsApp'}</button>
+          <button disabled={waSaving} onClick={async()=>{setWaSaving(true);try{await onSaveWhatsApp({provider:waProvider,evolutionApiUrl:waUrl,evolutionApiKey:waKey,evolutionInstance:waInstance});toast('success','WhatsApp configurado','A configuração foi salva.')}catch(e){toast('error','Falha ao configurar WhatsApp',(e as Error).message)}finally{setWaSaving(false)}}} className="px-4 py-2 bg-brand-500 text-bg rounded-md text-sm font-bold">{waSaving?'Salvando...':'Salvar WhatsApp'}</button>
         </div>
       </div>
 
@@ -145,7 +145,7 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
             </p>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
-            <button onClick={connectMl} disabled={mlBusy} className="px-4 py-2.5 bg-brand-500 hover:bg-brand-400 text-slate-950 rounded-md text-sm font-bold disabled:opacity-50">{mlBusy ? 'Abrindo navegador...' : 'Conectar Mercado Livre'}</button>
+            <button onClick={connectMl} disabled={mlBusy} className="px-4 py-2.5 bg-brand-500 hover:bg-brand-400 text-bg rounded-md text-sm font-bold disabled:opacity-50">{mlBusy ? 'Abrindo navegador...' : 'Conectar Mercado Livre'}</button>
             <button onClick={refreshMlStatus} disabled={mlBusy} className="px-4 py-2.5 bg-surface-2 hover:bg-surface-3 border-border-strong border border-border-strong text-text rounded-md text-sm font-semibold">Atualizar</button>
             {(mlStatus?.status === 'CONNECTED' || mlAcc?.status === 'CONNECTED') && <button onClick={disconnectMl} disabled={mlBusy} className="px-4 py-2.5 bg-surface-2 hover:bg-surface-3 border-border-strong border border-border-strong text-rose-300 rounded-md text-sm font-semibold">Desconectar</button>}
           </div>
