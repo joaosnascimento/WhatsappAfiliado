@@ -217,7 +217,7 @@ export const OffersTab: React.FC<OffersTabProps> = ({
             ))}
           </div>
 
-          <div className="flex items-center gap-2 ml-auto"><span className="text-xs font-semibold text-muted">Destino</span><select value={publishDestinationId} onChange={e=>setPublishDestinationId(e.target.value)} className="rounded-md border border-border-strong bg-surface-2 px-2.5 py-1.5 text-xs text-text"><option value="">Primeiro destino</option>{destinations.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select><span className="text-subtle font-medium">Exibindo {filteredOffers.length} ofertas</span></div>
+          <div className="ml-auto text-subtle font-medium">Exibindo {filteredOffers.length} ofertas</div>
         </div>
       </div>
 
