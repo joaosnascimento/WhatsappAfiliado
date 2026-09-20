@@ -1,5 +1,3 @@
-import { assertSafeOutboundUrl } from '../../src/security/outboundUrl.ts';
-
 export interface MercadoLivreAffiliateFallbackResult {
   originalUrl: string;
   affiliateUrl: string;
@@ -22,12 +20,19 @@ export class MercadoLivreAffiliateFallback {
     return Boolean(this.apiKey);
   }
 
+  private assertAffiliateUrl(raw: string): void {
+    let url: URL;
+    try { url = new URL(raw); } catch { throw new Error('O conversor retornou uma URL de afiliado inválida.'); }
+    if (url.protocol !== 'https:' || url.username || url.password || url.hostname.length > 253) {
+      throw new Error('O conversor retornou uma URL de afiliado insegura.');
+    }
+  }
+
   public async convertLink(originalUrl: string): Promise<MercadoLivreAffiliateFallbackResult> {
     if (!this.apiKey) {
       throw new Error('BOT_DO_AFILIADO_API_KEY não configurada.');
     }
 
-    assertSafeOutboundUrl(this.baseUrl, { allowLocalDevelopment: false });
 
     const response = await fetch(`${this.baseUrl}/convert-links`, {
       method: 'POST',
@@ -62,8 +67,8 @@ export class MercadoLivreAffiliateFallback {
       throw new Error('O Bot do Afiliado não retornou affiliate_url para o produto.');
     }
 
-    assertSafeOutboundUrl(affiliateUrl, { allowLocalDevelopment: false });
-    if (finalUrl) assertSafeOutboundUrl(finalUrl, { allowLocalDevelopment: false });
+    this.assertAffiliateUrl(affiliateUrl);
+    if (finalUrl) this.assertAffiliateUrl(finalUrl);
 
     if (affiliateUrl === originalUrl.trim()) {
       throw new Error('O conversor retornou a mesma URL original; o link não foi considerado afiliado.');
