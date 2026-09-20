@@ -15,7 +15,7 @@ import type { MarketplaceAccount, IntegrationTestResult } from '../types/affilia
 interface AffiliatesTabProps {
   accounts: MarketplaceAccount[];
   onSaveAccount: (accountId: string, credentials: Record<string, string>) => Promise<void>;
-  onTestIntegration: (marketplace: 'SHOPEE' | 'MERCADOLIVRE') => Promise<IntegrationTestResult>;
+  onTestIntegration: (marketplace: 'SHOPEE') => Promise<IntegrationTestResult>;
   whatsappSettings?: any;
   onSaveWhatsApp: (settings:any)=>Promise<void>;
 }
@@ -24,11 +24,9 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
   accounts,
   onSaveAccount,
   onTestIntegration,
-  onConnectMercadoLivre,
   whatsappSettings,
   onSaveWhatsApp,
 }) => {
-  const mlAcc = accounts.find((a) => a.marketplace === 'MERCADOLIVRE');
   const shopeeAcc = accounts.find((a) => a.marketplace === 'SHOPEE');
 
   // Form states
@@ -36,7 +34,7 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
   const [shopeeSecret, setShopeeSecret] = useState('');
 
   const [isSavingShopee, setIsSavingShopee] = useState(false);
-  const [testingMarketplace, setTestingMarketplace] = useState<'SHOPEE' | 'MERCADOLIVRE' | null>(null);
+  const [testingMarketplace, setTestingMarketplace] = useState<'SHOPEE' | null>(null);
   const [diagnosticResult, setDiagnosticResult] = useState<IntegrationTestResult | null>(null);
   const [waProvider,setWaProvider]=useState(whatsappSettings?.provider||'evolution');
   const [waUrl,setWaUrl]=useState(whatsappSettings?.evolutionApiUrl||'');
@@ -60,7 +58,7 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
     }
   };
 
-  const handleRunDiagnostic = async (marketplace: 'SHOPEE' => {
+  const handleRunDiagnostic = async (marketplace: 'SHOPEE') => {
     setTestingMarketplace(marketplace);
     try {
       const result = await onTestIntegration(marketplace);
@@ -85,7 +83,7 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
               Gerenciamento de Integrações de Afiliados
             </h2>
             <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-              Cada marketplace possui infraestrutura, segurança e modelos de autenticação completamente isolados. Configure as credenciais oficiais para permitir buscas automáticas de catálogo, cálculo de assinaturas criptográficas e validação estrita de atribuição.
+              Configure apenas as integrações que realmente estão ativas. O Mercado Livre usa o fluxo oficial de geração de link no Portal de Afiliados, sem OAuth DevCenter ou dependência do catálogo MLB.
             </p>
           </div>
         </div>
