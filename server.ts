@@ -473,33 +473,17 @@ async function startServer() {
       } else {
         const account = findMarketplaceAccount('MERCADOLIVRE');
         if (!account) return res.status(400).json({ error: 'Conta Mercado Livre indisponível neste workspace.' });
+
+        // Discovery must not wait for the affiliate portal to generate every link.
+        // The official browser generator can take up to 30s per product; doing that
+        // synchronously made the HTTP request exceed browser/proxy timeouts and
+        // surfaced as the unhelpful "Failed to fetch" in the dashboard.
         const products = await MercadoLivreOfficialSessionProvider.discover(account, String(keyword || 'ofertas'), 10);
         const createdOffers: Offer[] = [];
+        const workspaceId = req.user!.workspaceId;
 
         for (const p of products) {
           store.products.set(p.id, p);
-          let affiliateUrl: string | undefined;
-          let linkId: string | undefined;
-          try {
-            affiliateUrl = await MercadoLivreOfficialSessionProvider.generateLink(account, p.original_url);
-            const link = {
-              id: `link_ml_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-              marketplace: 'MERCADOLIVRE' as const,
-              affiliate_account_id: account.id,
-              product_id: p.id,
-              original_url: p.original_url,
-              affiliate_url: affiliateUrl,
-              short_url: affiliateUrl,
-              tracking_data: { source: 'mercadolivre_official_browser' },
-              created_at: new Date().toISOString(),
-            };
-            store.links.set(link.id, link);
-            linkId = link.id;
-            p.affiliate_url = affiliateUrl;
-          } catch (error) {
-            p.metadata = { ...(p.metadata || {}), affiliate_error: (error as Error).message };
-          }
-
           const offer: Offer = {
             id: `offer_ml_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
             product_id: p.id,
@@ -510,10 +494,8 @@ async function startServer() {
             discount: p.discount,
             commission: p.commission,
             score: Math.min(100, Math.round((p.discount || 0) * 1.5)),
-            status: affiliateUrl ? 'AFFILIATE_LINK_READY' : 'VALIDATED',
-            status_reason: affiliateUrl ? 'Link afiliado gerado automaticamente pelo Portal de Afiliados.' : (typeof p.metadata?.affiliate_error === 'string' ? p.metadata.affiliate_error : 'Não foi possível gerar o link automaticamente; sessão ou portal indisponível.'),
-            affiliate_link_id: linkId,
-            affiliate_url: affiliateUrl,
+            status: 'VALIDATED',
+            status_reason: 'Oferta capturada. Gerando o link oficial pelo Portal de Afiliados em segundo plano.',
             first_seen_at: new Date().toISOString(),
             last_seen_at: new Date().toISOString(),
           };
@@ -521,9 +503,50 @@ async function startServer() {
           createdOffers.push(offer);
         }
 
-        if (persistentStoreEnabled) await store.persist(req.user!.workspaceId);
-        return res.json({ count: createdOffers.length, offers: createdOffers, automated: true });
-      }
+        if (persistentStoreEnabled) await store.persist(workspaceId);
+
+        // Generate official meli.la links asynchronously, one product at a time.
+        // This keeps the search responsive while preserving the browser-only
+        // Mercado Livre attribution flow and its validation.
+        void runWithWorkspace(workspaceId, async () => {
+          for (const offer of createdOffers) {
+            const current = store.offers.get(offer.id);
+            if (!current || current.marketplace !== 'MERCADOLIVRE' || current.affiliate_url) continue;
+
+            try {
+              const affiliateUrl = await MercadoLivreOfficialSessionProvider.generateLink(account, current.product.original_url);
+              const link = {
+                id: `link_ml_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                marketplace: 'MERCADOLIVRE' as const,
+                affiliate_account_id: account.id,
+                product_id: current.product_id,
+                original_url: current.product.original_url,
+                affiliate_url: affiliateUrl,
+                short_url: affiliateUrl,
+                tracking_data: { source: 'mercadolivre_official_browser' },
+                created_at: new Date().toISOString(),
+              };
+              store.links.set(link.id, link);
+              current.product.affiliate_url = affiliateUrl;
+              current.affiliate_link_id = link.id;
+              current.affiliate_url = affiliateUrl;
+              current.status = 'AFFILIATE_LINK_READY';
+              current.status_reason = 'Link afiliado oficial gerado e validado pelo Portal de Afiliados do Mercado Livre.';
+              store.offers.set(current.id, current);
+            } catch (error) {
+              current.status = 'VALIDATED';
+              current.status_reason = `Capturada; geração do link oficial ainda não concluída: ${(error as Error).message}`;
+              store.offers.set(current.id, current);
+            }
+
+            if (persistentStoreEnabled) await store.persist(workspaceId);
+          }
+        }).catch((error) => {
+          console.error('Mercado Livre background affiliate generation failed:', error);
+        });
+
+        return res.json({ count: createdOffers.length, offers: createdOffers, automated: true, affiliateGeneration: 'background' });
+      }}
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
     }
