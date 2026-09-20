@@ -23,6 +23,9 @@ export interface MarketplaceAccount {
     ml_refresh_token?: string;
     ml_user_id?: string;
     ml_expires_at?: number;
+    ml_session_state?: string;
+    ml_session_status?: 'DISCONNECTED' | 'LOGIN_REQUIRED' | 'CONNECTED' | 'EXPIRED' | 'ERROR';
+    ml_session_updated_at?: string;
     // Shopee
     shopee_app_id?: string;
     shopee_secret?: string;
