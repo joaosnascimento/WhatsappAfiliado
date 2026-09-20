@@ -454,10 +454,29 @@ async function startServer() {
     const offer: Offer = {
       id: 'offer_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6), product_id: product.id,
       product, marketplace: 'MERCADOLIVRE', price, score: 0, status: 'VALIDATED',
-      status_reason: 'Produto cadastrado. Gere o link no Portal de Afiliados e associe-o a esta oferta.',
+      status_reason: 'Gerando automaticamente o link oficial do Mercado Livre.',
       first_seen_at: new Date().toISOString(), last_seen_at: new Date().toISOString()
     };
     store.products.set(product.id, product); store.offers.set(offer.id, offer);
+    const account = findMarketplaceAccount('MERCADOLIVRE');
+    if (account) {
+      try {
+        const affiliateUrl = await MercadoLivreOfficialSessionProvider.generateLink(account, originalUrl, ['whatsapp', 'auto_manual']);
+        const link = MercadoLivreAffiliateService.associateAffiliateLink({
+          productId: product.external_product_id, originalUrl, affiliateUrl,
+          affiliateAccountId: account.id, subIds: ['whatsapp', 'auto_manual'],
+        });
+        store.links.set(link.id, link);
+        offer.affiliate_link_id = link.id;
+        offer.affiliate_url = link.affiliate_url;
+        offer.status = 'AFFILIATE_LINK_READY';
+        offer.status_reason = 'Link oficial gerado e validado automaticamente pelo Portal de Afiliados.';
+      } catch (error) {
+        offer.status_reason = `Produto cadastrado, mas a geração automática falhou: ${(error as Error).message}`;
+      }
+    } else {
+      offer.status_reason = 'Produto cadastrado. Conecte o Mercado Livre para gerar o link oficial automaticamente.';
+    }
     res.status(201).json(offer);
   });
 
@@ -538,9 +557,40 @@ async function startServer() {
       return res.status(404).json({ error: 'Oferta não encontrada.' });
     }
 
+    // Mercado Livre: nunca peça associação manual no fluxo normal.
+    // Se a oferta estiver pendente/FAILED ou sem link, gere e valide o link oficial
+    // automaticamente antes do gate de publicação.
+    if (offer.marketplace === 'MERCADOLIVRE' &&
+        (offer.status !== 'AFFILIATE_LINK_READY' || !offer.affiliate_url || !offer.affiliate_link_id)) {
+      const account = findMarketplaceAccount('MERCADOLIVRE');
+      if (!account) return res.status(409).json({ error: 'Mercado Livre não conectado. Conecte a conta para gerar o link oficial automaticamente.' });
+      try {
+        const affiliateUrl = await MercadoLivreOfficialSessionProvider.generateLink(
+          account,
+          offer.product.original_url,
+          ['whatsapp', 'auto_publish'],
+        );
+        const link = MercadoLivreAffiliateService.associateAffiliateLink({
+          productId: offer.product.external_product_id,
+          originalUrl: offer.product.original_url,
+          affiliateUrl,
+          affiliateAccountId: account.id,
+          subIds: ['whatsapp', 'auto_publish'],
+        });
+        store.links.set(link.id, link);
+        offer.affiliate_link_id = link.id;
+        offer.affiliate_url = link.affiliate_url;
+        offer.status = 'AFFILIATE_LINK_READY';
+        offer.status_reason = 'Link oficial gerado e validado automaticamente pelo Portal de Afiliados.';
+      } catch (error) {
+        offer.status = 'VALIDATED';
+        offer.status_reason = `Não foi possível gerar o link oficial automaticamente: ${(error as Error).message}`;
+        return res.status(409).json({ error: offer.status_reason });
+      }
+    }
+
     // MANDATORY GATE: Section 17
-    // "PRODUCT_FOUND != AFFILIATE_LINK_READY"
-    // "Somente AFFILIATE_LINK_READY poderá seguir para publicação automática."
+    // A publicação só passa quando existe link de afiliado oficial validado.
     if (offer.status !== 'AFFILIATE_LINK_READY' && offer.status !== 'READY_TO_PUBLISH') {
       return res.status(400).json({
         error: `Bloqueio de Segurança: A oferta está no status '${offer.status}'. Apenas ofertas no status 'AFFILIATE_LINK_READY' com link rastreado e validado podem ser publicadas.`,
@@ -647,7 +697,8 @@ async function startServer() {
     } catch (error) {
       publication.status = 'FAILED';
       publication.error_message = (error as Error).message;
-      offer.status = 'FAILED';
+      // Falha de infraestrutura da fila não invalida o link de afiliado.
+      // A oferta continua pronta para nova tentativa quando o Redis/worker voltar.
       return res.status(503).json({ success:false, publication, error:'Fila de publicação indisponível.' });
     }
     return res.status(202).json({ success:true, queued:true, publication });
