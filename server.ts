@@ -453,7 +453,7 @@ async function startServer() {
     };
     const offer: Offer = {
       id: 'offer_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6), product_id: product.id,
-      product, marketplace: 'MERCADOLIVRE', price, status: 'VALIDATED',
+      product, marketplace: 'MERCADOLIVRE', price, score: 0, status: 'VALIDATED',
       status_reason: 'Produto cadastrado. Gere o link no Portal de Afiliados e associe-o a esta oferta.',
       first_seen_at: new Date().toISOString(), last_seen_at: new Date().toISOString()
     };
