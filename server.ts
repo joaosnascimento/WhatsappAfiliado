@@ -1000,16 +1000,39 @@ async function startServer() {
     return { base, key, instance };
   };
 
+  const mapEvolutionState = (state:string, exists:boolean): import('./src/services/WhatsAppSettingsService.ts').WhatsAppRuntimeState => {
+    if (!exists) return 'INSTANCE_NOT_FOUND';
+    if (state === 'open') return 'CONNECTED';
+    if (state === 'connecting') return 'CONNECTING';
+    if (state === 'qr') return 'QR_REQUIRED';
+    if (state === 'close' || state === 'closed') return 'DISCONNECTED';
+    if (state === 'logout' || state === 'logged_out') return 'LOGGED_OUT';
+    return 'UNKNOWN';
+  };
+
   app.get('/api/whatsapp/status', async (req,res) => {
     try {
       const cfg = await getEvolutionConfig(req.user!.workspaceId);
       const r = await fetch(cfg.base + '/instance/connectionState/' + encodeURIComponent(cfg.instance), { headers:{apikey:cfg.key} });
       const data = await r.json().catch(()=>({}));
-      if (r.status === 404) return res.json({configured:true,instance:cfg.instance,state:'close',exists:false});
-      if (!r.ok) return res.status(r.status).json({configured:true,state:'error',error:data?.message || data?.error || 'Evolution API não respondeu corretamente.'});
+      if (r.status === 404) {
+        await WhatsAppSettingsService.updateRuntimeState(req.user!.workspaceId,'INSTANCE_NOT_FOUND');
+        return res.json({configured:true,instance:cfg.instance,state:'close',runtimeState:'INSTANCE_NOT_FOUND',connected:false,exists:false});
+      }
+      if (!r.ok) {
+        const error=String(data?.message || data?.error || 'Evolution API não respondeu corretamente.').slice(0,500);
+        await WhatsAppSettingsService.updateRuntimeState(req.user!.workspaceId,'ERROR',error);
+        return res.status(r.status).json({configured:true,state:'error',runtimeState:'ERROR',connected:false,error});
+      }
       const state=String(data?.instance?.state || data?.state || 'close').toLowerCase();
-      res.json({configured:true,instance:cfg.instance,state,connected:state==='open',exists:true});
-    } catch(err) { res.status(400).json({configured:false,state:'not_configured',error:(err as Error).message}); }
+      const runtimeState=mapEvolutionState(state,true);
+      await WhatsAppSettingsService.updateRuntimeState(req.user!.workspaceId,runtimeState);
+      res.json({configured:true,instance:cfg.instance,state,runtimeState,connected:runtimeState==='CONNECTED',exists:true});
+    } catch(err) {
+      const error=(err as Error).message;
+      try { await WhatsAppSettingsService.updateRuntimeState(req.user!.workspaceId,'ERROR',error); } catch {}
+      res.status(400).json({configured:false,state:'not_configured',runtimeState:'NOT_CONFIGURED',connected:false,error});
+    }
   });
 
   app.post('/api/whatsapp/connect', async (req,res) => {
@@ -1028,7 +1051,10 @@ async function startServer() {
         const stateRes = await fetch(cfg.base + '/instance/connectionState/' + encodeURIComponent(cfg.instance), {headers:{apikey:cfg.key}});
         const stateData = await stateRes.json().catch(()=>({}));
         const currentState = String(stateData?.instance?.state || stateData?.state || '').toLowerCase();
-        if (stateRes.ok && currentState === 'open') return res.json({state:'open',qrcode:null,instance:cfg.instance});
+        if (stateRes.ok && currentState === 'open') {
+          await WhatsAppSettingsService.updateRuntimeState(req.user!.workspaceId,'CONNECTED');
+          return res.json({state:'open',runtimeState:'CONNECTED',qrcode:null,instance:cfg.instance});
+        }
       }
       if (!exists) {
         const create = await fetch(cfg.base + '/instance/create', {method:'POST',headers,body:JSON.stringify({instanceName:cfg.instance,integration:'WHATSAPP-BAILEYS',qrcode:true,groupsIgnore:false,alwaysOnline:true})});
@@ -1043,8 +1069,14 @@ async function startServer() {
       const connect = await fetch(cfg.base + '/instance/connect/' + encodeURIComponent(cfg.instance), {headers:{apikey:cfg.key}});
       const data=await connect.json().catch(()=>({}));
       if(!connect.ok) return res.status(connect.status).json({error:data?.message || data?.error || 'Não foi possível gerar o QR Code.'});
-      res.json({state:'connecting',qrcode:normalizeQrCode(data?.base64 || data?.qrcode?.base64 || data?.qrcode?.code || null),instance:cfg.instance});
-    } catch(err) { res.status(400).json({error:(err as Error).message}); }
+      const qrcode=normalizeQrCode(data?.base64 || data?.qrcode?.base64 || data?.qrcode?.code || null);
+      await WhatsAppSettingsService.updateRuntimeState(req.user!.workspaceId,qrcode ? 'QR_REQUIRED' : 'CONNECTING');
+      res.json({state:'connecting',runtimeState:qrcode ? 'QR_REQUIRED' : 'CONNECTING',qrcode,instance:cfg.instance});
+    } catch(err) {
+      const error=(err as Error).message;
+      try { await WhatsAppSettingsService.updateRuntimeState(req.user!.workspaceId,'ERROR',error); } catch {}
+      res.status(400).json({error});
+    }
   });
 
   app.post('/api/whatsapp/disconnect', async (req,res) => {
@@ -1052,14 +1084,34 @@ async function startServer() {
       const cfg=await getEvolutionConfig(req.user!.workspaceId);
       const r=await fetch(cfg.base + '/instance/logout/' + encodeURIComponent(cfg.instance),{method:'DELETE',headers:{apikey:cfg.key}});
       const body=await r.text().catch(()=> '');
-      if(!r.ok) {
+      let logoutOk=r.ok;
+      if(!logoutOk) {
         // Some Evolution deployments expose logout as POST instead of DELETE.
         const retry=await fetch(cfg.base + '/instance/logout/' + encodeURIComponent(cfg.instance),{method:'POST',headers:{apikey:cfg.key}});
         const retryBody=await retry.text().catch(()=> '');
-        if(!retry.ok && retry.status !== 404) return res.status(retry.status).json({error:'Não foi possível desconectar o WhatsApp: HTTP '+retry.status+(retryBody ? ': '+retryBody.slice(0,300) : '')});
+        logoutOk=retry.ok || retry.status===404;
+        if(!logoutOk) return res.status(retry.status).json({error:'Não foi possível desconectar o WhatsApp: HTTP '+retry.status+(retryBody ? ': '+retryBody.slice(0,300) : '')});
       }
-      res.json({success:true,state:'close'});
-    } catch(err){res.status(400).json({error:(err as Error).message});}
+
+      // Logout is not considered successful until Evolution confirms the runtime
+      // state. This prevents the UI/database from saying "disconnected" while the
+      // instance is still actually connected.
+      const verify=await fetch(cfg.base + '/instance/connectionState/' + encodeURIComponent(cfg.instance),{headers:{apikey:cfg.key}});
+      const verifyData=await verify.json().catch(()=>({}));
+      const actual=String(verifyData?.instance?.state || verifyData?.state || 'close').toLowerCase();
+      if(verify.ok && actual==='open') {
+        const error='A Evolution API ainda informa a instância como conectada após o logout.';
+        await WhatsAppSettingsService.updateRuntimeState(req.user!.workspaceId,'ERROR',error);
+        return res.status(409).json({success:false,runtimeState:'ERROR',state:actual,error});
+      }
+      const runtimeState=verify.status===404 ? 'INSTANCE_NOT_FOUND' : (actual==='logout'||actual==='logged_out' ? 'LOGGED_OUT' : 'DISCONNECTED');
+      await WhatsAppSettingsService.updateRuntimeState(req.user!.workspaceId,runtimeState);
+      res.json({success:true,state:actual,runtimeState});
+    } catch(err){
+      const error=(err as Error).message;
+      try { await WhatsAppSettingsService.updateRuntimeState(req.user!.workspaceId,'ERROR',error); } catch {}
+      res.status(400).json({error});
+    }
   });
 
   app.get('/api/whatsapp/qrcode', async (req,res) => {
