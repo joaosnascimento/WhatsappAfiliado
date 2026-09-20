@@ -32,6 +32,7 @@ export const AffiliatesTab: React.FC<AffiliatesTabProps> = ({
   whatsappSettings,
   onSaveWhatsApp,
 }) => {
+  const toast=useToast();
   const shopeeAcc = accounts.find((a) => a.marketplace === 'SHOPEE');
   const mlAcc = accounts.find((a) => a.marketplace === 'MERCADOLIVRE');
   const [mlStatus, setMlStatus] = useState<any>(null);
