@@ -1,3 +1,4 @@
+import { query } from '../infrastructure/database.ts';
 import type {
   MarketplaceType,
   AffiliateProduct,
@@ -34,7 +35,7 @@ export class AuditService {
   /**
    * Records a complete, audited publication trace
    */
-  public static logPublicationTrace(params: {
+  public static async logPublicationTrace(params: {
     offer: Offer;
     destination: Destination;
     publication: Publication;
@@ -62,13 +63,34 @@ export class AuditService {
     };
 
     this.records.unshift(record);
+    if (process.env.DATABASE_URL) {
+      await query(`INSERT INTO audit_records
+        (id,workspace_id,marketplace,product_id,product_title,original_price,final_price,affiliate_account_id,original_url,affiliate_url,campaign_id,destination_id,destination_name,ai_message,publication_id,publication_status,published_at,tracking_subids,created_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+        ON CONFLICT (workspace_id,publication_id) DO UPDATE SET publication_status=EXCLUDED.publication_status,published_at=EXCLUDED.published_at,ai_message=EXCLUDED.ai_message,tracking_subids=EXCLUDED.tracking_subids`,
+        [record.id,record.workspaceId,record.marketplace,record.productId,record.productTitle,record.originalPrice ?? null,record.finalPrice,record.affiliateAccountId,record.originalUrl,record.affiliateUrl,record.campaignId ?? null,record.destinationId,record.destinationName,record.aiMessage,record.publicationId,record.publicationStatus,record.publishedAt,JSON.stringify(record.trackingSubIds || []),record.createdAt]);
+    }
     return record;
   }
 
   /**
    * Retrieves audit records with optional filtering
    */
-  public static getAuditRecords(workspaceId: string, marketplace?: MarketplaceType, destinationId?: string): AuditRecord[] {
+  public static async getAuditRecords(workspaceId: string, marketplace?: MarketplaceType, destinationId?: string): Promise<AuditRecord[]> {
+    if (process.env.DATABASE_URL) {
+      const filters = ['workspace_id=$1'];
+      const params: unknown[] = [workspaceId];
+      if (marketplace) { params.push(marketplace); filters.push(`marketplace=${params.length}`); }
+      if (destinationId) { params.push(destinationId); filters.push(`destination_id=${params.length}`); }
+      const rows = await query<any>(`SELECT id,workspace_id,marketplace,product_id,product_title,original_price,final_price,affiliate_account_id,original_url,affiliate_url,campaign_id,destination_id,destination_name,ai_message,publication_id,publication_status,published_at,tracking_subids,created_at FROM audit_records WHERE ${filters.join(' AND ')} ORDER BY created_at DESC LIMIT 500`, params);
+      return rows.map((r:any) => ({
+        id:r.id, workspaceId:r.workspace_id, marketplace:r.marketplace, productId:r.product_id, productTitle:r.product_title,
+        originalPrice:r.original_price == null ? undefined : Number(r.original_price), finalPrice:Number(r.final_price), affiliateAccountId:r.affiliate_account_id,
+        originalUrl:r.original_url, affiliateUrl:r.affiliate_url, campaignId:r.campaign_id || undefined, destinationId:r.destination_id,
+        destinationName:r.destination_name, aiMessage:r.ai_message, publicationId:r.publication_id, publicationStatus:r.publication_status,
+        publishedAt:new Date(r.published_at).toISOString(), trackingSubIds:Array.isArray(r.tracking_subids) ? r.tracking_subids : [], createdAt:new Date(r.created_at).toISOString(),
+      }));
+    }
     return this.records.filter((r) => {
       if (r.workspaceId !== workspaceId) return false;
       if (marketplace && r.marketplace !== marketplace) return false;
@@ -80,7 +102,13 @@ export class AuditService {
   /**
    * Finds a trace by publication ID
    */
-  public static getByPublicationId(workspaceId: string, publicationId: string): AuditRecord | undefined {
+  public static async getByPublicationId(workspaceId: string, publicationId: string): Promise<AuditRecord | undefined> {
+    if (process.env.DATABASE_URL) {
+      const rows = await query<any>('SELECT id,workspace_id,marketplace,product_id,product_title,original_price,final_price,affiliate_account_id,original_url,affiliate_url,campaign_id,destination_id,destination_name,ai_message,publication_id,publication_status,published_at,tracking_subids,created_at FROM audit_records WHERE workspace_id=$1 AND publication_id=$2 LIMIT 1',[workspaceId,publicationId]);
+      const r=rows[0];
+      if(!r) return undefined;
+      return {id:r.id,workspaceId:r.workspace_id,marketplace:r.marketplace,productId:r.product_id,productTitle:r.product_title,originalPrice:r.original_price==null?undefined:Number(r.original_price),finalPrice:Number(r.final_price),affiliateAccountId:r.affiliate_account_id,originalUrl:r.original_url,affiliateUrl:r.affiliate_url,campaignId:r.campaign_id||undefined,destinationId:r.destination_id,destinationName:r.destination_name,aiMessage:r.ai_message,publicationId:r.publication_id,publicationStatus:r.publication_status,publishedAt:new Date(r.published_at).toISOString(),trackingSubIds:Array.isArray(r.tracking_subids)?r.tracking_subids:[],createdAt:new Date(r.created_at).toISOString()};
+    }
     return this.records.find((r) => r.workspaceId === workspaceId && r.publicationId === publicationId);
   }
 }
