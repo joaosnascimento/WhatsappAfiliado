@@ -93,7 +93,7 @@ async function launch(account: MarketplaceAccount, headed: boolean): Promise<Run
   // Playwright storageState, which previously made the session work only once.
   const context = await chromium.launchPersistentContext(profileDir, {
     headless: !headed,
-    storageState: saved || undefined,
+    // Persistent context already owns the on-disk session; do not pass storageState here.
     args: ['--disable-blink-features=AutomationControlled'],
   });
   const page = context.pages()[0] || await context.newPage();
