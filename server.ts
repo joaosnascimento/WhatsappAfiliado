@@ -352,6 +352,7 @@ async function startServer() {
         clientSecret: account?.credentials_encrypted.ml_client_secret,
         redirectUri: account?.credentials_encrypted.ml_redirect_uri,
         accessToken: account?.credentials_encrypted.ml_access_token,
+        botDoAfiliadoApiKey: process.env.BOT_DO_AFILIADO_API_KEY,
       });
       const testResult = await adapter.testConnection();
       return res.json(testResult);
@@ -451,6 +452,7 @@ async function startServer() {
         const adapter = new MercadoLivreAffiliateAdapter({
           clientId: mlAccount?.credentials_encrypted.ml_client_id,
           accessToken: mlAccount?.credentials_encrypted.ml_access_token,
+          botDoAfiliadoApiKey: process.env.BOT_DO_AFILIADO_API_KEY,
         });
 
         const products = await adapter.searchOffers({
@@ -463,8 +465,26 @@ async function startServer() {
         for (const p of products) {
           store.products.set(p.id, p);
 
-          // Rule 4: Mercado Livre open API does not produce auto-affiliate links.
-          // Ingest as VALIDATED, preserving original_url, requiring verified meli.la link before publish!
+          let affiliateUrl: string | undefined;
+          let linkId: string | undefined;
+          let status: Offer['status'] = 'VALIDATED';
+          let statusReason = 'Link de afiliado do Mercado Livre pendente de associação.';
+
+          try {
+            const link = await adapter.createAffiliateLink({
+              originalUrl: p.original_url,
+              productId: p.external_product_id,
+              subIds: ['whatsapp', 'auto_search'],
+            });
+            store.links.set(link.id, link);
+            affiliateUrl = link.affiliate_url;
+            linkId = link.id;
+            status = 'AFFILIATE_LINK_READY';
+            statusReason = 'Link de afiliado Mercado Livre gerado e validado automaticamente.';
+          } catch (error) {
+            statusReason = (error as Error).message || statusReason;
+          }
+
           const offer: Offer = {
             id: `offer_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
             product_id: p.id,
@@ -475,8 +495,10 @@ async function startServer() {
             discount: p.discount,
             commission: p.commission,
             score: Math.min(100, Math.round((p.discount || 10) * 1.5 + 40)),
-            status: 'VALIDATED', // Requires manual or verified link import
-            status_reason: 'Link de afiliado oficial do Mercado Livre (ex: meli.la) pendente de associação.',
+            status,
+            status_reason: statusReason,
+            affiliate_link_id: linkId,
+            affiliate_url: affiliateUrl,
             first_seen_at: new Date().toISOString(),
             last_seen_at: new Date().toISOString(),
           };
