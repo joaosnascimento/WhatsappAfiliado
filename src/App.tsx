@@ -197,6 +197,17 @@ function AppContent() {
     await loadData();
   };
 
+  const handleManualMercadoLivre = async (payload: { originalUrl: string; title?: string; price: number }) => {
+    const res = await apiFetch('/api/offers/manual-mercadolivre', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload),
+    });
+    const data = await readJson(res);
+    if (!res.ok) throw new Error(data.error || 'Não foi possível adicionar a oferta.');
+    await loadData();
+  };
+
   const handleAssociateMLLink = async (offerId: string, affiliateUrl: string) => {
     const res = await apiFetch(`/api/offers/${offerId}/associate-ml-link`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ affiliateUrl }) });
     if (!res.ok) { const err=await readJson(res); throw new Error(err.error||'Erro ao associar link'); }
@@ -288,7 +299,7 @@ function AppContent() {
         {activeTab === 'setup' && <SetupTab apiFetch={apiFetch} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} onNavigate={setActiveTab} />}
         {activeTab === 'dashboard' && <DashboardTab reports={reports} onNavigateToOffers={()=>setActiveTab('offers')} onNavigateToAffiliates={()=>setActiveTab('affiliates')} />}
         {activeTab === 'affiliates' && <AffiliatesTab apiFetch={apiFetch} accounts={accounts} onSaveAccount={handleSaveAccount} onTestIntegration={handleTestIntegration} whatsappSettings={whatsappSettings} onSaveWhatsApp={handleSaveWhatsApp} />}
-        {activeTab === 'offers' && <OffersTab offers={offers} destinations={destinations} onLiveSearch={handleLiveSearch} onOpenAssociateModal={(offer)=>setAssociateModalOffer(offer)} onOpenAiMessageModal={(offer)=>setAiModalOffer(offer)} onQuickPublish={handlePublish} onDeleteOffer={handleDeleteOffer} />}
+        {activeTab === 'offers' && <OffersTab offers={offers} destinations={destinations} onLiveSearch={handleLiveSearch} onManualAddMercadoLivre={handleManualMercadoLivre} onOpenAssociateModal={(offer)=>setAssociateModalOffer(offer)} onOpenAiMessageModal={(offer)=>setAiModalOffer(offer)} onQuickPublish={handlePublish} onDeleteOffer={handleDeleteOffer} />}
         {activeTab === 'destinations' && <DestinationsTab destinations={destinations} onAddDestination={handleAddDestination} apiFetch={apiFetch} />}
         {activeTab === 'queue' && <PublicationsTab publications={publications} onTriggerSend={handleTriggerSend} onDelete={handleDeletePublication} onRetry={handleRetryPublication} />}
         {activeTab === 'audit' && <AuditTab records={auditRecords} />}
