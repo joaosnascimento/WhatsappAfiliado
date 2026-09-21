@@ -381,7 +381,9 @@ export class MercadoLivreOfficialSessionProvider {
       if (products.length >= limit) break;
       if (!row.href || !ML_HOST.test(new URL(row.href).hostname)) continue;
       if (!/\/MLB[-_]|\/p\/MLB/i.test(row.href)) continue;
-      const productIdMatch = row.href.match(/(?:\/p\/|\/)(MLB[-_][A-Za-z0-9_-]+)/i);\n      const dedupeKey = productIdMatch?.[1]?.toUpperCase() || row.href.split('?')[0].replace(/\/$/, '').toLowerCase();\n      if (seen.has(dedupeKey)) continue;
+      const productIdMatch = row.href.match(/(?:\/p\/|\/)(MLB[-_][A-Za-z0-9_-]+)/i);
+      const dedupeKey = productIdMatch?.[1]?.toUpperCase() || row.href.split('?')[0].replace(/\/$/, '').toLowerCase();
+      if (seen.has(dedupeKey)) continue;
 
       const cardText = row.text;
       const discountMatch = cardText.match(/(\d{1,3})\s*%\s*(?:OFF|de\s*desconto|desconto)/i);
