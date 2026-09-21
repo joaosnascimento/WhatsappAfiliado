@@ -138,33 +138,6 @@ async function findAffiliateLink(page: Page): Promise<string | null> {
   return match ? match[0] : null;
 }
 
-async function createAffiliateLinkViaOfficialApi(page: Page, originalUrl: string, context: BrowserContext): Promise<string | null> {
-  const cookies = await context.cookies('https://www.mercadolivre.com.br');
-  const csrf = cookies.find(cookie => cookie.name === '_csrf')?.value || '';
-  const result = await page.evaluate(async ({ originalUrl, tag, csrf }) => {
-    const response = await fetch('/affiliate-program/api/v2/affiliates/createLink', {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        accept: 'application/json, text/plain, */*',
-        'content-type': 'application/json',
-        origin: location.origin,
-        referer: location.href,
-        ...(csrf ? { 'x-csrf-token': csrf } : {}),
-      },
-      body: JSON.stringify({ urls: [originalUrl], tag }),
-    });
-    const text = await response.text();
-    let data: any = null;
-    try { data = JSON.parse(text); } catch {}
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${data?.message || data?.error || text.slice(0, 300)}`);
-    const candidates = [data?.urls?.[0]?.short_url, data?.urls?.[0]?.url, data?.short_url, data?.url].filter(Boolean);
-    return candidates.find((value: string) => /^https:\/\/(?:www\.)?meli\.la\//i.test(value)) || candidates[0] || null;
-  }, { originalUrl, tag: process.env.ML_AFFILIATE_TAG || 'whatsappafiliado', csrf });
-  if (!result) throw new Error('A API oficial do Mercado Livre não retornou um link afiliado.');
-  return result;
-}
-
 async function openAffiliateGenerator(page: Page) {
   for (const url of PORTAL_URLS) {
     try {
@@ -313,22 +286,19 @@ export class MercadoLivreOfficialSessionProvider {
       throw new Error('Sessão do Mercado Livre expirada. Clique em Conectar Mercado Livre e faça login novamente.');
     }
 
+    // Mercado Livre attribution is intentionally browser-only.
+    // Do not call internal/Developer APIs: the authenticated Portal de Afiliados
+    // UI is the source of truth for generating the official meli.la link.
     let affiliateUrl: string | null = null;
-    try {
-      affiliateUrl = await createAffiliateLinkViaOfficialApi(runtime.page, originalUrl, runtime.context);
-    } catch (apiError) {
-      try {
-        await openAffiliateGenerator(runtime.page);
-        await fillGenerator(runtime.page, originalUrl);
-        const deadline = Date.now() + 30000;
-        while (Date.now() < deadline && !affiliateUrl) {
-          affiliateUrl = await findAffiliateLink(runtime.page);
-          if (affiliateUrl) break;
-          await runtime.page.waitForTimeout(750);
-        }
-      } catch {}
-      if (!affiliateUrl) throw new Error(\`Falha ao gerar link afiliado pela API oficial: \${(apiError as Error).message}\`);
+    await openAffiliateGenerator(runtime.page);
+    await fillGenerator(runtime.page, originalUrl);
+    const deadline = Date.now() + 30000;
+    while (Date.now() < deadline && !affiliateUrl) {
+      affiliateUrl = await findAffiliateLink(runtime.page);
+      if (affiliateUrl) break;
+      await runtime.page.waitForTimeout(750);
     }
+    if (!affiliateUrl) throw new Error('O Portal de Afiliados do Mercado Livre não retornou um link meli.la.');
 
     const validation = MercadoLivreAffiliateService.validateAffiliateUrl(affiliateUrl, originalUrl);
     if (!validation.isValidAffiliateLink) throw new Error(validation.reason || 'Link afiliado inválido.');
