@@ -158,8 +158,12 @@ ${JSON.stringify(verifiedFacts, null, 2)}
       lines.push(`📉 *Desconto de ${product.discount}%*`);
     }
 
+    const productCoupon = (product.metadata?.coupon || null) as any;
     if (couponCode) {
       lines.push(`🎟️ Use o cupom: *${couponCode}*`);
+    } else if (product.metadata?.coupon_status === 'AVAILABLE' || product.metadata?.coupon_status === 'EXPIRING') {
+      const couponDescription = productCoupon?.description ? ` — ${String(productCoupon.description)}` : '';
+      lines.push(`🎟️ *Cupom disponível na oferta*${couponDescription}`);
     }
 
     lines.push('');
