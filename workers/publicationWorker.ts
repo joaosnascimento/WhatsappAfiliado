@@ -108,8 +108,31 @@ const worker=new Worker('affiliate-publications',async job=>{
 
 worker.on('failed',(job,err)=>console.error(JSON.stringify({event:'publication_failed',jobId:job?.id,publicationId:job?.data?.publicationId,attempt:job?.attemptsMade,error:err.message})));
 worker.on('error',err=>console.error(JSON.stringify({event:'worker_error',error:err.message})));
+async function normalizeLegacyDuplicateFailures() {
+  try {
+    const rows = await query<{id:string;workspace_id:string;error:string}>(
+      "UPDATE publications SET status='CANCELLED',last_error_code='DUPLICATE_PUBLICATION',updated_at=NOW() WHERE status='FAILED' AND (error ILIKE '%Deduplicação ativada%' OR error ILIKE '%produto já foi publicado%') RETURNING id,workspace_id,error",
+    );
+    if (!rows.length) return;
+    for (const row of rows) {
+      const stateRows = await query<{state:any}>('SELECT state FROM workspace_state WHERE workspace_id=$1',[row.workspace_id]);
+      const state = stateRows[0]?.state;
+      const pub = state?.publications?.find((item:any)=>item.id===row.id);
+      if (pub) {
+        pub.status='CANCELLED';
+        pub.error_message=row.error;
+      }
+      if (state) await query('UPDATE workspace_state SET state=$2,updated_at=NOW() WHERE workspace_id=$1',[row.workspace_id,JSON.stringify(state)]);
+    }
+    console.log('Normalized legacy duplicate publication failures:', rows.length);
+  } catch (error) {
+    console.error('Legacy duplicate publication normalization failed:', error);
+  }
+}
+
 const maintenanceIntervalMs=Math.max(300000,Number(process.env.MAINTENANCE_INTERVAL_MS||3600000));
 void DeduplicationService.purgeOldRecords(Number(process.env.DEDUP_RETENTION_DAYS||30)).catch(error=>console.error('Initial dedup cleanup failed:',error));
+void normalizeLegacyDuplicateFailures();
 void AccountHealthService.tick().catch(error=>console.error('Initial account health check failed:',error));
 void ConversionSyncService.tick().catch(error=>console.error('Initial conversion sync failed:',error));
 setInterval(()=>{void DeduplicationService.purgeOldRecords(Number(process.env.DEDUP_RETENTION_DAYS||30)).catch(error=>console.error('Dedup cleanup failed:',error));void AccountHealthService.tick().catch(error=>console.error('Account health check failed:',error));void ConversionSyncService.tick().catch(error=>console.error('Conversion sync failed:',error));},maintenanceIntervalMs);
