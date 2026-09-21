@@ -310,6 +310,11 @@ export const OffersTab: React.FC<OffersTabProps> = ({
                         <TrendingDown className="w-3 h-3" /> {offer.discount}% OFF
                       </span>
                     )}
+                    {(offer.product.metadata?.coupon_status === 'AVAILABLE' || offer.product.metadata?.coupon_status === 'EXPIRING') && (
+                      <span className="inline-flex items-center gap-0.5 text-xs font-bold text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded mt-1">
+                        🎟️ Cupom disponível{offer.coupon_code ? ` • ${offer.coupon_code}` : ''}
+                      </span>
+                    )}
                   </div>
                 </div>
 

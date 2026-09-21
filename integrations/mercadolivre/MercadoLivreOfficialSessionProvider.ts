@@ -120,6 +120,50 @@ async function closeAndPersist(account: MarketplaceAccount, runtime: Runtime) {
   runtimes.delete(account.id);
 }
 
+function parseAvailableCoupon(text: string, sourceUrl: string) {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!/cupom|voucher/i.test(normalized)) return null;
+  const codeMatch = normalized.match(/(?:cupom|voucher|c[oó]digo(?: promocional)?)\s*[:#-]?\s*([A-Z0-9][A-Z0-9_-]{3,30})/i);
+  const percentMatch = normalized.match(/(\d{1,3})\s*%\s*(?:OFF|de desconto|desconto)/i);
+  const fixedMatch = normalized.match(/R\$\s*([0-9.]+(?:,[0-9]{1,2})?)\s*(?:OFF|de desconto|desconto)/i);
+  const minMatch = normalized.match(/(?:acima de|a partir de|mínimo de|valor mínimo)[^R$]{0,30}R\$\s*([0-9.]+(?:,[0-9]{1,2})?)/i);
+  const parseMoney = (v?: string) => v ? Number(v.replace(/\./g,'').replace(',','.')) : undefined;
+  const code = codeMatch?.[1]?.toUpperCase();
+  return {
+    code,
+    description: [percentMatch ? `${percentMatch[1]}% OFF` : '', fixedMatch ? `R$ ${fixedMatch[1]} OFF` : '', minMatch ? `mínimo R$ ${minMatch[1]}` : ''].filter(Boolean).join(' + ') || 'Cupom disponível na página da oferta',
+    discount_type: percentMatch ? 'PERCENTAGE' : fixedMatch ? 'FIXED' : 'UNKNOWN',
+    discount_value: percentMatch ? Number(percentMatch[1]) : parseMoney(fixedMatch?.[1]),
+    minimum_order_value: parseMoney(minMatch?.[1]),
+    source_url: sourceUrl,
+    verified: true,
+    status: 'AVAILABLE',
+    type: code ? 'CODE' : 'ACTIVATION',
+  };
+}
+
+async function enrichMercadoLivreCoupon(page: Page, product: AffiliateProduct): Promise<AffiliateProduct> {
+  try {
+    await page.goto(product.original_url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    await page.waitForTimeout(500);
+    const text = await page.locator('body').innerText().catch(() => '');
+    const coupon = parseAvailableCoupon(text, product.original_url);
+    if (!coupon) return product;
+    return {
+      ...product,
+      metadata: {
+        ...(product.metadata || {}),
+        coupon,
+        coupon_status: coupon.status,
+        coupon_verified: true,
+        coupon_source: 'mercadolivre_product_page',
+      },
+    };
+  } catch {
+    return product;
+  }
+}
+
 async function findAffiliateLink(page: Page): Promise<string | null> {
   const hrefs = await page.locator('a[href*="meli.la"]').evaluateAll((els) =>
     els.map((el) => (el as HTMLAnchorElement).href).filter(Boolean)
@@ -442,6 +486,11 @@ export class MercadoLivreOfficialSessionProvider {
       });
       seen.add(dedupeKey);
     }
+
+      const couponScanLimit = Math.min(products.length, Math.max(0, Number(process.env.ML_COUPON_SCAN_LIMIT || 20)));
+      for (let i = 0; i < couponScanLimit; i++) {
+        products[i] = await enrichMercadoLivreCoupon(runtime.page, products[i]);
+      }
 
       await persistSession(account, runtime.context, 'CONNECTED');
       return products;

@@ -12,6 +12,81 @@ type State = { products?: AffiliateProduct[]; links?: any[]; offers?: Offer[]; c
 
 function unique<T>(values: T[]): T[] { return [...new Set(values)]; }
 
+type DiscoveredCoupon = {
+  code?: string;
+  description?: string;
+  discount_type?: 'PERCENTAGE'|'FIXED'|'UNKNOWN';
+  discount_value?: number;
+  minimum_order_value?: number;
+  expires_at?: string;
+  source_url: string;
+  verified: boolean;
+  status: 'AVAILABLE'|'EXPIRING';
+  type: 'CODE'|'ACTIVATION'|'STORE';
+};
+
+function parseCouponFromText(text: string, sourceUrl: string): DiscoveredCoupon | null {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!/(?:cupom|voucher|coupon).{0,160}(?:R\$|%|desconto|aplicar|ativar|usar|código)|(?:R\$|%|desconto).{0,160}(?:cupom|voucher|coupon)/i.test(normalized)) return null;
+  const codeMatch = normalized.match(/(?:cupom|voucher|c[oó]digo(?: promocional)?)\s*[:#-]?\s*([A-Z0-9][A-Z0-9_-]{3,30})/i);
+  const percentMatch = normalized.match(/(\d{1,3})\s*%\s*(?:OFF|de desconto|desconto)/i);
+  const fixedMatch = normalized.match(/R\$\s*([0-9.]+(?:,[0-9]{1,2})?)\s*(?:OFF|de desconto|desconto)/i);
+  const minMatch = normalized.match(/(?:acima de|a partir de|mínimo de|valor mínimo)[^R$]{0,30}R\$\s*([0-9.]+(?:,[0-9]{1,2})?)/i);
+  const expiresMatch = normalized.match(/(?:válido|validade|expira|até)\D{0,20}(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/i);
+  const parseMoney = (v?: string) => v ? Number(v.replace(/\./g,'').replace(',','.')) : undefined;
+  const code = codeMatch?.[1]?.toUpperCase();
+  const type = code ? 'CODE' : /cupom da loja|cupom de vendedor/i.test(normalized) ? 'STORE' : 'ACTIVATION';
+  const description = [
+    percentMatch ? `${percentMatch[1]}% OFF` : '',
+    fixedMatch ? `R$ ${fixedMatch[1]} OFF` : '',
+    minMatch ? `mínimo R$ ${minMatch[1]}` : '',
+  ].filter(Boolean).join(' + ') || 'Cupom disponível na página da oferta';
+  return {
+    code,
+    description,
+    discount_type: percentMatch ? 'PERCENTAGE' : fixedMatch ? 'FIXED' : 'UNKNOWN',
+    discount_value: percentMatch ? Number(percentMatch[1]) : parseMoney(fixedMatch?.[1]),
+    minimum_order_value: parseMoney(minMatch?.[1]),
+    expires_at: (() => { const raw=expiresMatch?.[1]; if (!raw) return undefined; const [day,month,yearRaw]=raw.split('/'); const year=yearRaw ? (yearRaw.length===2 ? '20'+yearRaw : yearRaw) : String(new Date().getFullYear()); return `${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}T23:59:59-03:00`; })(),
+    source_url: sourceUrl,
+    verified: true,
+    status: 'AVAILABLE',
+    type,
+  };
+}
+
+async function enrichProductCoupon(product: AffiliateProduct): Promise<AffiliateProduct> {
+  if (!/^https:\/\//i.test(product.original_url)) return product;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const response = await fetch(product.original_url, {
+      signal: controller.signal,
+      headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36', accept: 'text/html,application/xhtml+xml' },
+    });
+    clearTimeout(timer);
+    if (!response.ok) return product;
+    const html = (await response.text()).slice(0, 1_500_000);
+    const textContent = html
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;|&#160;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/\s+/g, ' ');
+    const coupon = parseCouponFromText(textContent, product.original_url);
+    if (!coupon) return product;
+    const metadata = { ...(product.metadata || {}) } as Record<string, unknown>;
+    metadata.coupon = coupon;
+    metadata.coupon_status = coupon.status;
+    metadata.coupon_verified = true;
+    metadata.coupon_source = 'product_page';
+    return { ...product, metadata, ...(coupon.code ? { } : {}) };
+  } catch {
+    return product;
+  }
+}
+
 function productMatches(product: AffiliateProduct, destination: any): boolean {
   const config = destination.config || {};
   const haystack = [product.title, product.category || '', product.metadata ? JSON.stringify(product.metadata) : ''].join(' ').toLowerCase();
@@ -80,7 +155,25 @@ export class MarketplaceDiscoveryScheduler {
             const secret = credentials.shopee_secret || process.env.SHOPEE_AFFILIATE_SECRET || '';
             if (!appId || !secret) continue;
             const adapter = new ShopeeAffiliateAdapter(appId, secret, account.id);
-            products = await adapter.searchOffers({ keyword: job.keyword, limit: 10 });
+            products = await adapter.searchOffers({ keyword: job.keyword, limit: 20, page: 1 });
+            const extra: AffiliateProduct[] = [];
+            for (const page of [2, 3]) {
+              try {
+                const batch = await adapter.searchOffers({ keyword: job.keyword, limit: 20, page });
+                extra.push(...batch);
+                if (batch.length < 20) break;
+              } catch { break; }
+            }
+            const byProduct = new Map(products.map(p => [p.external_product_id, p]));
+            for (const product of extra) if (!byProduct.has(product.external_product_id)) byProduct.set(product.external_product_id, product);
+            products = [...byProduct.values()].slice(0, 50);
+            if (job.marketplace === 'SHOPEE') {
+              const enriched: AffiliateProduct[] = [];
+              for (let i = 0; i < products.length; i += 3) {
+                enriched.push(...await Promise.all(products.slice(i, i + 3).map(enrichProductCoupon)));
+              }
+              products = enriched;
+            }
             for (const product of products) {
               const existingOffer = state.offers.find((o: Offer) => o.product?.external_product_id === product.external_product_id && o.marketplace === 'SHOPEE');
               const existingLink = state.links.find((l: any) => l.product_id === product.id);
@@ -112,7 +205,7 @@ export class MarketplaceDiscoveryScheduler {
               updated_at: new Date().toISOString(),
             };
             try {
-              products = await MercadoLivreOfficialSessionProvider.discover(mlAccount, job.keyword, 10);
+              products = await MercadoLivreOfficialSessionProvider.discover(mlAccount, job.keyword, 30);
               for (const product of products) {
                 try {
                   const link = await MercadoLivreOfficialSessionProvider.generateLink(mlAccount, product.original_url);
@@ -152,6 +245,10 @@ export class MarketplaceDiscoveryScheduler {
             const previousPrices = previousHistory.map((item: PriceObservation) => item.price).filter((price: number) => price > 0);
             const previousLowest = previousPrices.length ? Math.min(...previousPrices) : undefined;
             const displayedDiscount = Number(product.discount || 0);
+            const coupon = (product.metadata?.coupon || null) as any;
+            const couponAvailable = product.metadata?.coupon_status === 'AVAILABLE' || product.metadata?.coupon_status === 'EXPIRING';
+            const couponDeal = Boolean(couponAvailable && coupon);
+            const couponCode = coupon?.code ? String(coupon.code).trim().toUpperCase() : undefined;
             const historicalDeal = previousLowest !== undefined && product.price > 0 && product.price < previousLowest && displayedDiscount >= minRealDiscount;
             state.price_history[historyKey] = [...previousHistory, { price: product.price, observed_at: nowIso }].sort((a, b) => new Date(a.observed_at).getTime() - new Date(b.observed_at).getTime()).slice(-100);
             const dealMetadata = { ...(product.metadata || {}), historical_deal_verified: historicalDeal, historical_lowest_price: previousLowest, historical_price_days: historyDays, real_deal_min_discount: minRealDiscount, price_history_observations: previousPrices.length };
@@ -166,8 +263,10 @@ export class MarketplaceDiscoveryScheduler {
               existing.original_price = product.original_price;
               existing.discount = product.discount;
               existing.commission = product.commission;
+              existing.coupon_code = couponCode;
               existing.status = status;
               existing.last_seen_at = new Date().toISOString();
+              if (couponDeal) existing.status_reason = couponCode ? `Cupom verificado e disponível: ${couponCode}.` : 'Cupom verificado e disponível na página do produto.';
               if (affiliateUrl) existing.affiliate_url = affiliateUrl;
             } else {
               const offer: Offer = {
@@ -181,7 +280,8 @@ export class MarketplaceDiscoveryScheduler {
                 commission: product.commission,
                 score: Math.min(100, Math.round((product.discount || 0) * 1.5 + (product.rating || 0) * 8)),
                 status,
-                status_reason: historicalDeal ? (affiliateUrl ? undefined : product.marketplace === 'MERCADOLIVRE' ? 'Aguardando link oficial do Programa de Afiliados Mercado Livre.' : 'Link de afiliado ainda não confirmado.') : 'Oferta descoberta, mas ainda não confirmada como promoção real. Aguardando histórico de preço e desconto mínimo.',
+                coupon_code: couponCode,
+                status_reason: couponDeal ? (couponCode ? `Cupom verificado e disponível: ${couponCode}.` : 'Cupom verificado e disponível na página do produto.') : historicalDeal ? (affiliateUrl ? undefined : product.marketplace === 'MERCADOLIVRE' ? 'Aguardando link oficial do Programa de Afiliados Mercado Livre.' : 'Link de afiliado ainda não confirmado.') : 'Oferta descoberta, mas ainda não confirmada como promoção real. Aguardando histórico de preço e desconto mínimo.',
                 affiliate_url: affiliateUrl,
                 first_seen_at: new Date().toISOString(),
                 last_seen_at: nowIso,
