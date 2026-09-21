@@ -422,7 +422,6 @@ export class MercadoLivreOfficialSessionProvider {
         .slice(0, 180) || 'Produto Mercado Livre';
 
       const externalId = productIdMatch?.[1] || Buffer.from(row.href).toString('base64url').slice(0, 32);
-      const externalId = productIdMatch?.[1] || Buffer.from(row.href).toString('base64url').slice(0, 32);
 
       products.push({
         id: 'ml_auto_' + Buffer.from(row.href).toString('base64url').slice(0, 36),
