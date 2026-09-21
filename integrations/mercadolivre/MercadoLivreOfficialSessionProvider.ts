@@ -443,6 +443,11 @@ export class MercadoLivreOfficialSessionProvider {
       seen.add(dedupeKey);
     }
 
+      const couponScanLimit = Math.min(products.length, Math.max(0, Number(process.env.ML_COUPON_SCAN_LIMIT || 20)));
+      for (let i = 0; i < couponScanLimit; i++) {
+        products[i] = await enrichMercadoLivreCoupon(runtime.page, products[i]);
+      }
+
       await persistSession(account, runtime.context, 'CONNECTED');
       return products;
     } finally {
