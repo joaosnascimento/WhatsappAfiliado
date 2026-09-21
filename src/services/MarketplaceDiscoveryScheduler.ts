@@ -26,14 +26,14 @@ type DiscoveredCoupon = {
 };
 
 function parseCouponFromText(text: string, sourceUrl: string): DiscoveredCoupon | null {
-  const normalized = text.replace(/\\s+/g, ' ').trim();
+  const normalized = text.replace(/\s+/g, ' ').trim();
   if (!/cupom|voucher|coupon/i.test(normalized)) return null;
-  const codeMatch = normalized.match(/(?:cupom|voucher|c[oó]digo(?: promocional)?)\\s*[:#-]?\\s*([A-Z0-9][A-Z0-9_-]{3,30})/i);
-  const percentMatch = normalized.match(/(\\d{1,3})\\s*%\\s*(?:OFF|de desconto|desconto)/i);
-  const fixedMatch = normalized.match(/R\\$\\s*([0-9.]+(?:,[0-9]{1,2})?)\\s*(?:OFF|de desconto|desconto)/i);
-  const minMatch = normalized.match(/(?:acima de|a partir de|mínimo de|valor mínimo)[^R$]{0,30}R\\$\\s*([0-9.]+(?:,[0-9]{1,2})?)/i);
-  const expiresMatch = normalized.match(/(?:válido|validade|expira|até)\\D{0,20}(\\d{1,2}\\/\\d{1,2}(?:\\/\\d{2,4})?)/i);
-  const parseMoney = (v?: string) => v ? Number(v.replace(/\\./g,'').replace(',','.')) : undefined;
+  const codeMatch = normalized.match(/(?:cupom|voucher|c[oó]digo(?: promocional)?)\s*[:#-]?\s*([A-Z0-9][A-Z0-9_-]{3,30})/i);
+  const percentMatch = normalized.match(/(\d{1,3})\s*%\s*(?:OFF|de desconto|desconto)/i);
+  const fixedMatch = normalized.match(/R\$\s*([0-9.]+(?:,[0-9]{1,2})?)\s*(?:OFF|de desconto|desconto)/i);
+  const minMatch = normalized.match(/(?:acima de|a partir de|mínimo de|valor mínimo)[^R$]{0,30}R\$\s*([0-9.]+(?:,[0-9]{1,2})?)/i);
+  const expiresMatch = normalized.match(/(?:válido|validade|expira|até)\D{0,20}(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/i);
+  const parseMoney = (v?: string) => v ? Number(v.replace(/\./g,'').replace(',','.')) : undefined;
   const code = codeMatch?.[1]?.toUpperCase();
   const type = code ? 'CODE' : /cupom da loja|cupom de vendedor/i.test(normalized) ? 'STORE' : 'ACTIVATION';
   const description = [
@@ -56,7 +56,7 @@ function parseCouponFromText(text: string, sourceUrl: string): DiscoveredCoupon 
 }
 
 async function enrichProductCoupon(product: AffiliateProduct): Promise<AffiliateProduct> {
-  if (!/^https:\\/\\//i.test(product.original_url)) return product;
+  if (!/^https:\/\//i.test(product.original_url)) return product;
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 8000);
@@ -68,12 +68,12 @@ async function enrichProductCoupon(product: AffiliateProduct): Promise<Affiliate
     if (!response.ok) return product;
     const html = (await response.text()).slice(0, 1_500_000);
     const textContent = html
-      .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')
-      .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
       .replace(/<[^>]+>/g, ' ')
       .replace(/&nbsp;|&#160;/gi, ' ')
       .replace(/&amp;/gi, '&')
-      .replace(/\\s+/g, ' ');
+      .replace(/\s+/g, ' ');
     const coupon = parseCouponFromText(textContent, product.original_url);
     if (!coupon) return product;
     const metadata = { ...(product.metadata || {}) } as Record<string, unknown>;
