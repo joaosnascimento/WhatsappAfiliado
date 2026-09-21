@@ -27,7 +27,7 @@ type DiscoveredCoupon = {
 
 function parseCouponFromText(text: string, sourceUrl: string): DiscoveredCoupon | null {
   const normalized = text.replace(/\s+/g, ' ').trim();
-  if (!/cupom|voucher|coupon/i.test(normalized)) return null;
+  if (!/(?:cupom|voucher|coupon).{0,160}(?:R\$|%|desconto|aplicar|ativar|usar|código)|(?:R\$|%|desconto).{0,160}(?:cupom|voucher|coupon)/i.test(normalized)) return null;
   const codeMatch = normalized.match(/(?:cupom|voucher|c[oó]digo(?: promocional)?)\s*[:#-]?\s*([A-Z0-9][A-Z0-9_-]{3,30})/i);
   const percentMatch = normalized.match(/(\d{1,3})\s*%\s*(?:OFF|de desconto|desconto)/i);
   const fixedMatch = normalized.match(/R\$\s*([0-9.]+(?:,[0-9]{1,2})?)\s*(?:OFF|de desconto|desconto)/i);
@@ -47,7 +47,7 @@ function parseCouponFromText(text: string, sourceUrl: string): DiscoveredCoupon 
     discount_type: percentMatch ? 'PERCENTAGE' : fixedMatch ? 'FIXED' : 'UNKNOWN',
     discount_value: percentMatch ? Number(percentMatch[1]) : parseMoney(fixedMatch?.[1]),
     minimum_order_value: parseMoney(minMatch?.[1]),
-    expires_at: expiresMatch?.[1],
+    expires_at: (() => { const raw=expiresMatch?.[1]; if (!raw) return undefined; const [day,month,yearRaw]=raw.split('/'); const year=yearRaw ? (yearRaw.length===2 ? '20'+yearRaw : yearRaw) : String(new Date().getFullYear()); return `${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}T23:59:59-03:00`; })(),
     source_url: sourceUrl,
     verified: true,
     status: 'AVAILABLE',
