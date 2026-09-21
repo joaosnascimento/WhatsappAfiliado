@@ -421,7 +421,7 @@ export class MercadoLivreOfficialSessionProvider {
         .trim()
         .slice(0, 180) || 'Produto Mercado Livre';
 
-      const productIdMatch = row.href.match(/(?:\/p\/|\/)(MLB[-_][A-Za-z0-9_-]+)/i);
+      const externalId = productIdMatch?.[1] || Buffer.from(row.href).toString('base64url').slice(0, 32);
       const externalId = productIdMatch?.[1] || Buffer.from(row.href).toString('base64url').slice(0, 32);
 
       products.push({
