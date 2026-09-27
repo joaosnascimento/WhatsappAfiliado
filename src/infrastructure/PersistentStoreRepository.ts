@@ -64,6 +64,15 @@ export class PersistentStoreRepository {
       conversions: [...this.store.conversions.values()],
     };
     await transaction(async client => {
+      // A workspace is the parent row for every persisted entity in this store.
+      // Some local/auth flows can materialize a workspace in memory before its
+      // database row exists. Create the parent first so account/destination/state
+      // persistence cannot fail with a foreign-key violation.
+      await client.query(
+        `INSERT INTO workspaces (id, name) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING`,
+        [workspaceId, `Workspace ${workspaceId}`],
+      );
+
       for (const account of this.store.accounts.values()) {
         await client.query(
           `INSERT INTO marketplace_accounts (id,workspace_id,marketplace,status,status_message,credentials_encrypted,created_at,updated_at)
